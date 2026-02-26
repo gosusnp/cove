@@ -14,7 +14,7 @@ import (
 
 func newTestProgramServer(t *testing.T) (http.Handler, *service.ProgramService) {
 	t.Helper()
-	svc := service.NewProgramService(store.NewProgramStore(newTestDB(t)))
+	svc := service.NewProgramService(newTestDB(t))
 	mux := http.NewServeMux()
 	NewProgramHandler(svc).RegisterRoutes(mux)
 	return mux, svc
@@ -85,7 +85,7 @@ func TestProgramHandler_Get(t *testing.T) {
 			t.Fatal(err)
 		}
 		mux := http.NewServeMux()
-		NewProgramHandler(service.NewProgramService(store.NewProgramStore(db))).RegisterRoutes(mux)
+		NewProgramHandler(service.NewProgramService(db)).RegisterRoutes(mux)
 
 		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/programs/%d", p.ID), nil)
 		w := httptest.NewRecorder()

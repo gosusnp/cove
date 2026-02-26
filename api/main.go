@@ -31,7 +31,7 @@ func main() {
 
 	svcs := covemcp.Services{
 		Exercises:        service.NewExerciseService(store.NewExerciseStore(database)),
-		Programs:         service.NewProgramService(store.NewProgramStore(database)),
+		Programs:         service.NewProgramService(database),
 		ProgramSets:      service.NewProgramSetService(store.NewProgramSetStore(database)),
 		ProgramExercises: service.NewProgramExerciseService(store.NewProgramExerciseStore(database)),
 	}

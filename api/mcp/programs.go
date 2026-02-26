@@ -87,4 +87,22 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "deleted"}}}, struct{}{}, nil
 	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "create_program_full",
+		Description: "Creates a complete program with all its sets and exercises in a single atomic operation. All exercise_ids must exist before calling — use list_exercises and create_exercise to prepare the exercise library first. If any part fails nothing is written.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, params struct {
+		Name string                    `json:"name"`
+		Sets []service.ProgramSetInput `json:"sets"`
+	}) (*mcp.CallToolResult, struct{}, error) {
+		program, err := programs.CreateFull(params.Name, params.Sets)
+		if err != nil {
+			return nil, struct{}{}, err
+		}
+		b, err := json.Marshal(program)
+		if err != nil {
+			return nil, struct{}{}, err
+		}
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, struct{}{}, nil
+	})
 }
