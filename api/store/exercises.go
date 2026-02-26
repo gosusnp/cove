@@ -19,7 +19,7 @@ func NewExerciseStore(db *sql.DB) *ExerciseStore {
 }
 
 func (s *ExerciseStore) List() ([]Exercise, error) {
-	rows, err := s.db.Query(`SELECT id, name, progression FROM exercises ORDER BY name`)
+	rows, err := s.db.Query(`SELECT id, name FROM exercises ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("list exercises: %w", err)
 	}
@@ -28,7 +28,7 @@ func (s *ExerciseStore) List() ([]Exercise, error) {
 	exercises := []Exercise{}
 	for rows.Next() {
 		var e Exercise
-		if err := rows.Scan(&e.ID, &e.Name, &e.Progression); err != nil {
+		if err := rows.Scan(&e.ID, &e.Name); err != nil {
 			return nil, fmt.Errorf("scan exercise: %w", err)
 		}
 		exercises = append(exercises, e)
@@ -36,8 +36,8 @@ func (s *ExerciseStore) List() ([]Exercise, error) {
 	return exercises, rows.Err()
 }
 
-func (s *ExerciseStore) Get(id int64) (*Exercise, error) {
-	var e Exercise
+func (s *ExerciseStore) Get(id int64) (*ExerciseDetail, error) {
+	var e ExerciseDetail
 	err := s.db.QueryRow(`SELECT id, name, progression FROM exercises WHERE id = ?`, id).
 		Scan(&e.ID, &e.Name, &e.Progression)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -53,7 +53,7 @@ func isUniqueConstraintErr(err error) bool {
 	return strings.Contains(err.Error(), "UNIQUE constraint failed")
 }
 
-func (s *ExerciseStore) Create(name string, progression *string) (*Exercise, error) {
+func (s *ExerciseStore) Create(name string, progression *string) (*ExerciseDetail, error) {
 	res, err := s.db.Exec(
 		`INSERT INTO exercises (name, progression) VALUES (?, ?)`,
 		name, progression,
@@ -71,7 +71,7 @@ func (s *ExerciseStore) Create(name string, progression *string) (*Exercise, err
 	return s.Get(id)
 }
 
-func (s *ExerciseStore) Update(id int64, name string, progression *string) (*Exercise, error) {
+func (s *ExerciseStore) Update(id int64, name string, progression *string) (*ExerciseDetail, error) {
 	res, err := s.db.Exec(
 		`UPDATE exercises SET name = ?, progression = ? WHERE id = ?`,
 		name, progression, id,

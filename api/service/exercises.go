@@ -23,11 +23,11 @@ func (s *ExerciseService) List() ([]store.Exercise, error) {
 	return s.store.List()
 }
 
-func (s *ExerciseService) Get(id int64) (*store.Exercise, error) {
+func (s *ExerciseService) Get(id int64) (*store.ExerciseDetail, error) {
 	return s.store.Get(id)
 }
 
-func (s *ExerciseService) Create(name string, progression *string) (*store.Exercise, error) {
+func (s *ExerciseService) Create(name string, progression *string) (*store.ExerciseDetail, error) {
 	name = normalizeName(name)
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
@@ -39,7 +39,7 @@ func (s *ExerciseService) Create(name string, progression *string) (*store.Exerc
 	return e, err
 }
 
-func (s *ExerciseService) Update(id int64, name string, progression *string) (*store.Exercise, error) {
+func (s *ExerciseService) Update(id int64, name string, progression *string) (*store.ExerciseDetail, error) {
 	name = normalizeName(name)
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
