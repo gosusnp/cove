@@ -22,8 +22,10 @@ func main() {
 	defer database.Close()
 
 	server := covemcp.NewServer(covemcp.Services{
-		Exercises: service.NewExerciseService(store.NewExerciseStore(database)),
-		Programs:  service.NewProgramService(store.NewProgramStore(database)),
+		Exercises:        service.NewExerciseService(store.NewExerciseStore(database)),
+		Programs:         service.NewProgramService(store.NewProgramStore(database)),
+		ProgramSets:      service.NewProgramSetService(store.NewProgramSetStore(database)),
+		ProgramExercises: service.NewProgramExerciseService(store.NewProgramExerciseStore(database)),
 	})
 
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {

@@ -29,17 +29,19 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	exerciseSvc := service.NewExerciseService(store.NewExerciseStore(database))
-	programSvc := service.NewProgramService(store.NewProgramStore(database))
-	handlers.NewExerciseHandler(exerciseSvc).RegisterRoutes(mux)
-	handlers.NewProgramHandler(programSvc).RegisterRoutes(mux)
-	handlers.NewProgramSetHandler(service.NewProgramSetService(store.NewProgramSetStore(database))).RegisterRoutes(mux)
-	handlers.NewProgramExerciseHandler(service.NewProgramExerciseService(store.NewProgramExerciseStore(database))).RegisterRoutes(mux)
+	svcs := covemcp.Services{
+		Exercises:        service.NewExerciseService(store.NewExerciseStore(database)),
+		Programs:         service.NewProgramService(store.NewProgramStore(database)),
+		ProgramSets:      service.NewProgramSetService(store.NewProgramSetStore(database)),
+		ProgramExercises: service.NewProgramExerciseService(store.NewProgramExerciseStore(database)),
+	}
 
-	mux.Handle("/mcp/", covemcp.NewHTTPHandler(covemcp.Services{
-		Exercises: exerciseSvc,
-		Programs:  programSvc,
-	}))
+	handlers.NewExerciseHandler(svcs.Exercises).RegisterRoutes(mux)
+	handlers.NewProgramHandler(svcs.Programs).RegisterRoutes(mux)
+	handlers.NewProgramSetHandler(svcs.ProgramSets).RegisterRoutes(mux)
+	handlers.NewProgramExerciseHandler(svcs.ProgramExercises).RegisterRoutes(mux)
+
+	mux.Handle("/mcp/", covemcp.NewHTTPHandler(svcs))
 
 	port := os.Getenv("COVE_PORT")
 	if port == "" {
