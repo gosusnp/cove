@@ -8,12 +8,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gosusnp/cove/api/service"
 	"github.com/gosusnp/cove/api/store"
 )
 
 type programExerciseTestServer struct {
 	mux        http.Handler
-	store      *store.ProgramExerciseStore
+	svc        *service.ProgramExerciseService
 	programID  int64
 	setID      int64
 	exerciseID int64
@@ -35,13 +36,13 @@ func newTestProgramExerciseServer(t *testing.T) programExerciseTestServer {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pes := store.NewProgramExerciseStore(db)
+	svc := service.NewProgramExerciseService(store.NewProgramExerciseStore(db))
 	mux := http.NewServeMux()
-	NewProgramExerciseHandler(pes).RegisterRoutes(mux)
+	NewProgramExerciseHandler(svc).RegisterRoutes(mux)
 
 	return programExerciseTestServer{
 		mux:        mux,
-		store:      pes,
+		svc:        svc,
 		programID:  p.ID,
 		setID:      ps.ID,
 		exerciseID: e.ID,
@@ -74,10 +75,10 @@ func TestProgramExerciseHandler_List(t *testing.T) {
 
 	t.Run("returns exercises for set", func(t *testing.T) {
 		ts := newTestProgramExerciseServer(t)
-		if _, err := ts.store.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil); err != nil {
+		if _, err := ts.svc.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := ts.store.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil); err != nil {
+		if _, err := ts.svc.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 
@@ -101,7 +102,7 @@ func TestProgramExerciseHandler_List(t *testing.T) {
 func TestProgramExerciseHandler_Get(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
 		ts := newTestProgramExerciseServer(t)
-		created, err := ts.store.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil)
+		created, err := ts.svc.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -187,7 +188,7 @@ func TestProgramExerciseHandler_Create(t *testing.T) {
 func TestProgramExerciseHandler_Update(t *testing.T) {
 	t.Run("updates exercise", func(t *testing.T) {
 		ts := newTestProgramExerciseServer(t)
-		created, err := ts.store.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil)
+		created, err := ts.svc.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -225,7 +226,7 @@ func TestProgramExerciseHandler_Update(t *testing.T) {
 
 	t.Run("missing exercise_id returns 400", func(t *testing.T) {
 		ts := newTestProgramExerciseServer(t)
-		created, err := ts.store.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil)
+		created, err := ts.svc.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -243,7 +244,7 @@ func TestProgramExerciseHandler_Update(t *testing.T) {
 func TestProgramExerciseHandler_Delete(t *testing.T) {
 	t.Run("deletes exercise", func(t *testing.T) {
 		ts := newTestProgramExerciseServer(t)
-		created, err := ts.store.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil)
+		created, err := ts.svc.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -1,0 +1,37 @@
+package service
+
+import "github.com/gosusnp/cove/api/store"
+
+type ExerciseService struct {
+	store *store.ExerciseStore
+}
+
+func NewExerciseService(s *store.ExerciseStore) *ExerciseService {
+	return &ExerciseService{store: s}
+}
+
+func (s *ExerciseService) List() ([]store.Exercise, error) {
+	return s.store.List()
+}
+
+func (s *ExerciseService) Get(id int64) (*store.Exercise, error) {
+	return s.store.Get(id)
+}
+
+func (s *ExerciseService) Create(name string, progression *string) (*store.Exercise, error) {
+	if name == "" {
+		return nil, &ValidationError{Msg: "name is required"}
+	}
+	return s.store.Create(name, progression)
+}
+
+func (s *ExerciseService) Update(id int64, name string, progression *string) (*store.Exercise, error) {
+	if name == "" {
+		return nil, &ValidationError{Msg: "name is required"}
+	}
+	return s.store.Update(id, name, progression)
+}
+
+func (s *ExerciseService) Delete(id int64) error {
+	return s.store.Delete(id)
+}

@@ -5,15 +5,15 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/gosusnp/cove/api/store"
+	"github.com/gosusnp/cove/api/service"
 )
 
 type ProgramExerciseHandler struct {
-	store *store.ProgramExerciseStore
+	svc *service.ProgramExerciseService
 }
 
-func NewProgramExerciseHandler(s *store.ProgramExerciseStore) *ProgramExerciseHandler {
-	return &ProgramExerciseHandler{store: s}
+func NewProgramExerciseHandler(s *service.ProgramExerciseService) *ProgramExerciseHandler {
+	return &ProgramExerciseHandler{svc: s}
 }
 
 func (h *ProgramExerciseHandler) RegisterRoutes(mux *http.ServeMux) {
@@ -39,7 +39,7 @@ func (h *ProgramExerciseHandler) list(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid set id", http.StatusBadRequest)
 		return
 	}
-	exercises, err := h.store.List(setID)
+	exercises, err := h.svc.List(setID)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -58,8 +58,8 @@ func (h *ProgramExerciseHandler) get(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	pe, err := h.store.Get(setID, id)
-	if errors.Is(err, store.ErrNotFound) {
+	pe, err := h.svc.Get(setID, id)
+	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "program exercise not found", http.StatusNotFound)
 		return
 	}
@@ -81,11 +81,12 @@ func (h *ProgramExerciseHandler) create(w http.ResponseWriter, r *http.Request) 
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	if req.ExerciseID == 0 {
-		jsonError(w, "exercise_id is required", http.StatusBadRequest)
+	pe, err := h.svc.Create(setID, req.ExerciseID, req.Laterality, req.TargetReps, req.TargetDurationSeconds, req.TargetWeightKg, req.SortOrder)
+	var ve *service.ValidationError
+	if errors.As(err, &ve) {
+		jsonError(w, ve.Error(), http.StatusBadRequest)
 		return
 	}
-	pe, err := h.store.Create(setID, req.ExerciseID, req.Laterality, req.TargetReps, req.TargetDurationSeconds, req.TargetWeightKg, req.SortOrder)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -109,12 +110,13 @@ func (h *ProgramExerciseHandler) update(w http.ResponseWriter, r *http.Request) 
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	if req.ExerciseID == 0 {
-		jsonError(w, "exercise_id is required", http.StatusBadRequest)
+	pe, err := h.svc.Update(setID, id, req.ExerciseID, req.Laterality, req.TargetReps, req.TargetDurationSeconds, req.TargetWeightKg, req.SortOrder)
+	var ve *service.ValidationError
+	if errors.As(err, &ve) {
+		jsonError(w, ve.Error(), http.StatusBadRequest)
 		return
 	}
-	pe, err := h.store.Update(setID, id, req.ExerciseID, req.Laterality, req.TargetReps, req.TargetDurationSeconds, req.TargetWeightKg, req.SortOrder)
-	if errors.Is(err, store.ErrNotFound) {
+	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "program exercise not found", http.StatusNotFound)
 		return
 	}
@@ -136,8 +138,8 @@ func (h *ProgramExerciseHandler) delete(w http.ResponseWriter, r *http.Request) 
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	err = h.store.Delete(setID, id)
-	if errors.Is(err, store.ErrNotFound) {
+	err = h.svc.Delete(setID, id)
+	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "program exercise not found", http.StatusNotFound)
 		return
 	}

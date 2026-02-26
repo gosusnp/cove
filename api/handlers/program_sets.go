@@ -5,15 +5,15 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/gosusnp/cove/api/store"
+	"github.com/gosusnp/cove/api/service"
 )
 
 type ProgramSetHandler struct {
-	store *store.ProgramSetStore
+	svc *service.ProgramSetService
 }
 
-func NewProgramSetHandler(s *store.ProgramSetStore) *ProgramSetHandler {
-	return &ProgramSetHandler{store: s}
+func NewProgramSetHandler(s *service.ProgramSetService) *ProgramSetHandler {
+	return &ProgramSetHandler{svc: s}
 }
 
 func (h *ProgramSetHandler) RegisterRoutes(mux *http.ServeMux) {
@@ -37,7 +37,7 @@ func (h *ProgramSetHandler) list(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid program id", http.StatusBadRequest)
 		return
 	}
-	sets, err := h.store.List(programID)
+	sets, err := h.svc.List(programID)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -56,8 +56,8 @@ func (h *ProgramSetHandler) get(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	ps, err := h.store.Get(programID, id)
-	if errors.Is(err, store.ErrNotFound) {
+	ps, err := h.svc.Get(programID, id)
+	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "program set not found", http.StatusNotFound)
 		return
 	}
@@ -79,10 +79,7 @@ func (h *ProgramSetHandler) create(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	if req.Rounds < 1 {
-		req.Rounds = 1
-	}
-	ps, err := h.store.Create(programID, req.Name, req.Rounds, req.IntraSetRestSeconds, req.SortOrder)
+	ps, err := h.svc.Create(programID, req.Name, req.Rounds, req.IntraSetRestSeconds, req.SortOrder)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -106,11 +103,8 @@ func (h *ProgramSetHandler) update(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	if req.Rounds < 1 {
-		req.Rounds = 1
-	}
-	ps, err := h.store.Update(programID, id, req.Name, req.Rounds, req.IntraSetRestSeconds, req.SortOrder)
-	if errors.Is(err, store.ErrNotFound) {
+	ps, err := h.svc.Update(programID, id, req.Name, req.Rounds, req.IntraSetRestSeconds, req.SortOrder)
+	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "program set not found", http.StatusNotFound)
 		return
 	}
@@ -132,8 +126,8 @@ func (h *ProgramSetHandler) delete(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	err = h.store.Delete(programID, id)
-	if errors.Is(err, store.ErrNotFound) {
+	err = h.svc.Delete(programID, id)
+	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "program set not found", http.StatusNotFound)
 		return
 	}

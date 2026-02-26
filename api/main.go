@@ -7,7 +7,9 @@ import (
 
 	"github.com/gosusnp/cove/api/db"
 	"github.com/gosusnp/cove/api/handlers"
+	covemcp "github.com/gosusnp/cove/api/mcp"
 	"github.com/gosusnp/cove/api/middleware"
+	"github.com/gosusnp/cove/api/service"
 	"github.com/gosusnp/cove/api/store"
 )
 
@@ -27,10 +29,13 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	handlers.NewExerciseHandler(store.NewExerciseStore(database)).RegisterRoutes(mux)
-	handlers.NewProgramHandler(store.NewProgramStore(database)).RegisterRoutes(mux)
-	handlers.NewProgramSetHandler(store.NewProgramSetStore(database)).RegisterRoutes(mux)
-	handlers.NewProgramExerciseHandler(store.NewProgramExerciseStore(database)).RegisterRoutes(mux)
+	exerciseSvc := service.NewExerciseService(store.NewExerciseStore(database))
+	handlers.NewExerciseHandler(exerciseSvc).RegisterRoutes(mux)
+	handlers.NewProgramHandler(service.NewProgramService(store.NewProgramStore(database))).RegisterRoutes(mux)
+	handlers.NewProgramSetHandler(service.NewProgramSetService(store.NewProgramSetStore(database))).RegisterRoutes(mux)
+	handlers.NewProgramExerciseHandler(service.NewProgramExerciseService(store.NewProgramExerciseStore(database))).RegisterRoutes(mux)
+
+	mux.Handle("/mcp/", covemcp.NewHTTPHandler(exerciseSvc))
 
 	port := os.Getenv("COVE_PORT")
 	if port == "" {

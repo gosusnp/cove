@@ -8,15 +8,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gosusnp/cove/api/service"
 	"github.com/gosusnp/cove/api/store"
 )
 
-func newTestProgramServer(t *testing.T) (http.Handler, *store.ProgramStore) {
+func newTestProgramServer(t *testing.T) (http.Handler, *service.ProgramService) {
 	t.Helper()
-	s := store.NewProgramStore(newTestDB(t))
+	svc := service.NewProgramService(store.NewProgramStore(newTestDB(t)))
 	mux := http.NewServeMux()
-	NewProgramHandler(s).RegisterRoutes(mux)
-	return mux, s
+	NewProgramHandler(svc).RegisterRoutes(mux)
+	return mux, svc
 }
 
 func TestProgramHandler_List(t *testing.T) {
@@ -84,7 +85,7 @@ func TestProgramHandler_Get(t *testing.T) {
 			t.Fatal(err)
 		}
 		mux := http.NewServeMux()
-		NewProgramHandler(store.NewProgramStore(db)).RegisterRoutes(mux)
+		NewProgramHandler(service.NewProgramService(store.NewProgramStore(db))).RegisterRoutes(mux)
 
 		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/programs/%d", p.ID), nil)
 		w := httptest.NewRecorder()

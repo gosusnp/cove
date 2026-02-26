@@ -14,6 +14,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/file"
 	_ "modernc.org/sqlite"
 
+	"github.com/gosusnp/cove/api/service"
 	"github.com/gosusnp/cove/api/store"
 )
 
@@ -49,12 +50,12 @@ func newTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-func newTestServer(t *testing.T) (http.Handler, *store.ExerciseStore) {
+func newTestServer(t *testing.T) (http.Handler, *service.ExerciseService) {
 	t.Helper()
-	s := store.NewExerciseStore(newTestDB(t))
+	svc := service.NewExerciseService(store.NewExerciseStore(newTestDB(t)))
 	mux := http.NewServeMux()
-	NewExerciseHandler(s).RegisterRoutes(mux)
-	return mux, s
+	NewExerciseHandler(svc).RegisterRoutes(mux)
+	return mux, svc
 }
 
 func TestExerciseHandler_List(t *testing.T) {
