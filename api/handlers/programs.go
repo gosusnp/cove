@@ -43,7 +43,7 @@ func (h *ProgramHandler) get(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	program, err := h.store.Get(id)
+	program, err := h.store.GetDetail(id)
 	if errors.Is(err, store.ErrNotFound) {
 		jsonError(w, "program not found", http.StatusNotFound)
 		return

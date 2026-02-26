@@ -8,6 +8,7 @@ import (
 func newTestProgramStore(t *testing.T) *ProgramStore {
 	t.Helper()
 	return NewProgramStore(newTestDB(t))
+
 }
 
 func TestProgramStore_List(t *testing.T) {
@@ -127,6 +128,70 @@ func TestProgramStore_Update(t *testing.T) {
 		_, err := s.Update(999, "Strength")
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func TestProgramStore_GetDetail(t *testing.T) {
+	t.Run("not found", func(t *testing.T) {
+		s := newTestProgramStore(t)
+
+		_, err := s.GetDetail(999)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("empty program has empty sets slice", func(t *testing.T) {
+		s := newTestProgramStore(t)
+		p, err := s.Create("Strength")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		detail, err := s.GetDetail(p.ID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if detail.Sets == nil {
+			t.Error("expected empty sets slice, got nil")
+		}
+		if len(detail.Sets) != 0 {
+			t.Errorf("expected 0 sets, got %d", len(detail.Sets))
+		}
+	})
+
+	t.Run("returns full hierarchy", func(t *testing.T) {
+		db := newTestDB(t)
+		p, _ := NewProgramStore(db).Create("Strength")
+		ps, _ := NewProgramSetStore(db).Create(p.ID, nil, 3, nil, nil)
+		e, _ := NewExerciseStore(db).Create("Pull-up", nil)
+		reps := 8
+		if _, err := NewProgramExerciseStore(db).Create(ps.ID, e.ID, nil, &reps, nil, nil, nil); err != nil {
+			t.Fatal(err)
+		}
+
+		detail, err := NewProgramStore(db).GetDetail(p.ID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(detail.Sets) != 1 {
+			t.Fatalf("expected 1 set, got %d", len(detail.Sets))
+		}
+		if detail.Sets[0].Rounds != 3 {
+			t.Errorf("got rounds %d, want 3", detail.Sets[0].Rounds)
+		}
+		if detail.Sets[0].Exercises == nil {
+			t.Error("expected empty exercises slice, got nil")
+		}
+		if len(detail.Sets[0].Exercises) != 1 {
+			t.Fatalf("expected 1 exercise, got %d", len(detail.Sets[0].Exercises))
+		}
+		if detail.Sets[0].Exercises[0].Name != "Pull-up" {
+			t.Errorf("got exercise name %q, want %q", detail.Sets[0].Exercises[0].Name, "Pull-up")
+		}
+		if detail.Sets[0].Exercises[0].TargetReps == nil || *detail.Sets[0].Exercises[0].TargetReps != 8 {
+			t.Errorf("got target_reps %v, want 8", detail.Sets[0].Exercises[0].TargetReps)
 		}
 	})
 }

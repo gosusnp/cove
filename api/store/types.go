@@ -11,6 +11,33 @@ type Program struct {
 	Name string `json:"name"`
 }
 
+// ProgramDetail is the full program hierarchy returned by GET /programs/{id}.
+type ProgramDetail struct {
+	ID   int64              `json:"id"`
+	Name string             `json:"name"`
+	Sets []ProgramSetDetail `json:"sets"`
+}
+
+type ProgramSetDetail struct {
+	ID                  int64                   `json:"id"`
+	Name                *string                 `json:"name"`
+	Rounds              int                     `json:"rounds"`
+	IntraSetRestSeconds *int                    `json:"intra_set_rest_seconds"`
+	SortOrder           *int                    `json:"sort_order"`
+	Exercises           []ProgramExerciseDetail `json:"exercises"`
+}
+
+type ProgramExerciseDetail struct {
+	ID                    int64    `json:"id"`
+	ExerciseID            int64    `json:"exercise_id"`
+	Name                  string   `json:"name"`
+	Laterality            *string  `json:"laterality"`
+	TargetReps            *int     `json:"target_reps"`
+	TargetDurationSeconds *int     `json:"target_duration_seconds"`
+	TargetWeightKg        *float64 `json:"target_weight_kg"`
+	SortOrder             *int     `json:"sort_order"`
+}
+
 type ProgramSet struct {
 	ID                  int64   `json:"id"`
 	ProgramID           int64   `json:"program_id"`

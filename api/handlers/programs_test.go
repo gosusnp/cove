@@ -66,26 +66,48 @@ func TestProgramHandler_List(t *testing.T) {
 }
 
 func TestProgramHandler_Get(t *testing.T) {
-	t.Run("found", func(t *testing.T) {
-		mux, s := newTestProgramServer(t)
-		created, err := s.Create("Strength")
+	t.Run("found returns full hierarchy", func(t *testing.T) {
+		db := newTestDB(t)
+		p, err := store.NewProgramStore(db).Create("Strength")
 		if err != nil {
 			t.Fatal(err)
 		}
+		ps, err := store.NewProgramSetStore(db).Create(p.ID, nil, 3, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		e, err := store.NewExerciseStore(db).Create("Pull-up", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.NewProgramExerciseStore(db).Create(ps.ID, e.ID, nil, nil, nil, nil, nil); err != nil {
+			t.Fatal(err)
+		}
+		mux := http.NewServeMux()
+		NewProgramHandler(store.NewProgramStore(db)).RegisterRoutes(mux)
 
-		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/programs/%d", created.ID), nil)
+		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/programs/%d", p.ID), nil)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
 		}
-		var got store.Program
+		var got store.ProgramDetail
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
 		if got.Name != "Strength" {
 			t.Errorf("got name %q, want %q", got.Name, "Strength")
+		}
+		if len(got.Sets) != 1 {
+			t.Fatalf("expected 1 set, got %d", len(got.Sets))
+		}
+		if len(got.Sets[0].Exercises) != 1 {
+			t.Fatalf("expected 1 exercise, got %d", len(got.Sets[0].Exercises))
+		}
+		if got.Sets[0].Exercises[0].Name != "Pull-up" {
+			t.Errorf("got exercise name %q, want %q", got.Sets[0].Exercises[0].Name, "Pull-up")
 		}
 	})
 
