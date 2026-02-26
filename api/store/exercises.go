@@ -4,9 +4,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 var ErrNotFound = errors.New("not found")
+var ErrDuplicate = errors.New("duplicate")
 
 type ExerciseStore struct {
 	db *sql.DB
@@ -47,12 +49,19 @@ func (s *ExerciseStore) Get(id int64) (*Exercise, error) {
 	return &e, nil
 }
 
+func isUniqueConstraintErr(err error) bool {
+	return strings.Contains(err.Error(), "UNIQUE constraint failed")
+}
+
 func (s *ExerciseStore) Create(name string, progression *string) (*Exercise, error) {
 	res, err := s.db.Exec(
 		`INSERT INTO exercises (name, progression) VALUES (?, ?)`,
 		name, progression,
 	)
 	if err != nil {
+		if isUniqueConstraintErr(err) {
+			return nil, ErrDuplicate
+		}
 		return nil, fmt.Errorf("create exercise: %w", err)
 	}
 	id, err := res.LastInsertId()
@@ -68,6 +77,9 @@ func (s *ExerciseStore) Update(id int64, name string, progression *string) (*Exe
 		name, progression, id,
 	)
 	if err != nil {
+		if isUniqueConstraintErr(err) {
+			return nil, ErrDuplicate
+		}
 		return nil, fmt.Errorf("update exercise: %w", err)
 	}
 	n, err := res.RowsAffected()

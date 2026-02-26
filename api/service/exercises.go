@@ -1,6 +1,10 @@
 package service
 
-import "github.com/gosusnp/cove/api/store"
+import (
+	"errors"
+
+	"github.com/gosusnp/cove/api/store"
+)
 
 type ExerciseService struct {
 	store *store.ExerciseStore
@@ -22,14 +26,22 @@ func (s *ExerciseService) Create(name string, progression *string) (*store.Exerc
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
 	}
-	return s.store.Create(name, progression)
+	e, err := s.store.Create(name, progression)
+	if errors.Is(err, store.ErrDuplicate) {
+		return nil, &ValidationError{Msg: "exercise with this name already exists"}
+	}
+	return e, err
 }
 
 func (s *ExerciseService) Update(id int64, name string, progression *string) (*store.Exercise, error) {
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
 	}
-	return s.store.Update(id, name, progression)
+	e, err := s.store.Update(id, name, progression)
+	if errors.Is(err, store.ErrDuplicate) {
+		return nil, &ValidationError{Msg: "exercise with this name already exists"}
+	}
+	return e, err
 }
 
 func (s *ExerciseService) Delete(id int64) error {
