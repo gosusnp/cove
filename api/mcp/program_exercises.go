@@ -16,9 +16,9 @@ func registerProgramExerciseTools(server *mcp.Server, exercises *service.Program
 		SetID                 int64    `json:"set_id"`
 		ExerciseID            int64    `json:"exercise_id"`
 		Laterality            *string  `json:"laterality,omitempty"`
-		TargetReps            *int     `json:"target_reps,omitempty"`
-		TargetDurationSeconds *int     `json:"target_duration_seconds,omitempty"`
-		TargetWeightKg        *float64 `json:"target_weight_kg,omitempty"`
+		TargetReps            *int     `json:"reps,omitempty"`
+		TargetDurationSeconds *int     `json:"duration_s,omitempty"`
+		TargetWeightKg        *float64 `json:"weight_kg,omitempty"`
 		SortOrder             *int     `json:"sort_order,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
 		pe, err := exercises.Create(params.SetID, params.ExerciseID, params.Laterality, params.TargetReps, params.TargetDurationSeconds, params.TargetWeightKg, params.SortOrder)
@@ -40,9 +40,9 @@ func registerProgramExerciseTools(server *mcp.Server, exercises *service.Program
 		ID                    int64    `json:"id"`
 		ExerciseID            int64    `json:"exercise_id"`
 		Laterality            *string  `json:"laterality,omitempty"`
-		TargetReps            *int     `json:"target_reps,omitempty"`
-		TargetDurationSeconds *int     `json:"target_duration_seconds,omitempty"`
-		TargetWeightKg        *float64 `json:"target_weight_kg,omitempty"`
+		TargetReps            *int     `json:"reps,omitempty"`
+		TargetDurationSeconds *int     `json:"duration_s,omitempty"`
+		TargetWeightKg        *float64 `json:"weight_kg,omitempty"`
 		SortOrder             *int     `json:"sort_order,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
 		pe, err := exercises.Update(params.SetID, params.ID, params.ExerciseID, params.Laterality, params.TargetReps, params.TargetDurationSeconds, params.TargetWeightKg, params.SortOrder)

@@ -112,7 +112,7 @@ func TestProgramSetHandler_Create(t *testing.T) {
 	t.Run("creates with all fields", func(t *testing.T) {
 		mux, _, programID := newTestProgramSetServer(t)
 
-		body := `{"name":"Warmup","rounds":3,"intra_set_rest_seconds":60}`
+		body := `{"name":"Warmup","rounds":3,"rest_s":60}`
 		r := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/programs/%d/sets", programID), strings.NewReader(body))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, r)

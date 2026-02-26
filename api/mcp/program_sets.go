@@ -16,7 +16,7 @@ func registerProgramSetTools(server *mcp.Server, sets *service.ProgramSetService
 		ProgramID           int64   `json:"program_id"`
 		Name                *string `json:"name,omitempty"`
 		Rounds              int     `json:"rounds"`
-		IntraSetRestSeconds *int    `json:"intra_set_rest_seconds,omitempty"`
+		IntraSetRestSeconds *int    `json:"rest_s,omitempty"`
 		SortOrder           *int    `json:"sort_order,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
 		ps, err := sets.Create(params.ProgramID, params.Name, params.Rounds, params.IntraSetRestSeconds, params.SortOrder)
@@ -38,7 +38,7 @@ func registerProgramSetTools(server *mcp.Server, sets *service.ProgramSetService
 		ID                  int64   `json:"id"`
 		Name                *string `json:"name,omitempty"`
 		Rounds              int     `json:"rounds"`
-		IntraSetRestSeconds *int    `json:"intra_set_rest_seconds,omitempty"`
+		IntraSetRestSeconds *int    `json:"rest_s,omitempty"`
 		SortOrder           *int    `json:"sort_order,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
 		ps, err := sets.Update(params.ProgramID, params.ID, params.Name, params.Rounds, params.IntraSetRestSeconds, params.SortOrder)

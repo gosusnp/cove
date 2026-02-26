@@ -140,7 +140,7 @@ func TestProgramExerciseHandler_Create(t *testing.T) {
 	t.Run("creates with all fields", func(t *testing.T) {
 		ts := newTestProgramExerciseServer(t)
 
-		body := fmt.Sprintf(`{"exercise_id":%d,"laterality":"bilateral","target_reps":10,"target_weight_kg":20.5}`, ts.exerciseID)
+		body := fmt.Sprintf(`{"exercise_id":%d,"laterality":"bilateral","reps":10,"weight_kg":20.5}`, ts.exerciseID)
 		r := httptest.NewRequest(http.MethodPost, ts.url(""), strings.NewReader(body))
 		w := httptest.NewRecorder()
 		ts.mux.ServeHTTP(w, r)
@@ -193,7 +193,7 @@ func TestProgramExerciseHandler_Update(t *testing.T) {
 			t.Fatal(err)
 		}
 		reps := 12
-		body := fmt.Sprintf(`{"exercise_id":%d,"target_reps":%d}`, ts.exerciseID, reps)
+		body := fmt.Sprintf(`{"exercise_id":%d,"reps":%d}`, ts.exerciseID, reps)
 
 		r := httptest.NewRequest(http.MethodPut, ts.url(fmt.Sprintf("/%d", created.ID)), strings.NewReader(body))
 		w := httptest.NewRecorder()

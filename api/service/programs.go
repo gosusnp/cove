@@ -10,16 +10,16 @@ import (
 type ProgramExerciseInput struct {
 	ExerciseID            int64    `json:"exercise_id"`
 	Laterality            *string  `json:"laterality,omitempty"`
-	TargetReps            *int     `json:"target_reps,omitempty"`
-	TargetDurationSeconds *int     `json:"target_duration_seconds,omitempty"`
-	TargetWeightKg        *float64 `json:"target_weight_kg,omitempty"`
+	TargetReps            *int     `json:"reps,omitempty"`
+	TargetDurationSeconds *int     `json:"duration_s,omitempty"`
+	TargetWeightKg        *float64 `json:"weight_kg,omitempty"`
 	SortOrder             *int     `json:"sort_order,omitempty"`
 }
 
 type ProgramSetInput struct {
 	Name                *string                `json:"name,omitempty"`
 	Rounds              int                    `json:"rounds"`
-	IntraSetRestSeconds *int                   `json:"intra_set_rest_seconds,omitempty"`
+	IntraSetRestSeconds *int                   `json:"rest_s,omitempty"`
 	SortOrder           *int                   `json:"sort_order,omitempty"`
 	Exercises           []ProgramExerciseInput `json:"exercises"`
 }
