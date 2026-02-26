@@ -2,13 +2,17 @@ package db
 
 import (
 	"database/sql"
+	"embed"
 	"log"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
-	"github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "modernc.org/sqlite"
 )
+
+//go:embed migrations/*.sql
+var migrationsFS embed.FS
 
 func Open(path string) *sql.DB {
 	db, err := sql.Open("sqlite", path)
@@ -30,12 +34,12 @@ func runMigrations(db *sql.DB) {
 		log.Fatalf("failed to create migration driver: %v", err)
 	}
 
-	source, err := (&file.File{}).Open("file://db/migrations")
+	source, err := iofs.New(migrationsFS, "migrations")
 	if err != nil {
 		log.Fatalf("failed to open migrations: %v", err)
 	}
 
-	m, err := migrate.NewWithInstance("file", source, "sqlite", driver)
+	m, err := migrate.NewWithInstance("iofs", source, "sqlite", driver)
 	if err != nil {
 		log.Fatalf("failed to create migrator: %v", err)
 	}

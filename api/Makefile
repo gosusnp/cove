@@ -3,6 +3,9 @@ COVE_API_KEY ?= dev-key
 run:
 	COVE_API_KEY=$(COVE_API_KEY) go run main.go
 
+build-mcp:
+	go build -o bin/cove-mcp ./cmd/mcp
+
 test:
 	go test ./...
 
