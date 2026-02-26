@@ -7,10 +7,16 @@ import (
 
 	"github.com/gosusnp/cove/api/db"
 	"github.com/gosusnp/cove/api/handlers"
+	"github.com/gosusnp/cove/api/middleware"
 	"github.com/gosusnp/cove/api/store"
 )
 
 func main() {
+	apiKey := os.Getenv("COVE_API_KEY")
+	if apiKey == "" {
+		log.Fatal("COVE_API_KEY is required")
+	}
+
 	dbPath := os.Getenv("COVE_DB_PATH")
 	if dbPath == "" {
 		dbPath = "cove.db"
@@ -29,5 +35,5 @@ func main() {
 	}
 
 	log.Printf("cove listening on :%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, mux))
+	log.Fatal(http.ListenAndServe(":"+port, middleware.APIKey(apiKey, mux)))
 }

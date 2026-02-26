@@ -1,5 +1,7 @@
+COVE_API_KEY ?= dev-key
+
 run:
-	go run main.go
+	COVE_API_KEY=$(COVE_API_KEY) go run main.go
 
 test:
 	go test ./...
