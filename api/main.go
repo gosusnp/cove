@@ -6,6 +6,8 @@ import (
 	"os"
 
 	"github.com/gosusnp/cove/api/db"
+	"github.com/gosusnp/cove/api/handlers"
+	"github.com/gosusnp/cove/api/store"
 )
 
 func main() {
@@ -18,6 +20,8 @@ func main() {
 	defer database.Close()
 
 	mux := http.NewServeMux()
+
+	handlers.NewExerciseHandler(store.NewExerciseStore(database)).RegisterRoutes(mux)
 
 	port := os.Getenv("COVE_PORT")
 	if port == "" {
