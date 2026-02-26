@@ -21,8 +21,10 @@ func main() {
 	database := db.Open(dbPath)
 	defer database.Close()
 
-	exerciseSvc := service.NewExerciseService(store.NewExerciseStore(database))
-	server := covemcp.NewServer(exerciseSvc)
+	server := covemcp.NewServer(covemcp.Services{
+		Exercises: service.NewExerciseService(store.NewExerciseStore(database)),
+		Programs:  service.NewProgramService(store.NewProgramStore(database)),
+	})
 
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		log.Fatal(err)

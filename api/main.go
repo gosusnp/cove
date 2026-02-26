@@ -30,12 +30,16 @@ func main() {
 	mux := http.NewServeMux()
 
 	exerciseSvc := service.NewExerciseService(store.NewExerciseStore(database))
+	programSvc := service.NewProgramService(store.NewProgramStore(database))
 	handlers.NewExerciseHandler(exerciseSvc).RegisterRoutes(mux)
-	handlers.NewProgramHandler(service.NewProgramService(store.NewProgramStore(database))).RegisterRoutes(mux)
+	handlers.NewProgramHandler(programSvc).RegisterRoutes(mux)
 	handlers.NewProgramSetHandler(service.NewProgramSetService(store.NewProgramSetStore(database))).RegisterRoutes(mux)
 	handlers.NewProgramExerciseHandler(service.NewProgramExerciseService(store.NewProgramExerciseStore(database))).RegisterRoutes(mux)
 
-	mux.Handle("/mcp/", covemcp.NewHTTPHandler(exerciseSvc))
+	mux.Handle("/mcp/", covemcp.NewHTTPHandler(covemcp.Services{
+		Exercises: exerciseSvc,
+		Programs:  programSvc,
+	}))
 
 	port := os.Getenv("COVE_PORT")
 	if port == "" {
