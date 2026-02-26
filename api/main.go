@@ -28,6 +28,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	handlers.NewExerciseHandler(store.NewExerciseStore(database)).RegisterRoutes(mux)
+	handlers.NewProgramHandler(store.NewProgramStore(database)).RegisterRoutes(mux)
 
 	port := os.Getenv("COVE_PORT")
 	if port == "" {
