@@ -15,3 +15,5 @@ lint:
 
 fmt:
 	gofmt -w .
+
+check: fmt lint test
