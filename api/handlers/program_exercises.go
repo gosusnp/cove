@@ -26,11 +26,11 @@ func (h *ProgramExerciseHandler) RegisterRoutes(mux *http.ServeMux) {
 
 type programExerciseRequest struct {
 	ExerciseID            int64    `json:"exercise_id"`
-	Laterality            *string  `json:"laterality"`
-	TargetReps            *int     `json:"target_reps"`
-	TargetDurationSeconds *int     `json:"target_duration_seconds"`
-	TargetWeightKg        *float64 `json:"target_weight_kg"`
-	SortOrder             *int     `json:"sort_order"`
+	Laterality            *string  `json:"laterality,omitempty"`
+	TargetReps            *int     `json:"target_reps,omitempty"`
+	TargetDurationSeconds *int     `json:"target_duration_seconds,omitempty"`
+	TargetWeightKg        *float64 `json:"target_weight_kg,omitempty"`
+	SortOrder             *int     `json:"sort_order,omitempty"`
 }
 
 func (h *ProgramExerciseHandler) list(w http.ResponseWriter, r *http.Request) {

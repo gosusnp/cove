@@ -25,10 +25,10 @@ func (h *ProgramSetHandler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 type programSetRequest struct {
-	Name                *string `json:"name"`
+	Name                *string `json:"name,omitempty"`
 	Rounds              int     `json:"rounds"`
-	IntraSetRestSeconds *int    `json:"intra_set_rest_seconds"`
-	SortOrder           *int    `json:"sort_order"`
+	IntraSetRestSeconds *int    `json:"intra_set_rest_seconds,omitempty"`
+	SortOrder           *int    `json:"sort_order,omitempty"`
 }
 
 func (h *ProgramSetHandler) list(w http.ResponseWriter, r *http.Request) {

@@ -26,7 +26,7 @@ func (h *ExerciseHandler) RegisterRoutes(mux *http.ServeMux) {
 
 type exerciseRequest struct {
 	Name        string  `json:"name"`
-	Progression *string `json:"progression"`
+	Progression *string `json:"progression,omitempty"`
 }
 
 func (h *ExerciseHandler) list(w http.ResponseWriter, r *http.Request) {
