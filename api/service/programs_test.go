@@ -49,7 +49,7 @@ func TestProgramService_CreateFull(t *testing.T) {
 		}
 		reps := 8
 
-		detail, err := svc.CreateFull("Strength", []ProgramSetInput{
+		program, err := svc.CreateFull("Strength", []ProgramSetInput{
 			{
 				Rounds: 3,
 				Exercises: []ProgramExerciseInput{
@@ -57,6 +57,14 @@ func TestProgramService_CreateFull(t *testing.T) {
 				},
 			},
 		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if program.Name != "Strength" {
+			t.Errorf("got name %q, want %q", program.Name, "Strength")
+		}
+
+		detail, err := svc.GetDetail(program.ID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

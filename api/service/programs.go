@@ -62,7 +62,7 @@ func (s *ProgramService) Delete(id int64) error {
 	return s.store.Delete(id)
 }
 
-func (s *ProgramService) CreateFull(name string, sets []ProgramSetInput) (*store.ProgramDetail, error) {
+func (s *ProgramService) CreateFull(name string, sets []ProgramSetInput) (*store.Program, error) {
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
 	}
@@ -117,7 +117,7 @@ func (s *ProgramService) CreateFull(name string, sets []ProgramSetInput) (*store
 		return nil, fmt.Errorf("commit: %w", err)
 	}
 
-	return s.store.GetDetail(programID)
+	return &store.Program{ID: programID, Name: name}, nil
 }
 
 func (s *ProgramService) validateExerciseIDs(sets []ProgramSetInput) error {
