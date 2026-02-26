@@ -30,6 +30,7 @@ func main() {
 	handlers.NewExerciseHandler(store.NewExerciseStore(database)).RegisterRoutes(mux)
 	handlers.NewProgramHandler(store.NewProgramStore(database)).RegisterRoutes(mux)
 	handlers.NewProgramSetHandler(store.NewProgramSetStore(database)).RegisterRoutes(mux)
+	handlers.NewProgramExerciseHandler(store.NewProgramExerciseStore(database)).RegisterRoutes(mux)
 
 	port := os.Getenv("COVE_PORT")
 	if port == "" {

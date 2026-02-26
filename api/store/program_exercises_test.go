@@ -1,0 +1,231 @@
+package store
+
+import (
+	"errors"
+	"testing"
+)
+
+type programExerciseFixture struct {
+	store      *ProgramExerciseStore
+	programID  int64
+	setID      int64
+	exerciseID int64
+}
+
+func newProgramExerciseFixture(t *testing.T) programExerciseFixture {
+	t.Helper()
+	db := newTestDB(t)
+
+	p, err := NewProgramStore(db).Create("Test Program")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ps, err := NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewExerciseStore(db).Create("Pull-up", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return programExerciseFixture{
+		store:      NewProgramExerciseStore(db),
+		programID:  p.ID,
+		setID:      ps.ID,
+		exerciseID: e.ID,
+	}
+}
+
+func TestProgramExerciseStore_List(t *testing.T) {
+	t.Run("empty returns empty slice not nil", func(t *testing.T) {
+		f := newProgramExerciseFixture(t)
+
+		exercises, err := f.store.List(f.setID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if exercises == nil {
+			t.Error("expected empty slice, got nil")
+		}
+		if len(exercises) != 0 {
+			t.Errorf("expected 0 exercises, got %d", len(exercises))
+		}
+	})
+
+	t.Run("returns exercises for set only", func(t *testing.T) {
+		db := newTestDB(t)
+		p, _ := NewProgramStore(db).Create("Program")
+		set1, _ := NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
+		set2, _ := NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
+		e, _ := NewExerciseStore(db).Create("Pull-up", nil)
+		pes := NewProgramExerciseStore(db)
+
+		if _, err := pes.Create(set1.ID, e.ID, nil, nil, nil, nil, nil); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pes.Create(set1.ID, e.ID, nil, nil, nil, nil, nil); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pes.Create(set2.ID, e.ID, nil, nil, nil, nil, nil); err != nil {
+			t.Fatal(err)
+		}
+
+		exercises, err := pes.List(set1.ID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(exercises) != 2 {
+			t.Errorf("expected 2 exercises for set 1, got %d", len(exercises))
+		}
+	})
+}
+
+func TestProgramExerciseStore_Get(t *testing.T) {
+	t.Run("found", func(t *testing.T) {
+		f := newProgramExerciseFixture(t)
+		created, err := f.store.Create(f.setID, f.exerciseID, nil, nil, nil, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		got, err := f.store.Get(f.setID, created.ID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.ExerciseID != f.exerciseID {
+			t.Errorf("got exercise_id %d, want %d", got.ExerciseID, f.exerciseID)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		f := newProgramExerciseFixture(t)
+
+		_, err := f.store.Get(f.setID, 999)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("wrong set returns not found", func(t *testing.T) {
+		db := newTestDB(t)
+		p, _ := NewProgramStore(db).Create("Program")
+		set1, _ := NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
+		set2, _ := NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
+		e, _ := NewExerciseStore(db).Create("Pull-up", nil)
+		pes := NewProgramExerciseStore(db)
+
+		created, err := pes.Create(set1.ID, e.ID, nil, nil, nil, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = pes.Get(set2.ID, created.ID)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func TestProgramExerciseStore_Create(t *testing.T) {
+	t.Run("creates with all fields", func(t *testing.T) {
+		f := newProgramExerciseFixture(t)
+		lat := "bilateral"
+		reps := 10
+		dur := 30
+		weight := 20.5
+		order := 1
+
+		pe, err := f.store.Create(f.setID, f.exerciseID, &lat, &reps, &dur, &weight, &order)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if pe.Laterality == nil || *pe.Laterality != "bilateral" {
+			t.Errorf("got laterality %v, want %q", pe.Laterality, "bilateral")
+		}
+		if pe.TargetReps == nil || *pe.TargetReps != 10 {
+			t.Errorf("got target_reps %v, want 10", pe.TargetReps)
+		}
+		if pe.TargetWeightKg == nil || *pe.TargetWeightKg != 20.5 {
+			t.Errorf("got target_weight_kg %v, want 20.5", pe.TargetWeightKg)
+		}
+	})
+
+	t.Run("creates with minimal fields", func(t *testing.T) {
+		f := newProgramExerciseFixture(t)
+
+		pe, err := f.store.Create(f.setID, f.exerciseID, nil, nil, nil, nil, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if pe.Laterality != nil {
+			t.Errorf("expected nil laterality, got %v", pe.Laterality)
+		}
+		if pe.TargetReps != nil {
+			t.Errorf("expected nil target_reps, got %v", pe.TargetReps)
+		}
+	})
+}
+
+func TestProgramExerciseStore_Update(t *testing.T) {
+	t.Run("updates fields", func(t *testing.T) {
+		db := newTestDB(t)
+		p, _ := NewProgramStore(db).Create("Program")
+		ps, _ := NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
+		e1, _ := NewExerciseStore(db).Create("Pull-up", nil)
+		e2, _ := NewExerciseStore(db).Create("Push-up", nil)
+		store := NewProgramExerciseStore(db)
+
+		created, err := store.Create(ps.ID, e1.ID, nil, nil, nil, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reps := 12
+
+		updated, err := store.Update(ps.ID, created.ID, e2.ID, nil, &reps, nil, nil, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if updated.ExerciseID != e2.ID {
+			t.Errorf("got exercise_id %d, want %d", updated.ExerciseID, e2.ID)
+		}
+		if updated.TargetReps == nil || *updated.TargetReps != 12 {
+			t.Errorf("got target_reps %v, want 12", updated.TargetReps)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		f := newProgramExerciseFixture(t)
+
+		_, err := f.store.Update(f.setID, 999, f.exerciseID, nil, nil, nil, nil, nil)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func TestProgramExerciseStore_Delete(t *testing.T) {
+	t.Run("deletes existing", func(t *testing.T) {
+		f := newProgramExerciseFixture(t)
+		created, err := f.store.Create(f.setID, f.exerciseID, nil, nil, nil, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := f.store.Delete(f.setID, created.ID); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		_, err = f.store.Get(f.setID, created.ID)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("expected ErrNotFound after delete, got %v", err)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		f := newProgramExerciseFixture(t)
+
+		err := f.store.Delete(f.setID, 999)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+}
