@@ -64,6 +64,18 @@ func TestExerciseService_Create(t *testing.T) {
 		}
 	})
 
+	t.Run("whitespace is normalized", func(t *testing.T) {
+		svc := newTestExerciseService(t)
+
+		e, err := svc.Create("  Pull  up  ", nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if e.Name != "Pull up" {
+			t.Errorf("got name %q, want %q", e.Name, "Pull up")
+		}
+	})
+
 	t.Run("name is stored as entered", func(t *testing.T) {
 		svc := newTestExerciseService(t)
 

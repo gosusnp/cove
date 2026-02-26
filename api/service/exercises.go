@@ -2,9 +2,14 @@ package service
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/gosusnp/cove/api/store"
 )
+
+func normalizeName(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
 
 type ExerciseService struct {
 	store *store.ExerciseStore
@@ -23,6 +28,7 @@ func (s *ExerciseService) Get(id int64) (*store.Exercise, error) {
 }
 
 func (s *ExerciseService) Create(name string, progression *string) (*store.Exercise, error) {
+	name = normalizeName(name)
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
 	}
@@ -34,6 +40,7 @@ func (s *ExerciseService) Create(name string, progression *string) (*store.Exerc
 }
 
 func (s *ExerciseService) Update(id int64, name string, progression *string) (*store.Exercise, error) {
+	name = normalizeName(name)
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
 	}
