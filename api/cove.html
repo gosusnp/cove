@@ -229,7 +229,7 @@ input:focus, select:focus { outline: none; border-color: #555; box-shadow: 0 0 0
       </div>
       <div class="form-group">
         <label>Rest between sets (sec)</label>
-        <input type="number" x-model.number="setForm.intra_set_rest_seconds" min="0" max="600" />
+        <input type="number" x-model.number="setForm.rest_s" min="0" max="600" />
       </div>
     </div>
     <div class="modal-actions">
@@ -266,16 +266,16 @@ input:focus, select:focus { outline: none; border-color: #555; box-shadow: 0 0 0
     <div class="form-row">
       <div class="form-group">
         <label>Target Reps</label>
-        <input type="number" x-model="pexForm.target_reps" min="1" placeholder="—" />
+        <input type="number" x-model="pexForm.reps" min="1" placeholder="—" />
       </div>
       <div class="form-group">
         <label>Target Duration (sec)</label>
-        <input type="number" x-model="pexForm.target_duration_seconds" min="1" placeholder="—" />
+        <input type="number" x-model="pexForm.duration_s" min="1" placeholder="—" />
       </div>
     </div>
     <div class="form-group">
       <label>Target Weight (kg)</label>
-      <input type="number" x-model="pexForm.target_weight_kg" step="0.5" placeholder="0 = bodyweight" />
+      <input type="number" x-model="pexForm.weight_kg" step="0.5" placeholder="0 = bodyweight" />
       <p class="form-hint">Negative = assisted (e.g. -10kg band). Zero or blank = bodyweight. Positive = added weight.</p>
     </div>
     <div class="modal-actions">
@@ -377,8 +377,8 @@ input:focus, select:focus { outline: none; border-color: #555; box-shadow: 0 0 0
         <div class="set-header">
           <span class="set-title" x-text="set.name || 'Unnamed Set'"></span>
           <span class="set-meta" x-text="`${set.rounds ?? 1} × `"></span>
-          <template x-if="set.intra_set_rest_seconds">
-            <span class="set-meta" x-text="`${set.intra_set_rest_seconds}s rest`"></span>
+          <template x-if="set.rest_s">
+            <span class="set-meta" x-text="`${set.rest_s}s rest`"></span>
           </template>
           <span class="spacer"></span>
           <button class="btn-link edit" @click="openEditSet(set)">Edit</button>
@@ -402,12 +402,12 @@ input:focus, select:focus { outline: none; border-color: #555; box-shadow: 0 0 0
                 <tr>
                   <td x-text="pex.name"></td>
                   <td x-text="pex.laterality || '—'" style="color:#666;font-size:12px"></td>
-                  <td x-text="pex.target_reps ?? '—'"></td>
-                  <td x-text="pex.target_duration_seconds ? pex.target_duration_seconds + 's' : '—'"></td>
+                  <td x-text="pex.reps ?? '—'"></td>
+                  <td x-text="pex.duration_s ? pex.duration_s + 's' : '—'"></td>
                   <td>
-                    <span x-show="!pex.target_weight_kg" class="tag-bw">bodyweight</span>
-                    <span x-show="pex.target_weight_kg > 0" class="tag-added" x-text="'+' + pex.target_weight_kg + 'kg'"></span>
-                    <span x-show="pex.target_weight_kg < 0" class="tag-assisted" x-text="pex.target_weight_kg + 'kg (assisted)'"></span>
+                    <span x-show="!pex.weight_kg" class="tag-bw">bodyweight</span>
+                    <span x-show="pex.weight_kg > 0" class="tag-added" x-text="'+' + pex.weight_kg + 'kg'"></span>
+                    <span x-show="pex.weight_kg < 0" class="tag-assisted" x-text="pex.weight_kg + 'kg (assisted)'"></span>
                   </td>
                   <td class="actions-cell">
                     <button class="btn-link edit" @click="openEditPEx(pex, set)">Edit</button>
@@ -463,13 +463,13 @@ function app() {
     // Set modal
     showSetModal: false,
     editingSet: null,
-    setForm: { name: '', rounds: 3, intra_set_rest_seconds: 90 },
+    setForm: { name: '', rounds: 3, rest_s: 90 },
 
     // PEx modal
     showPExModal: false,
     editingPEx: null,
     targetPExSet: null,
-    pexForm: { exercise_id: '', laterality: '', target_reps: '', target_duration_seconds: '', target_weight_kg: '' },
+    pexForm: { exercise_id: '', laterality: '', reps: '', duration_s: '', weight_kg: '' },
 
     // ── Computed ────────────────────────────────────────────
     get exercisesSorted() {
@@ -477,11 +477,11 @@ function app() {
     },
 
     sortedSets() {
-      return [...(this.currentProgram?.sets ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      return this.currentProgram?.sets ?? [];
     },
 
     sortedExercises(set) {
-      return [...(set.exercises ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      return set.exercises ?? [];
     },
 
     // ── Init ────────────────────────────────────────────────
@@ -582,7 +582,7 @@ function app() {
       if (this.exerciseForm.progression.trim()) body.progression = this.exerciseForm.progression.trim();
       const ok = await this.run(() =>
         this.editingExercise
-          ? this.api('PATCH', `/exercises/${this.editingExercise.id}`, body)
+          ? this.api('PUT', `/exercises/${this.editingExercise.id}`, body)
           : this.api('POST', '/exercises', body)
       );
       if (ok !== null) { this.showExerciseModal = false; await this.loadExercises(); }
@@ -619,7 +619,7 @@ function app() {
       const body = { name: this.programForm.name.trim() };
       const ok = await this.run(() =>
         this.editingProgram
-          ? this.api('PATCH', `/programs/${this.editingProgram.id}`, body)
+          ? this.api('PUT', `/programs/${this.editingProgram.id}`, body)
           : this.api('POST', '/programs', body)
       );
       if (ok !== null) {
@@ -653,7 +653,7 @@ function app() {
     // ── Sets ────────────────────────────────────────────────
     openNewSet() {
       this.editingSet = null;
-      this.setForm = { name: '', rounds: 3, intra_set_rest_seconds: 90 };
+      this.setForm = { name: '', rounds: 3, rest_s: 90 };
       this.showSetModal = true;
       this.$nextTick(() => this.$refs.setName?.focus());
     },
@@ -663,7 +663,7 @@ function app() {
       this.setForm = {
         name: set.name ?? '',
         rounds: set.rounds ?? 3,
-        intra_set_rest_seconds: set.intra_set_rest_seconds ?? 90,
+        rest_s: set.rest_s ?? 90,
       };
       this.showSetModal = true;
       this.$nextTick(() => this.$refs.setName?.focus());
@@ -673,14 +673,14 @@ function app() {
       const body = {
         name: this.setForm.name.trim() || null,
         rounds: Number(this.setForm.rounds) || 1,
-        intra_set_rest_seconds: Number(this.setForm.intra_set_rest_seconds) || 0,
+        rest_s: Number(this.setForm.rest_s) || 0,
       };
+      const pid = this.currentProgram.id;
       const ok = await this.run(() =>
         this.editingSet
-          ? this.api('PATCH', `/program-sets/${this.editingSet.id}`, body)
-          : this.api('POST', '/program-sets', {
+          ? this.api('PUT', `/programs/${pid}/sets/${this.editingSet.id}`, body)
+          : this.api('POST', `/programs/${pid}/sets`, {
               ...body,
-              program_id: this.currentProgram.id,
               sort_order: this.currentProgram?.sets?.length ?? 0,
             })
       );
@@ -689,7 +689,8 @@ function app() {
 
     async deleteSet(set) {
       if (!confirm(`Delete set "${set.name || 'this set'}" and all its exercises?`)) return;
-      const ok = await this.run(() => this.api('DELETE', `/program-sets/${set.id}`));
+      const pid = this.currentProgram.id;
+      const ok = await this.run(() => this.api('DELETE', `/programs/${pid}/sets/${set.id}`));
       if (ok !== null) await this.refreshProgram();
     },
 
@@ -697,7 +698,7 @@ function app() {
     openNewPEx(set) {
       this.editingPEx = null;
       this.targetPExSet = set;
-      this.pexForm = { exercise_id: '', laterality: '', target_reps: '', target_duration_seconds: '', target_weight_kg: '' };
+      this.pexForm = { exercise_id: '', laterality: '', reps: '', duration_s: '', weight_kg: '' };
       this.showPExModal = true;
     },
 
@@ -707,9 +708,9 @@ function app() {
       this.pexForm = {
         exercise_id: pex.exercise_id ?? '',
         laterality: pex.laterality ?? '',
-        target_reps: pex.target_reps != null ? String(pex.target_reps) : '',
-        target_duration_seconds: pex.target_duration_seconds != null ? String(pex.target_duration_seconds) : '',
-        target_weight_kg: pex.target_weight_kg != null ? String(pex.target_weight_kg) : '',
+        reps: pex.reps != null ? String(pex.reps) : '',
+        duration_s: pex.duration_s != null ? String(pex.duration_s) : '',
+        weight_kg: pex.weight_kg != null ? String(pex.weight_kg) : '',
       };
       this.showPExModal = true;
     },
@@ -718,19 +719,20 @@ function app() {
       if (!this.pexForm.exercise_id) { this.showToast('Select an exercise', 'error'); return; }
       const body = { exercise_id: Number(this.pexForm.exercise_id) };
       if (this.pexForm.laterality) body.laterality = this.pexForm.laterality;
-      const tr = this._num(this.pexForm.target_reps);
-      const td = this._num(this.pexForm.target_duration_seconds);
-      const tw = this._num(this.pexForm.target_weight_kg);
-      if (tr !== null) body.target_reps = tr;
-      if (td !== null) body.target_duration_seconds = td;
-      if (tw !== null) body.target_weight_kg = tw;
+      const tr = this._num(this.pexForm.reps);
+      const td = this._num(this.pexForm.duration_s);
+      const tw = this._num(this.pexForm.weight_kg);
+      if (tr !== null) body.reps = tr;
+      if (td !== null) body.duration_s = td;
+      if (tw !== null) body.weight_kg = tw;
 
+      const pid = this.currentProgram.id;
+      const sid = this.targetPExSet.id;
       const ok = await this.run(() =>
         this.editingPEx
-          ? this.api('PATCH', `/program-exercises/${this.editingPEx.id}`, body)
-          : this.api('POST', '/program-exercises', {
+          ? this.api('PUT', `/programs/${pid}/sets/${sid}/exercises/${this.editingPEx.id}`, body)
+          : this.api('POST', `/programs/${pid}/sets/${sid}/exercises`, {
               ...body,
-              set_id: this.targetPExSet.id,
               sort_order: this.targetPExSet.exercises?.length ?? 0,
             })
       );
@@ -739,7 +741,8 @@ function app() {
 
     async deletePEx(pex, set) {
       if (!confirm(`Remove "${pex.name}" from this set?`)) return;
-      const ok = await this.run(() => this.api('DELETE', `/program-exercises/${pex.id}`));
+      const pid = this.currentProgram.id;
+      const ok = await this.run(() => this.api('DELETE', `/programs/${pid}/sets/${set.id}/exercises/${pex.id}`));
       if (ok !== null) await this.refreshProgram();
     },
 
