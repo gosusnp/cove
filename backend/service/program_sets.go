@@ -3,7 +3,7 @@
 
 package service
 
-import "github.com/gosusnp/cove/api/store"
+import "github.com/gosusnp/cove/backend/store"
 
 type ProgramSetService struct {
 	store *store.ProgramSetStore

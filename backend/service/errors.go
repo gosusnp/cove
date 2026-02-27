@@ -3,7 +3,7 @@
 
 package service
 
-import "github.com/gosusnp/cove/api/store"
+import "github.com/gosusnp/cove/backend/store"
 
 var ErrNotFound = store.ErrNotFound
 var ErrDuplicate = store.ErrDuplicate

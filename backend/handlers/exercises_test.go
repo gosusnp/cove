@@ -17,8 +17,8 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/file"
 	_ "modernc.org/sqlite"
 
-	"github.com/gosusnp/cove/api/service"
-	"github.com/gosusnp/cove/api/store"
+	"github.com/gosusnp/cove/backend/service"
+	"github.com/gosusnp/cove/backend/store"
 )
 
 func newTestDB(t *testing.T) *sql.DB {

@@ -8,10 +8,10 @@ import (
 	"log"
 	"os"
 
-	"github.com/gosusnp/cove/api/db"
-	covemcp "github.com/gosusnp/cove/api/mcp"
-	"github.com/gosusnp/cove/api/service"
-	"github.com/gosusnp/cove/api/store"
+	"github.com/gosusnp/cove/backend/db"
+	covemcp "github.com/gosusnp/cove/backend/mcp"
+	"github.com/gosusnp/cove/backend/service"
+	"github.com/gosusnp/cove/backend/store"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

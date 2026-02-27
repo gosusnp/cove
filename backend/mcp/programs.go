@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/gosusnp/cove/api/service"
+	"github.com/gosusnp/cove/backend/service"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

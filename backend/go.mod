@@ -1,4 +1,4 @@
-module github.com/gosusnp/cove/api
+module github.com/gosusnp/cove/backend
 
 go 1.25.4
 

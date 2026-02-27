@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gosusnp/cove/api/service"
-	"github.com/gosusnp/cove/api/store"
+	"github.com/gosusnp/cove/backend/service"
+	"github.com/gosusnp/cove/backend/store"
 )
 
 func newTestProgramServer(t *testing.T) (http.Handler, *service.ProgramService) {

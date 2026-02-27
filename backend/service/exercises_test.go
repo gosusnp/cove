@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gosusnp/cove/api/store"
+	"github.com/gosusnp/cove/backend/store"
 )
 
 func newTestExerciseService(t *testing.T) *ExerciseService {

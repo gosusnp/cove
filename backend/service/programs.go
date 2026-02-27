@@ -7,7 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/gosusnp/cove/api/store"
+	"github.com/gosusnp/cove/backend/store"
 )
 
 type ProgramExerciseInput struct {
