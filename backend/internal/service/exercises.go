@@ -7,7 +7,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/gosusnp/cove/backend/store"
+	"github.com/gosusnp/cove/backend/internal/store"
 )
 
 func normalizeName(s string) string {

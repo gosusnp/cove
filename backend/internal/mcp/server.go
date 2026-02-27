@@ -6,7 +6,7 @@ package mcp
 import (
 	"net/http"
 
-	"github.com/gosusnp/cove/backend/service"
+	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

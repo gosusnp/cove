@@ -9,12 +9,12 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gosusnp/cove/backend/db"
-	"github.com/gosusnp/cove/backend/handlers"
-	covemcp "github.com/gosusnp/cove/backend/mcp"
-	"github.com/gosusnp/cove/backend/middleware"
-	"github.com/gosusnp/cove/backend/service"
-	"github.com/gosusnp/cove/backend/store"
+	"github.com/gosusnp/cove/backend/internal/db"
+	"github.com/gosusnp/cove/backend/internal/handlers"
+	covemcp "github.com/gosusnp/cove/backend/internal/mcp"
+	"github.com/gosusnp/cove/backend/internal/middleware"
+	"github.com/gosusnp/cove/backend/internal/service"
+	"github.com/gosusnp/cove/backend/internal/store"
 )
 
 //go:embed cove.html

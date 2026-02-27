@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gosusnp/cove/backend/service"
-	"github.com/gosusnp/cove/backend/store"
+	"github.com/gosusnp/cove/backend/internal/service"
+	"github.com/gosusnp/cove/backend/internal/store"
 )
 
 type programExerciseTestServer struct {

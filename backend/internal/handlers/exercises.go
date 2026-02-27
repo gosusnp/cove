@@ -8,63 +8,64 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/gosusnp/cove/backend/service"
+	"github.com/gosusnp/cove/backend/internal/service"
 )
 
-type ProgramHandler struct {
-	svc *service.ProgramService
+type ExerciseHandler struct {
+	svc *service.ExerciseService
 }
 
-func NewProgramHandler(s *service.ProgramService) *ProgramHandler {
-	return &ProgramHandler{svc: s}
+func NewExerciseHandler(s *service.ExerciseService) *ExerciseHandler {
+	return &ExerciseHandler{svc: s}
 }
 
-func (h *ProgramHandler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /programs", h.list)
-	mux.HandleFunc("POST /programs", h.create)
-	mux.HandleFunc("GET /programs/{id}", h.get)
-	mux.HandleFunc("PUT /programs/{id}", h.update)
-	mux.HandleFunc("DELETE /programs/{id}", h.delete)
+func (h *ExerciseHandler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /exercises", h.list)
+	mux.HandleFunc("POST /exercises", h.create)
+	mux.HandleFunc("GET /exercises/{id}", h.get)
+	mux.HandleFunc("PUT /exercises/{id}", h.update)
+	mux.HandleFunc("DELETE /exercises/{id}", h.delete)
 }
 
-type programRequest struct {
-	Name string `json:"name"`
+type exerciseRequest struct {
+	Name        string  `json:"name"`
+	Progression *string `json:"progression,omitempty"`
 }
 
-func (h *ProgramHandler) list(w http.ResponseWriter, r *http.Request) {
-	programs, err := h.svc.List()
+func (h *ExerciseHandler) list(w http.ResponseWriter, r *http.Request) {
+	exercises, err := h.svc.List()
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	jsonOK(w, programs)
+	jsonOK(w, exercises)
 }
 
-func (h *ProgramHandler) get(w http.ResponseWriter, r *http.Request) {
+func (h *ExerciseHandler) get(w http.ResponseWriter, r *http.Request) {
 	id, err := pathID(r, "id")
 	if err != nil {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	program, err := h.svc.GetDetail(id)
+	exercise, err := h.svc.Get(id)
 	if errors.Is(err, service.ErrNotFound) {
-		jsonError(w, "program not found", http.StatusNotFound)
+		jsonError(w, "exercise not found", http.StatusNotFound)
 		return
 	}
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	jsonOK(w, program)
+	jsonOK(w, exercise)
 }
 
-func (h *ProgramHandler) create(w http.ResponseWriter, r *http.Request) {
-	var req programRequest
+func (h *ExerciseHandler) create(w http.ResponseWriter, r *http.Request) {
+	var req exerciseRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	program, err := h.svc.Create(req.Name)
+	exercise, err := h.svc.Create(req.Name, req.Progression)
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
 		jsonError(w, ve.Error(), http.StatusBadRequest)
@@ -74,38 +75,38 @@ func (h *ProgramHandler) create(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	jsonResponse(w, program, http.StatusCreated)
+	jsonResponse(w, exercise, http.StatusCreated)
 }
 
-func (h *ProgramHandler) update(w http.ResponseWriter, r *http.Request) {
+func (h *ExerciseHandler) update(w http.ResponseWriter, r *http.Request) {
 	id, err := pathID(r, "id")
 	if err != nil {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	var req programRequest
+	var req exerciseRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	program, err := h.svc.Update(id, req.Name)
+	exercise, err := h.svc.Update(id, req.Name, req.Progression)
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
 		jsonError(w, ve.Error(), http.StatusBadRequest)
 		return
 	}
 	if errors.Is(err, service.ErrNotFound) {
-		jsonError(w, "program not found", http.StatusNotFound)
+		jsonError(w, "exercise not found", http.StatusNotFound)
 		return
 	}
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	jsonOK(w, program)
+	jsonOK(w, exercise)
 }
 
-func (h *ProgramHandler) delete(w http.ResponseWriter, r *http.Request) {
+func (h *ExerciseHandler) delete(w http.ResponseWriter, r *http.Request) {
 	id, err := pathID(r, "id")
 	if err != nil {
 		jsonError(w, "invalid id", http.StatusBadRequest)
@@ -113,7 +114,7 @@ func (h *ProgramHandler) delete(w http.ResponseWriter, r *http.Request) {
 	}
 	err = h.svc.Delete(id)
 	if errors.Is(err, service.ErrNotFound) {
-		jsonError(w, "program not found", http.StatusNotFound)
+		jsonError(w, "exercise not found", http.StatusNotFound)
 		return
 	}
 	if err != nil {

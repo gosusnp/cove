@@ -8,7 +8,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/gosusnp/cove/backend/service"
+	"github.com/gosusnp/cove/backend/internal/service"
 )
 
 type ProgramExerciseHandler struct {

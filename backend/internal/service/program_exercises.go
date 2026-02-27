@@ -3,7 +3,7 @@
 
 package service
 
-import "github.com/gosusnp/cove/backend/store"
+import "github.com/gosusnp/cove/backend/internal/store"
 
 type ProgramExerciseService struct {
 	store *store.ProgramExerciseStore

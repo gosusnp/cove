@@ -6,7 +6,7 @@ package service
 import (
 	"testing"
 
-	"github.com/gosusnp/cove/backend/store"
+	"github.com/gosusnp/cove/backend/internal/store"
 )
 
 func newTestProgramSetService(t *testing.T) (*ProgramSetService, int64) {
