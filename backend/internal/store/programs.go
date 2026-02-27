@@ -37,7 +37,7 @@ func (s *ProgramStore) List() ([]Program, error) {
 
 func (s *ProgramStore) Get(id int64) (*Program, error) {
 	var p Program
-	err := s.db.QueryRow(`SELECT id, name FROM programs WHERE id = ?`, id).
+	err := s.db.QueryRow(`SELECT id, name FROM programs WHERE id = $1`, id).
 		Scan(&p.ID, &p.Name)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -49,19 +49,18 @@ func (s *ProgramStore) Get(id int64) (*Program, error) {
 }
 
 func (s *ProgramStore) Create(name string) (*Program, error) {
-	res, err := s.db.Exec(`INSERT INTO programs (name) VALUES (?)`, name)
+	var id int64
+	err := s.db.QueryRow(
+		`INSERT INTO programs (name) VALUES ($1) RETURNING id`, name,
+	).Scan(&id)
 	if err != nil {
 		return nil, fmt.Errorf("create program: %w", err)
-	}
-	id, err := res.LastInsertId()
-	if err != nil {
-		return nil, fmt.Errorf("last insert id: %w", err)
 	}
 	return s.Get(id)
 }
 
 func (s *ProgramStore) Update(id int64, name string) (*Program, error) {
-	res, err := s.db.Exec(`UPDATE programs SET name = ? WHERE id = ?`, name, id)
+	res, err := s.db.Exec(`UPDATE programs SET name = $1 WHERE id = $2`, name, id)
 	if err != nil {
 		return nil, fmt.Errorf("update program: %w", err)
 	}
@@ -86,7 +85,7 @@ func (s *ProgramStore) GetDetail(id int64) (*ProgramDetail, error) {
 	detail := &ProgramDetail{ID: p.ID, Name: p.Name, Sets: []ProgramSetDetail{}}
 
 	setRows, err := s.db.Query(
-		`SELECT id, name, rounds, intra_set_rest_seconds, sort_order FROM program_sets WHERE program_id = ? ORDER BY sort_order, id`,
+		`SELECT id, name, rounds, intra_set_rest_seconds, sort_order FROM program_sets WHERE program_id = $1 ORDER BY sort_order, id`,
 		id,
 	)
 	if err != nil {
@@ -117,7 +116,7 @@ func (s *ProgramStore) GetDetail(id int64) (*ProgramDetail, error) {
 		 FROM program_exercises pe
 		 JOIN exercises e ON e.id = pe.exercise_id
 		 JOIN program_sets ps ON ps.id = pe.program_set_id
-		 WHERE ps.program_id = ?
+		 WHERE ps.program_id = $1
 		 ORDER BY pe.program_set_id, pe.sort_order, pe.id`,
 		id,
 	)
@@ -143,7 +142,7 @@ func (s *ProgramStore) GetDetail(id int64) (*ProgramDetail, error) {
 }
 
 func (s *ProgramStore) Delete(id int64) error {
-	res, err := s.db.Exec(`DELETE FROM programs WHERE id = ?`, id)
+	res, err := s.db.Exec(`DELETE FROM programs WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("delete program: %w", err)
 	}

@@ -6,6 +6,7 @@ package service
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/gosusnp/cove/backend/internal/store"
 )
@@ -80,34 +81,26 @@ func (s *ProgramService) CreateFull(name string, sets []ProgramSetInput) (*store
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	res, err := tx.Exec(`INSERT INTO programs (name) VALUES (?)`, name)
-	if err != nil {
+	var programID int64
+	if err := tx.QueryRow(`INSERT INTO programs (name) VALUES ($1) RETURNING id`, name).Scan(&programID); err != nil {
 		return nil, fmt.Errorf("create program: %w", err)
-	}
-	programID, err := res.LastInsertId()
-	if err != nil {
-		return nil, fmt.Errorf("last insert id: %w", err)
 	}
 
 	for _, set := range sets {
 		if set.Rounds < 1 {
 			set.Rounds = 1
 		}
-		res, err := tx.Exec(
-			`INSERT INTO program_sets (program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES (?, ?, ?, ?, ?)`,
+		var setID int64
+		if err := tx.QueryRow(
+			`INSERT INTO program_sets (program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
 			programID, set.Name, set.Rounds, set.IntraSetRestSeconds, set.SortOrder,
-		)
-		if err != nil {
+		).Scan(&setID); err != nil {
 			return nil, fmt.Errorf("create program set: %w", err)
-		}
-		setID, err := res.LastInsertId()
-		if err != nil {
-			return nil, fmt.Errorf("last insert id: %w", err)
 		}
 
 		for _, ex := range set.Exercises {
 			_, err := tx.Exec(
-				`INSERT INTO program_exercises (program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO program_exercises (program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 				setID, ex.ExerciseID, ex.Laterality, ex.TargetReps, ex.TargetDurationSeconds, ex.TargetWeightKg, ex.SortOrder,
 			)
 			if err != nil {
@@ -140,16 +133,13 @@ func (s *ProgramService) validateExerciseIDs(sets []ProgramSetInput) error {
 	}
 
 	// Single query to fetch all existing IDs.
-	placeholders := make([]byte, 0, len(ids)*2)
+	placeholders := make([]string, len(ids))
 	args := make([]any, len(ids))
 	for i, id := range ids {
-		if i > 0 {
-			placeholders = append(placeholders, ',')
-		}
-		placeholders = append(placeholders, '?')
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
 		args[i] = id
 	}
-	rows, err := s.db.Query(`SELECT id FROM exercises WHERE id IN (`+string(placeholders)+`)`, args...)
+	rows, err := s.db.Query(`SELECT id FROM exercises WHERE id IN (`+strings.Join(placeholders, ",")+`)`, args...)
 	if err != nil {
 		return fmt.Errorf("check exercises: %w", err)
 	}

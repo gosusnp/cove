@@ -29,7 +29,7 @@ func scanProgramSet(row interface{ Scan(...any) error }) (*ProgramSet, error) {
 
 func (s *ProgramSetStore) List(programID int64) ([]ProgramSet, error) {
 	rows, err := s.db.Query(
-		`SELECT `+programSetColumns+` FROM program_sets WHERE program_id = ? ORDER BY sort_order, id`,
+		`SELECT `+programSetColumns+` FROM program_sets WHERE program_id = $1 ORDER BY sort_order, id`,
 		programID,
 	)
 	if err != nil {
@@ -50,7 +50,7 @@ func (s *ProgramSetStore) List(programID int64) ([]ProgramSet, error) {
 
 func (s *ProgramSetStore) Get(programID, id int64) (*ProgramSet, error) {
 	row := s.db.QueryRow(
-		`SELECT `+programSetColumns+` FROM program_sets WHERE id = ? AND program_id = ?`,
+		`SELECT `+programSetColumns+` FROM program_sets WHERE id = $1 AND program_id = $2`,
 		id, programID,
 	)
 	ps, err := scanProgramSet(row)
@@ -64,23 +64,20 @@ func (s *ProgramSetStore) Get(programID, id int64) (*ProgramSet, error) {
 }
 
 func (s *ProgramSetStore) Create(programID int64, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*ProgramSet, error) {
-	res, err := s.db.Exec(
-		`INSERT INTO program_sets (program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES (?, ?, ?, ?, ?)`,
+	var id int64
+	err := s.db.QueryRow(
+		`INSERT INTO program_sets (program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
 		programID, name, rounds, intraSetRestSeconds, sortOrder,
-	)
+	).Scan(&id)
 	if err != nil {
 		return nil, fmt.Errorf("create program set: %w", err)
-	}
-	id, err := res.LastInsertId()
-	if err != nil {
-		return nil, fmt.Errorf("last insert id: %w", err)
 	}
 	return s.Get(programID, id)
 }
 
 func (s *ProgramSetStore) Update(programID, id int64, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*ProgramSet, error) {
 	res, err := s.db.Exec(
-		`UPDATE program_sets SET name = ?, rounds = ?, intra_set_rest_seconds = ?, sort_order = ? WHERE id = ? AND program_id = ?`,
+		`UPDATE program_sets SET name = $1, rounds = $2, intra_set_rest_seconds = $3, sort_order = $4 WHERE id = $5 AND program_id = $6`,
 		name, rounds, intraSetRestSeconds, sortOrder, id, programID,
 	)
 	if err != nil {
@@ -98,7 +95,7 @@ func (s *ProgramSetStore) Update(programID, id int64, name *string, rounds int, 
 
 func (s *ProgramSetStore) Delete(programID, id int64) error {
 	res, err := s.db.Exec(
-		`DELETE FROM program_sets WHERE id = ? AND program_id = ?`,
+		`DELETE FROM program_sets WHERE id = $1 AND program_id = $2`,
 		id, programID,
 	)
 	if err != nil {

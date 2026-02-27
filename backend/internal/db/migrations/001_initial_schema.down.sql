@@ -8,3 +8,4 @@ DROP TABLE IF EXISTS program_exercises;
 DROP TABLE IF EXISTS program_sets;
 DROP TABLE IF EXISTS programs;
 DROP TABLE IF EXISTS exercises;
+DROP EXTENSION IF EXISTS citext;

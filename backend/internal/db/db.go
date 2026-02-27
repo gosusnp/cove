@@ -9,26 +9,19 @@ import (
 	"log"
 
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/sqlite"
+	migratepostgres "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
-	_ "modernc.org/sqlite"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 //go:embed migrations/*.sql
-var migrationsFS embed.FS
+var MigrationsFS embed.FS
 
-func Open(path string) *sql.DB {
-	// _busy_timeout retries for up to 5s before returning SQLITE_BUSY.
-	// _journal_mode=WAL allows concurrent readers alongside a single writer.
-	db, err := sql.Open("sqlite", path+"?_busy_timeout=5000&_journal_mode=WAL")
+func Open(dsn string) *sql.DB {
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
-
-	// SQLite supports only one writer at a time. A single connection in the
-	// pool serialises writes at the Go level before they reach SQLite, avoiding
-	// SQLITE_BUSY under concurrent requests.
-	db.SetMaxOpenConns(1)
 
 	if err := db.Ping(); err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
@@ -39,17 +32,17 @@ func Open(path string) *sql.DB {
 }
 
 func runMigrations(db *sql.DB) {
-	driver, err := sqlite.WithInstance(db, &sqlite.Config{})
+	driver, err := migratepostgres.WithInstance(db, &migratepostgres.Config{})
 	if err != nil {
 		log.Fatalf("failed to create migration driver: %v", err)
 	}
 
-	source, err := iofs.New(migrationsFS, "migrations")
+	source, err := iofs.New(MigrationsFS, "migrations")
 	if err != nil {
 		log.Fatalf("failed to open migrations: %v", err)
 	}
 
-	m, err := migrate.NewWithInstance("iofs", source, "sqlite", driver)
+	m, err := migrate.NewWithInstance("iofs", source, "postgres", driver)
 	if err != nil {
 		log.Fatalf("failed to create migrator: %v", err)
 	}

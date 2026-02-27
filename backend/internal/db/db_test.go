@@ -4,52 +4,59 @@
 package db
 
 import (
-	"database/sql"
+	"context"
+	"os"
 	"testing"
 
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/sqlite"
-	"github.com/golang-migrate/migrate/v4/source/file"
-	_ "modernc.org/sqlite"
+	migratepostgres "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/gosusnp/cove/backend/internal/testdb"
 )
 
-func newTestMigrator(t *testing.T) (*sql.DB, *migrate.Migrate) {
-	t.Helper()
+var containerDSN string
 
-	db, err := sql.Open("sqlite", ":memory:")
+func TestMain(m *testing.M) {
+	ctx := context.Background()
+
+	dsn, cleanup, err := testdb.StartContainer(ctx)
+	if err != nil {
+		panic(err)
+	}
+	containerDSN = dsn
+
+	code := m.Run()
+	cleanup()
+	os.Exit(code)
+}
+
+func TestMigrations_Roundtrip(t *testing.T) {
+	db := testdb.NewEmpty(t, containerDSN)
+
+	driver, err := migratepostgres.WithInstance(db, &migratepostgres.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { db.Close() })
 
-	driver, err := sqlite.WithInstance(db, &sqlite.Config{})
+	source, err := iofs.New(MigrationsFS, "migrations")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	source, err := (&file.File{}).Open("file://migrations")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	m, err := migrate.NewWithInstance("file", source, "sqlite", driver)
+	m, err := migrate.NewWithInstance("iofs", source, "postgres", driver)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { m.Close() })
-
-	return db, m
-}
-
-func TestMigrations_Roundtrip(t *testing.T) {
-	db, m := newTestMigrator(t)
 
 	if err := m.Up(); err != nil {
 		t.Fatalf("up: %v", err)
 	}
 
 	var count int
-	if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name != 'schema_migrations'`).Scan(&count); err != nil {
+	if err := db.QueryRow(
+		`SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name != 'schema_migrations'`,
+	).Scan(&count); err != nil {
 		t.Fatalf("query after Up(): %v", err)
 	}
 	if count == 0 {
@@ -60,7 +67,9 @@ func TestMigrations_Roundtrip(t *testing.T) {
 		t.Fatalf("down: %v", err)
 	}
 
-	if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name != 'schema_migrations'`).Scan(&count); err != nil {
+	if err := db.QueryRow(
+		`SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name != 'schema_migrations'`,
+	).Scan(&count); err != nil {
 		t.Fatalf("query after Down(): %v", err)
 	}
 	if count != 0 {

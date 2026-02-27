@@ -1,7 +1,8 @@
 COVE_API_KEY ?= dev-key
+DATABASE_URL ?= postgres://cove:covedev@localhost:5432/cove?sslmode=disable
 
 run:
-	COVE_API_KEY=$(COVE_API_KEY) go run main.go
+	COVE_API_KEY=$(COVE_API_KEY) DATABASE_URL=$(DATABASE_URL) go run main.go
 
 build-mcp:
 	go build -o bin/cove-mcp ./cmd/mcp
@@ -19,8 +20,17 @@ fmt:
 license-fix:
 	go tool addlicense -f ../.license_header.txt .
 
+devenv.up:
+	docker compose -f ../docker-compose.yml up -d
+
+devenv.down:
+	docker compose -f ../docker-compose.yml down
+
+devenv.reset:
+	docker compose -f ../docker-compose.yml down -v
+
 check: lint test
 
 fix: license-fix fmt
 
-.PHONY: lint fmt license-fix check fix
+.PHONY: lint fmt license-fix check fix devenv.up devenv.down devenv.reset

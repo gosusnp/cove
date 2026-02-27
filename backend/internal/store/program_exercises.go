@@ -29,7 +29,7 @@ func scanProgramExercise(row interface{ Scan(...any) error }) (*ProgramExercise,
 
 func (s *ProgramExerciseStore) List(programSetID int64) ([]ProgramExercise, error) {
 	rows, err := s.db.Query(
-		`SELECT `+programExerciseColumns+` FROM program_exercises WHERE program_set_id = ? ORDER BY sort_order, id`,
+		`SELECT `+programExerciseColumns+` FROM program_exercises WHERE program_set_id = $1 ORDER BY sort_order, id`,
 		programSetID,
 	)
 	if err != nil {
@@ -50,7 +50,7 @@ func (s *ProgramExerciseStore) List(programSetID int64) ([]ProgramExercise, erro
 
 func (s *ProgramExerciseStore) Get(programSetID, id int64) (*ProgramExercise, error) {
 	row := s.db.QueryRow(
-		`SELECT `+programExerciseColumns+` FROM program_exercises WHERE id = ? AND program_set_id = ?`,
+		`SELECT `+programExerciseColumns+` FROM program_exercises WHERE id = $1 AND program_set_id = $2`,
 		id, programSetID,
 	)
 	pe, err := scanProgramExercise(row)
@@ -64,23 +64,20 @@ func (s *ProgramExerciseStore) Get(programSetID, id int64) (*ProgramExercise, er
 }
 
 func (s *ProgramExerciseStore) Create(programSetID, exerciseID int64, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*ProgramExercise, error) {
-	res, err := s.db.Exec(
-		`INSERT INTO program_exercises (program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+	var id int64
+	err := s.db.QueryRow(
+		`INSERT INTO program_exercises (program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
 		programSetID, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder,
-	)
+	).Scan(&id)
 	if err != nil {
 		return nil, fmt.Errorf("create program exercise: %w", err)
-	}
-	id, err := res.LastInsertId()
-	if err != nil {
-		return nil, fmt.Errorf("last insert id: %w", err)
 	}
 	return s.Get(programSetID, id)
 }
 
 func (s *ProgramExerciseStore) Update(programSetID, id, exerciseID int64, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*ProgramExercise, error) {
 	res, err := s.db.Exec(
-		`UPDATE program_exercises SET exercise_id = ?, laterality = ?, target_reps = ?, target_duration_seconds = ?, target_weight_kg = ?, sort_order = ? WHERE id = ? AND program_set_id = ?`,
+		`UPDATE program_exercises SET exercise_id = $1, laterality = $2, target_reps = $3, target_duration_seconds = $4, target_weight_kg = $5, sort_order = $6 WHERE id = $7 AND program_set_id = $8`,
 		exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder, id, programSetID,
 	)
 	if err != nil {
@@ -98,7 +95,7 @@ func (s *ProgramExerciseStore) Update(programSetID, id, exerciseID int64, latera
 
 func (s *ProgramExerciseStore) Delete(programSetID, id int64) error {
 	res, err := s.db.Exec(
-		`DELETE FROM program_exercises WHERE id = ? AND program_set_id = ?`,
+		`DELETE FROM program_exercises WHERE id = $1 AND program_set_id = $2`,
 		id, programSetID,
 	)
 	if err != nil {

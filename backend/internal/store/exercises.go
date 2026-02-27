@@ -7,7 +7,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -41,7 +42,7 @@ func (s *ExerciseStore) List() ([]Exercise, error) {
 
 func (s *ExerciseStore) Get(id int64) (*ExerciseDetail, error) {
 	var e ExerciseDetail
-	err := s.db.QueryRow(`SELECT id, name, progression FROM exercises WHERE id = ?`, id).
+	err := s.db.QueryRow(`SELECT id, name, progression FROM exercises WHERE id = $1`, id).
 		Scan(&e.ID, &e.Name, &e.Progression)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -53,30 +54,28 @@ func (s *ExerciseStore) Get(id int64) (*ExerciseDetail, error) {
 }
 
 func isUniqueConstraintErr(err error) bool {
-	return strings.Contains(err.Error(), "UNIQUE constraint failed")
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 func (s *ExerciseStore) Create(name string, progression *string) (*ExerciseDetail, error) {
-	res, err := s.db.Exec(
-		`INSERT INTO exercises (name, progression) VALUES (?, ?)`,
+	var id int64
+	err := s.db.QueryRow(
+		`INSERT INTO exercises (name, progression) VALUES ($1, $2) RETURNING id`,
 		name, progression,
-	)
+	).Scan(&id)
 	if err != nil {
 		if isUniqueConstraintErr(err) {
 			return nil, ErrDuplicate
 		}
 		return nil, fmt.Errorf("create exercise: %w", err)
 	}
-	id, err := res.LastInsertId()
-	if err != nil {
-		return nil, fmt.Errorf("last insert id: %w", err)
-	}
 	return s.Get(id)
 }
 
 func (s *ExerciseStore) Update(id int64, name string, progression *string) (*ExerciseDetail, error) {
 	res, err := s.db.Exec(
-		`UPDATE exercises SET name = ?, progression = ? WHERE id = ?`,
+		`UPDATE exercises SET name = $1, progression = $2 WHERE id = $3`,
 		name, progression, id,
 	)
 	if err != nil {
@@ -96,7 +95,7 @@ func (s *ExerciseStore) Update(id int64, name string, progression *string) (*Exe
 }
 
 func (s *ExerciseStore) Delete(id int64) error {
-	res, err := s.db.Exec(`DELETE FROM exercises WHERE id = ?`, id)
+	res, err := s.db.Exec(`DELETE FROM exercises WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("delete exercise: %w", err)
 	}

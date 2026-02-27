@@ -26,12 +26,12 @@ func main() {
 		log.Fatal("COVE_API_KEY is required")
 	}
 
-	dbPath := os.Getenv("COVE_DB_PATH")
-	if dbPath == "" {
-		dbPath = "cove.db"
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		log.Fatal("DATABASE_URL is required")
 	}
 
-	database := db.Open(dbPath)
+	database := db.Open(dbURL)
 	defer database.Close()
 
 	svcs := covemcp.Services{
