@@ -15,10 +15,17 @@ import (
 var migrationsFS embed.FS
 
 func Open(path string) *sql.DB {
-	db, err := sql.Open("sqlite", path)
+	// _busy_timeout retries for up to 5s before returning SQLITE_BUSY.
+	// _journal_mode=WAL allows concurrent readers alongside a single writer.
+	db, err := sql.Open("sqlite", path+"?_busy_timeout=5000&_journal_mode=WAL")
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
+
+	// SQLite supports only one writer at a time. A single connection in the
+	// pool serialises writes at the Go level before they reach SQLite, avoiding
+	// SQLITE_BUSY under concurrent requests.
+	db.SetMaxOpenConns(1)
 
 	if err := db.Ping(); err != nil {
 		log.Fatalf("failed to connect to database: %v", err)

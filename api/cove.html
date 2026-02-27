@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Cove</title>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -136,6 +137,13 @@ input[type=text], input[type=password], input[type=number], select {
 input:focus, select:focus { outline: none; border-color: #555; box-shadow: 0 0 0 2px rgba(0,0,0,0.06); }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-hint { font-size: 11px; color: #888; margin-top: 3px; }
+
+/* Drag handles */
+.drag-handle { cursor: grab; color: #ccc; padding: 0 4px; user-select: none; font-size: 16px; line-height: 1; }
+.drag-handle:hover { color: #999; }
+.drag-handle:active { cursor: grabbing; }
+.sortable-ghost { opacity: 0.4; }
+.sortable-drag { opacity: 1; }
 
 /* Empty / misc */
 .empty { color: #999; font-size: 13px; padding: 24px; text-align: center; }
@@ -371,10 +379,12 @@ input:focus, select:focus { outline: none; border-color: #555; box-shadow: 0 0 0
 
     <div x-show="!currentProgram?.sets?.length" class="empty">No sets yet. Add a set to start building this program.</div>
 
+    <div x-ref="setsContainer">
     <template x-for="set in sortedSets()" :key="set.id">
-      <div class="set-card">
+      <div class="set-card" :data-set-id="set.id">
 
         <div class="set-header">
+          <span class="drag-handle" title="Drag to reorder">⠿</span>
           <span class="set-title" x-text="set.name || 'Unnamed Set'"></span>
           <span class="set-meta" x-text="`${set.rounds ?? 1} × `"></span>
           <template x-if="set.rest_s">
@@ -389,6 +399,7 @@ input:focus, select:focus { outline: none; border-color: #555; box-shadow: 0 0 0
           <table x-show="set.exercises?.length">
             <thead>
               <tr>
+                <th style="width:24px"></th>
                 <th>Exercise</th>
                 <th>Laterality</th>
                 <th>Reps</th>
@@ -397,9 +408,10 @@ input:focus, select:focus { outline: none; border-color: #555; box-shadow: 0 0 0
                 <th></th>
               </tr>
             </thead>
-            <tbody>
+            <tbody :data-set-id="set.id">
               <template x-for="pex in sortedExercises(set)" :key="pex.id">
-                <tr>
+                <tr :data-pex-id="pex.id">
+                  <td><span class="drag-handle" title="Drag to reorder">⠿</span></td>
                   <td x-text="pex.name"></td>
                   <td x-text="pex.laterality || '—'" style="color:#666;font-size:12px"></td>
                   <td x-text="pex.reps ?? '—'"></td>
@@ -425,6 +437,7 @@ input:focus, select:focus { outline: none; border-color: #555; box-shadow: 0 0 0
         </div>
       </div>
     </template>
+    </div>
   </div>
 
 </div>
@@ -439,6 +452,7 @@ function app() {
     // Toast
     toast: { msg: '', type: '' },
     _toastTimer: null,
+    _sortables: [],
 
     // Config
     config: { baseUrl: '', apiKey: '' },
@@ -641,13 +655,13 @@ function app() {
       this.currentTab = 'programs';
       this.view = 'detail';
       const data = await this.run(() => this.api('GET', `/programs/${prog.id}`));
-      if (data) this.currentProgram = data;
+      if (data) { this.currentProgram = data; this.$nextTick(() => this.initSortables()); }
     },
 
     async refreshProgram() {
       if (!this.currentProgram) return;
       const data = await this.run(() => this.api('GET', `/programs/${this.currentProgram.id}`));
-      if (data) this.currentProgram = data;
+      if (data) { this.currentProgram = data; this.$nextTick(() => this.initSortables()); }
     },
 
     // ── Sets ────────────────────────────────────────────────
@@ -744,6 +758,71 @@ function app() {
       const pid = this.currentProgram.id;
       const ok = await this.run(() => this.api('DELETE', `/programs/${pid}/sets/${set.id}/exercises/${pex.id}`));
       if (ok !== null) await this.refreshProgram();
+    },
+
+    // ── Drag-to-reorder ─────────────────────────────────────
+    initSortables() {
+      this._sortables.forEach(s => s.destroy());
+      this._sortables = [];
+      const container = this.$refs.setsContainer;
+      if (!container || !window.Sortable) return;
+
+      // Sets
+      this._sortables.push(Sortable.create(container, {
+        animation: 150,
+        handle: '.drag-handle',
+        draggable: '.set-card',
+        ghostClass: 'sortable-ghost',
+        onEnd: async (evt) => {
+          if (evt.oldIndex === evt.newIndex) return;
+          const ids = [...container.querySelectorAll('.set-card[data-set-id]')]
+            .map(e => Number(e.dataset.setId));
+          await this.reorderSets(ids);
+        },
+      }));
+
+      // Exercises — one Sortable per set tbody
+      container.querySelectorAll('tbody[data-set-id]').forEach(tbody => {
+        const setId = Number(tbody.dataset.setId);
+        this._sortables.push(Sortable.create(tbody, {
+          animation: 150,
+          handle: '.drag-handle',
+          ghostClass: 'sortable-ghost',
+          onEnd: async (evt) => {
+            if (evt.oldIndex === evt.newIndex) return;
+            const ids = [...tbody.querySelectorAll('tr[data-pex-id]')]
+              .map(e => Number(e.dataset.pexId));
+            await this.reorderExercises(setId, ids);
+          },
+        }));
+      });
+    },
+
+    async reorderSets(ids) {
+      const pid = this.currentProgram.id;
+      await Promise.all(ids.map((id, i) => {
+        const set = this.currentProgram.sets.find(s => s.id === id);
+        const body = { rounds: set.rounds, sort_order: i };
+        if (set.name != null) body.name = set.name;
+        if (set.rest_s != null) body.rest_s = set.rest_s;
+        return this.run(() => this.api('PUT', `/programs/${pid}/sets/${id}`, body));
+      }));
+      await this.refreshProgram();
+    },
+
+    async reorderExercises(setId, ids) {
+      const pid = this.currentProgram.id;
+      const set = this.currentProgram.sets.find(s => s.id === setId);
+      await Promise.all(ids.map((id, i) => {
+        const pex = set.exercises.find(e => e.id === id);
+        const body = { exercise_id: pex.exercise_id, sort_order: i };
+        if (pex.laterality != null) body.laterality = pex.laterality;
+        if (pex.reps != null) body.reps = pex.reps;
+        if (pex.duration_s != null) body.duration_s = pex.duration_s;
+        if (pex.weight_kg != null) body.weight_kg = pex.weight_kg;
+        return this.run(() => this.api('PUT', `/programs/${pid}/sets/${setId}/exercises/${id}`, body));
+      }));
+      await this.refreshProgram();
     },
 
     // ── Helpers ─────────────────────────────────────────────
