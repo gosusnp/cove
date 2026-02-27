@@ -1,3 +1,6 @@
+-- Copyright (c) 2026 Jimmy Ma
+-- SPDX-License-Identifier: Elastic-2.0
+
 CREATE TABLE exercises (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,

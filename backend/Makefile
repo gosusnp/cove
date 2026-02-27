@@ -19,4 +19,11 @@ lint:
 fmt:
 	gofmt -w .
 
-check: fmt lint test
+license-fix:
+	go tool addlicense -f ../.license_header.txt .
+
+check: lint test
+
+fix: license-fix fmt
+
+.PHONY: lint fmt license-fix check fix
