@@ -4,6 +4,26 @@ Structural rules for how the Cove backend is organized and how layers interact.
 
 ---
 
+## Project Layout
+
+```
+backend/          — Go module (github.com/gosusnp/cove/backend)
+  cmd/mcp/        — standalone MCP server entry point
+  internal/
+    db/           — database connection and migrations/
+    handlers/     — HTTP layer; helpers.go provides jsonOK, jsonError, jsonResponse, pathID
+    service/      — business logic and ValidationError
+    store/        — SQL queries, sentinel errors (ErrNotFound, ErrDuplicate), domain types in types.go
+    middleware/   — APIKey and OAuth auth, request logging
+    mcp/          — MCP tool registration grouped by resource
+    testdb/       — shared test infrastructure (testcontainers + pgtestdb)
+  main.go         — HTTP server entry point
+frontend/         — Preact + Vite + Tailwind v4
+docs/             — architecture and style guides
+```
+
+---
+
 ## Layer Hierarchy
 
 ```
