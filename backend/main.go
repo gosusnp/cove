@@ -99,5 +99,5 @@ func main() {
 	}
 
 	log.Printf("cove listening on :%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, outer))
+	log.Fatal(http.ListenAndServe(":"+port, middleware.Logging(outer)))
 }
