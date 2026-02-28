@@ -8,6 +8,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
+
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 
 	"github.com/gosusnp/cove/backend/internal/db"
 	"github.com/gosusnp/cove/backend/internal/handlers"
@@ -31,8 +35,35 @@ func main() {
 		log.Fatal("DATABASE_URL is required")
 	}
 
+	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
+	if googleClientID == "" {
+		log.Fatal("GOOGLE_CLIENT_ID is required")
+	}
+	googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
+	if googleClientSecret == "" {
+		log.Fatal("GOOGLE_CLIENT_SECRET is required")
+	}
+	googleRedirectURL := os.Getenv("GOOGLE_REDIRECT_URL")
+	if googleRedirectURL == "" {
+		log.Fatal("GOOGLE_REDIRECT_URL is required")
+	}
+
+	var allowedEmails []string
+	if raw := os.Getenv("COVE_ALLOWED_EMAILS"); raw != "" {
+		allowedEmails = strings.Split(raw, ",")
+	}
+
 	database := db.Open(dbURL)
 	defer database.Close()
+
+	userStore := store.NewUserStore(database)
+	oauthCfg := &oauth2.Config{
+		ClientID:     googleClientID,
+		ClientSecret: googleClientSecret,
+		RedirectURL:  googleRedirectURL,
+		Scopes:       []string{"openid", "email"},
+		Endpoint:     google.Endpoint,
+	}
 
 	svcs := covemcp.Services{
 		Exercises:        service.NewExerciseService(store.NewExerciseStore(database)),
@@ -51,7 +82,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", http.StripPrefix("/api", middleware.APIKey(apiKey, apiMux)))
-	mux.Handle("/mcp/", middleware.APIKey(apiKey, covemcp.NewHTTPHandler(svcs)))
+	mux.Handle("/mcp/", middleware.OAuth(userStore, covemcp.NewHTTPHandler(svcs)))
 
 	// Outer mux: UI at / (no auth), everything else to mux.
 	outer := http.NewServeMux()
@@ -59,6 +90,7 @@ func main() {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write(uiHTML)
 	})
+	handlers.NewOAuthHandler(oauthCfg, userStore, allowedEmails).RegisterRoutes(outer)
 	outer.Handle("/", mux)
 
 	port := os.Getenv("COVE_PORT")

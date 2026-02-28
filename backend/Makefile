@@ -1,8 +1,11 @@
+-include .env
+export
+
 COVE_API_KEY ?= dev-key
 DATABASE_URL ?= postgres://cove:covedev@localhost:5432/cove?sslmode=disable
 
 run:
-	COVE_API_KEY=$(COVE_API_KEY) DATABASE_URL=$(DATABASE_URL) go run main.go
+	go run main.go
 
 build-mcp:
 	go build -o bin/cove-mcp ./cmd/mcp
