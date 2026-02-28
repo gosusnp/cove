@@ -1,0 +1,35 @@
+/**
+ * Copyright (c) 2026 Jimmy Ma
+ * SPDX-License-Identifier: Elastic-2.0
+ */
+
+@import "tailwindcss";
+
+/* ── Base reset & tokens ─────────────────────────── */
+:root {
+	--color-bg: #f5f7fa;
+	--color-surface: #ffffff;
+	--color-text: #1a3560;
+	--color-muted: #4a6491;
+	--color-accent: #1a3560;
+
+	font-family: system-ui, -apple-system, sans-serif;
+	font-size: 16px;
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+	color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	background-color: var(--color-bg);
+	color: var(--color-text);
+	min-height: 100dvh;
+}

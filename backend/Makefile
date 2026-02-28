@@ -7,6 +7,9 @@ DATABASE_URL ?= postgres://cove:covedev@localhost:5432/cove?sslmode=disable
 run:
 	go run main.go
 
+build:
+	go build -o bin/cove .
+
 build-mcp:
 	go build -o bin/cove-mcp ./cmd/mcp
 

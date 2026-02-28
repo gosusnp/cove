@@ -4,7 +4,8 @@
 package main
 
 import (
-	_ "embed"
+	"embed"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -21,8 +22,8 @@ import (
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
-//go:embed cove.html
-var uiHTML []byte
+//go:embed ui
+var uiFS embed.FS
 
 func main() {
 	apiKey := os.Getenv("COVE_API_KEY")
@@ -84,14 +85,26 @@ func main() {
 	mux.Handle("/api/", http.StripPrefix("/api", middleware.APIKey(apiKey, apiMux)))
 	mux.Handle("/mcp/", middleware.OAuth(userStore, covemcp.NewHTTPHandler(svcs)))
 
+	staticFS, err := fs.Sub(uiFS, "ui")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fileServer := http.FileServerFS(staticFS)
+	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Try to serve the file; fall back to index.html for SPA routing.
+		_, err := staticFS.Open(strings.TrimLeft(r.URL.Path, "/"))
+		if err != nil {
+			r.URL.Path = "/"
+		}
+		fileServer.ServeHTTP(w, r)
+	})
+
 	// Outer mux: UI at / (no auth), everything else to mux.
 	outer := http.NewServeMux()
-	outer.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(uiHTML)
-	})
 	handlers.NewOAuthHandler(oauthCfg, userStore, allowedEmails).RegisterRoutes(outer)
-	outer.Handle("/", mux)
+	outer.Handle("/api/", mux)
+	outer.Handle("/mcp/", mux)
+	outer.Handle("/", spaHandler)
 
 	port := os.Getenv("COVE_PORT")
 	if port == "" {
