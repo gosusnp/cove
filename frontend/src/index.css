@@ -12,6 +12,10 @@
 	--color-text: #1a3560;
 	--color-muted: #4a6491;
 	--color-accent: #1a3560;
+	--color-border: #d6dff0;
+
+	--nav-h-mobile: 4rem;
+	--nav-h-desktop: 3.5rem;
 
 	font-family: system-ui, -apple-system, sans-serif;
 	font-size: 16px;
@@ -32,4 +36,16 @@ body {
 	background-color: var(--color-bg);
 	color: var(--color-text);
 	min-height: 100dvh;
+}
+
+/* Layout shell: bottom padding for mobile nav, top padding for desktop nav */
+.app-shell {
+	padding-bottom: var(--nav-h-mobile);
+}
+
+@media (min-width: 768px) {
+	.app-shell {
+		padding-top: var(--nav-h-desktop);
+		padding-bottom: 0;
+	}
 }

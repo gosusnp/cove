@@ -85,9 +85,18 @@ func main() {
 	mux.Handle("/api/", http.StripPrefix("/api", middleware.APIKey(apiKey, apiMux)))
 	mux.Handle("/mcp/", middleware.OAuth(userStore, covemcp.NewHTTPHandler(svcs)))
 
-	staticFS, err := fs.Sub(uiFS, "ui")
-	if err != nil {
-		log.Fatal(err)
+	var staticFS fs.FS
+	if os.Getenv("COVE_DEV") != "" {
+		log.Printf("serving local ui assets")
+		// Serve from disk so frontend rebuilds are visible without restarting.
+		staticFS = os.DirFS("ui")
+	} else {
+		log.Printf("serving embedded ui assets")
+		var err error
+		staticFS, err = fs.Sub(uiFS, "ui")
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 	fileServer := http.FileServerFS(staticFS)
 	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -101,7 +110,11 @@ func main() {
 
 	// Outer mux: UI at / (no auth), everything else to mux.
 	outer := http.NewServeMux()
-	handlers.NewOAuthHandler(oauthCfg, userStore, allowedEmails).RegisterRoutes(outer)
+	oauthHandler := handlers.NewOAuthHandler(oauthCfg, userStore, allowedEmails)
+	oauthHandler.RegisterRoutes(outer)
+	if os.Getenv("COVE_DEV") != "" {
+		oauthHandler.RegisterDevRoutes(outer)
+	}
 	outer.Handle("/api/", mux)
 	outer.Handle("/mcp/", mux)
 	outer.Handle("/", spaHandler)

@@ -9,6 +9,12 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
 	plugins: [preact(), tailwindcss()],
+	server: {
+		proxy: {
+			"/auth": "http://localhost:8080",
+			"/api": "http://localhost:8080",
+		},
+	},
 	build: {
 		outDir: "../backend/ui",
 		emptyOutDir: true,
@@ -16,6 +22,7 @@ export default defineConfig({
 	test: {
 		environment: "jsdom",
 		setupFiles: ["./src/test-setup.js"],
+		exclude: ["e2e/**", "node_modules/**"],
 		coverage: {
 			provider: "v8",
 			reporter: ["text", "html"],

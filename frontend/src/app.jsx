@@ -1,17 +1,48 @@
-/**
- * Copyright (c) 2026 Jimmy Ma
- * SPDX-License-Identifier: Elastic-2.0
- */
+// Copyright (c) 2026 Jimmy Ma
+// SPDX-License-Identifier: Elastic-2.0
+
+import { LocationProvider, Router, Route, useLocation } from "preact-iso";
+import { useEffect } from "preact/hooks";
+import { AuthProvider, useAuth } from "./auth.jsx";
+import { Nav } from "./components/Nav.jsx";
+import { Login } from "./pages/Login.jsx";
+import { Home } from "./pages/Home.jsx";
+import { Settings } from "./pages/Settings.jsx";
+
+function Layout() {
+	const { url, route } = useLocation();
+	const { user } = useAuth();
+
+	useEffect(() => {
+		if (!user && url === "/settings") {
+			route("/login");
+		} else if (user && url === "/login") {
+			route("/");
+		}
+	}, [user, url]);
+
+	// Suppress render until the redirect fires to avoid a flash of wrong content.
+	if (!user && url === "/settings") return null;
+	if (user && url === "/login") return null;
+
+	return (
+		<div class="app-shell flex flex-col min-h-dvh">
+			<Nav />
+			<Router>
+				<Route path="/login" component={Login} />
+				<Route path="/" component={Home} />
+				<Route path="/settings" component={Settings} />
+			</Router>
+		</div>
+	);
+}
 
 export function App() {
 	return (
-		<main class="flex min-h-dvh flex-col items-center justify-center gap-3 px-4">
-			<h1 class="text-6xl font-semibold tracking-tight text-[var(--color-text)]">
-				Cove
-			</h1>
-			<p class="text-sm" style={{ color: "var(--color-muted)" }}>
-				Your space.
-			</p>
-		</main>
+		<LocationProvider>
+			<AuthProvider>
+				<Layout />
+			</AuthProvider>
+		</LocationProvider>
 	);
 }

@@ -1,6 +1,9 @@
 run:
 	npm run dev
 
+watch:
+	npm run watch
+
 build:
 	npm run build
 
@@ -19,9 +22,11 @@ license-fix:
 test:
 	npm run test
 
-# TODO: add e2e target using Playwright
-# - project "dev": runs against vite dev server
-# - project "e2e": runs against built Go binary (requires make devenv.up)
+test.e2e:
+	npm run e2e
+
+e2e.ui:
+	npm run e2e:ui
 
 fix: license-fix fmt
 
@@ -29,5 +34,6 @@ check: lint test
 
 install:
 	npm install
+	npx playwright install --with-deps
 
-.PHONY: run build preview lint fmt test install
+.PHONY: run watch build preview lint fmt license-fix test test.e2e e2e.ui fix check install

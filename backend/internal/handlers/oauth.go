@@ -41,6 +41,33 @@ func (h *OAuthHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /auth/callback", h.callback)
 }
 
+// RegisterDevRoutes adds a dev-only login endpoint.
+// Only call this when COVE_DEV is set — do not expose in production.
+func (h *OAuthHandler) RegisterDevRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("POST /auth/dev-login", h.devLogin)
+}
+
+func (h *OAuthHandler) devLogin(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" {
+		jsonError(w, "email is required", http.StatusBadRequest)
+		return
+	}
+	user, _, err := h.userStore.GetOrCreate(req.Email, "dev:"+req.Email)
+	if err != nil {
+		jsonError(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	token, err := h.userStore.CreateSession(user.ID)
+	if err != nil {
+		jsonError(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	jsonOK(w, map[string]string{"token": token})
+}
+
 func (h *OAuthHandler) login(w http.ResponseWriter, r *http.Request) {
 	state, err := randomHex(16)
 	if err != nil {
@@ -103,7 +130,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jsonOK(w, map[string]string{"token": sessionToken})
+	http.Redirect(w, r, "/?token="+sessionToken, http.StatusFound)
 }
 
 type googleUserInfo struct {

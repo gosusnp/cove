@@ -123,7 +123,7 @@ func TestOAuthHandler_Callback(t *testing.T) {
 		}
 	})
 
-	t.Run("valid flow returns session token", func(t *testing.T) {
+	t.Run("valid flow redirects with session token", func(t *testing.T) {
 		tokenURL, userinfoURL := fakeOAuthServer(t, "user@example.com", "sub-123")
 		_, mux := newTestOAuthHandler(t, nil, tokenURL, userinfoURL)
 
@@ -132,15 +132,15 @@ func TestOAuthHandler_Callback(t *testing.T) {
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, r)
 
-		if w.Code != http.StatusOK {
-			t.Errorf("got status %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		if w.Code != http.StatusFound {
+			t.Errorf("got status %d, want %d: %s", w.Code, http.StatusFound, w.Body.String())
 		}
-		var resp map[string]string
-		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-			t.Fatalf("decode response: %v", err)
+		loc := w.Header().Get("Location")
+		if loc == "" {
+			t.Fatal("expected non-empty Location header")
 		}
-		if resp["token"] == "" {
-			t.Error("expected non-empty token in response")
+		if len(loc) <= len("/?token=") {
+			t.Errorf("expected token in Location, got %q", loc)
 		}
 	})
 
@@ -158,7 +158,7 @@ func TestOAuthHandler_Callback(t *testing.T) {
 		}
 	})
 
-	t.Run("whitelisted email succeeds", func(t *testing.T) {
+	t.Run("whitelisted email redirects with token", func(t *testing.T) {
 		tokenURL, userinfoURL := fakeOAuthServer(t, "allowed@example.com", "sub-allowed")
 		_, mux := newTestOAuthHandler(t, []string{"allowed@example.com"}, tokenURL, userinfoURL)
 
@@ -167,8 +167,8 @@ func TestOAuthHandler_Callback(t *testing.T) {
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, r)
 
-		if w.Code != http.StatusOK {
-			t.Errorf("got status %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		if w.Code != http.StatusFound {
+			t.Errorf("got status %d, want %d: %s", w.Code, http.StatusFound, w.Body.String())
 		}
 	})
 }

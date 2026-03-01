@@ -5,7 +5,7 @@ COVE_API_KEY ?= dev-key
 DATABASE_URL ?= postgres://cove:covedev@localhost:5432/cove?sslmode=disable
 
 run:
-	go run main.go
+	COVE_DEV=1 go run main.go
 
 build:
 	go build -o bin/cove .
@@ -39,4 +39,4 @@ check: lint test
 
 fix: license-fix fmt
 
-.PHONY: lint fmt license-fix check fix devenv.up devenv.down devenv.reset
+.PHONY: run build build-mcp test lint fmt license-fix check fix devenv.up devenv.down devenv.reset
