@@ -3,7 +3,7 @@
 
 [build]
   cmd = "go build -o ./bin/cove ."
-  bin = "./bin/cove"
+  entrypoint = "./bin/cove"
   include_ext = ["go", "sql"]
   exclude_dir = ["bin", "ui"]
   delay = 100

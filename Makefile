@@ -12,7 +12,7 @@ frontend.watch:
 	$(MAKE) -C frontend watch
 
 backend.watch:
-	$(MAKE) -C frontend watch
+	$(MAKE) -C backend watch
 
 run.backend:
 	$(MAKE) -C backend run
