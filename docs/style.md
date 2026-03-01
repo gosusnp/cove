@@ -160,7 +160,9 @@ All interactive and reusable UI elements must come from `src/components/ui/`. Th
 | `Button` | `components/ui/Button.jsx` | 3 variants (`primary`, `outline`, `ghost`), 3 sizes (`sm`, `md`, `lg`) |
 | `Dialog` + sub-components | `components/ui/Dialog.jsx` | Modal dialog; open state managed via signal |
 | `Switch` | `components/ui/Switch.jsx` | Toggle; accepts optional `checkedSignal` |
-| `NavigationMenu` + sub-components | `components/ui/NavigationMenu.jsx` | Accessible nav links via Radix |
+| `NavigationMenu`, `NavigationMenuItem`, `NavigationMenuLink`, `NavigationMenuBrand` | `components/ui/NavigationMenu.jsx` | Accessible nav links via Radix |
+| `TopBar` | `components/ui/TopBar.jsx` | Fixed desktop top navigation shell |
+| `Avatar` | `components/ui/Avatar.jsx` | User initials avatar; `label` prop sets `aria-label` |
 
 Supporting utilities:
 

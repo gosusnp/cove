@@ -19,17 +19,14 @@ import { Switch } from "../components/ui/Switch.jsx";
 import { useDialog } from "../hooks/useDialog.js";
 import {
 	NavigationMenu,
+	NavigationMenuBrand,
 	NavigationMenuItem,
 	NavigationMenuLink,
 } from "../components/ui/NavigationMenu.jsx";
+import { NAV_ITEMS } from "../components/Nav.jsx";
+import { Avatar } from "../components/ui/Avatar.jsx";
 
 // ── Nav preview helpers ───────────────────────────────────────────────────────
-
-const NAV_ITEMS = [
-	{ label: "Home", href: "/" },
-	{ label: "Exercises", href: "/exercises" },
-	{ label: "Workouts", href: "/workouts" },
-];
 
 function NavPreview({ user, activeHref }) {
 	return (
@@ -41,51 +38,30 @@ function NavPreview({ user, activeHref }) {
 				border: "1px solid var(--color-border)",
 			}}
 		>
-			{/* Brand */}
-			<div class="flex items-stretch gap-6">
-				<span
-					class="text-base font-semibold tracking-tight"
-					style={{ color: "var(--color-text)" }}
-				>
-					Cove
-				</span>
+			<NavigationMenu>
+				<NavigationMenuItem>
+					<NavigationMenuBrand href="/">Cove</NavigationMenuBrand>
+				</NavigationMenuItem>
+				{NAV_ITEMS.map(({ label, href }) => (
+					<NavigationMenuItem key={href}>
+						<NavigationMenuLink href={href} active={href === activeHref}>
+							{label}
+						</NavigationMenuLink>
+					</NavigationMenuItem>
+				))}
+			</NavigationMenu>
 
-				{/* Nav links */}
-				<NavigationMenu>
-					{NAV_ITEMS.map(({ label, href }) => (
-						<NavigationMenuItem key={href}>
-							<NavigationMenuLink href={href} active={href === activeHref}>
-								{label}
-							</NavigationMenuLink>
-						</NavigationMenuItem>
-					))}
-				</NavigationMenu>
-			</div>
-
-			{/* User area */}
-			{user ? (
-				<div class="flex items-center gap-2 rounded-lg px-2 py-1">
-					<div
-						class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
-						style={{
-							background: "var(--color-accent)",
-							color: "var(--color-surface)",
-						}}
-					>
-						{user.initials}
-					</div>
-					<span class="text-sm" style={{ color: "var(--color-muted)" }}>
-						{user.email}
-					</span>
-				</div>
-			) : (
-				<span
-					class="px-3 py-1.5 rounded-md text-sm font-medium"
-					style={{ color: "var(--color-accent)" }}
-				>
-					Sign in
-				</span>
-			)}
+			<NavigationMenu>
+				<NavigationMenuItem>
+					{user ? (
+						<NavigationMenuLink href="/settings">
+							<Avatar initials={user.initials} label={user.email} />
+						</NavigationMenuLink>
+					) : (
+						<NavigationMenuLink href="/login">Sign in</NavigationMenuLink>
+					)}
+				</NavigationMenuItem>
+			</NavigationMenu>
 		</div>
 	);
 }
@@ -271,6 +247,19 @@ export function DesignElements() {
 				<Row label="disabled">
 					<Switch disabled />
 					<Switch checkedSignal={switchB} disabled />
+				</Row>
+			</Section>
+
+			<Divider />
+
+			{/* ── Avatar ──────────────────────────────────────── */}
+			<Section title="Avatar">
+				<Row label="initials">
+					<Avatar initials="JM" />
+					<Avatar initials="A" />
+				</Row>
+				<Row label="with aria-label">
+					<Avatar initials="JM" label="jimmy@example.com" />
 				</Row>
 			</Section>
 		</main>

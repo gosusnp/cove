@@ -111,8 +111,8 @@ describe("Nav", () => {
 		expect(screen.getByText("JS")).toBeInTheDocument();
 	});
 
-	it("shows user email on desktop when signed in", () => {
+	it("shows user email as avatar aria-label when signed in", () => {
 		withProviders(<Nav />, { user: MOCK_USER });
-		expect(screen.getByText(MOCK_USER.email)).toBeInTheDocument();
+		expect(screen.getByLabelText(MOCK_USER.email)).toBeInTheDocument();
 	});
 });

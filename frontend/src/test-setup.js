@@ -8,3 +8,10 @@ import { cleanup } from "@testing-library/preact";
 import { afterEach } from "vitest";
 
 afterEach(cleanup);
+
+// Radix UI uses ResizeObserver internally; jsdom does not implement it.
+global.ResizeObserver = class ResizeObserver {
+	observe() {}
+	unobserve() {}
+	disconnect() {}
+};
