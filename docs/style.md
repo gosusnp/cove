@@ -110,7 +110,7 @@ Every source file begins with a copyright and license header.
 | Components | `PascalCase.jsx` | `WorkoutTracker.jsx`, `ExerciseCard.jsx` |
 | Hooks | `camelCase.js` | `useExercises.js`, `useAuth.js` |
 | Utils / helpers | `camelCase.js` | `formatDuration.js`, `api.js` |
-| Stylesheets | `kebab-case.css` | `index.css` |
+| Stylesheets | `kebab-case.css` | `app.css` |
 | Entry / setup | lowercase | `main.jsx`, `test-setup.js` |
 
 - **DON'T** use `camelCase.jsx` for component files: ~~`workoutTracker.jsx`~~, ~~`exerciseCard.jsx`~~
@@ -134,7 +134,7 @@ Every source file begins with a copyright and license header.
 - **DO** use Tailwind utility classes for layout, spacing, and typography.
 - **DO** reference design tokens via CSS variables in `style` props or `var()` in CSS files.
 - **DON'T** hardcode color hex values in JSX — use `var(--color-*)` tokens.
-- **DON'T** create new CSS variables without adding them to the `:root` block in `index.css`.
+- **DON'T** create new CSS variables without adding them to the `:root` block in `app.css`.
 
 ```jsx
 // DO
@@ -148,3 +148,32 @@ Every source file begins with a copyright and license header.
 
 - **DO** use named exports for components: `export function App() {}`
 - **DON'T** use default exports for components: ~~`export default function App() {}`~~
+
+---
+
+### UI Components (Gold Standard)
+
+All interactive and reusable UI elements must come from `src/components/ui/`. These are the gold standard primitives for the entire frontend. **Do not build one-off buttons, dialogs, inputs, or navigation elements inline.**
+
+| Component | File | Description |
+|---|---|---|
+| `Button` | `components/ui/Button.jsx` | 3 variants (`primary`, `outline`, `ghost`), 3 sizes (`sm`, `md`, `lg`) |
+| `Dialog` + sub-components | `components/ui/Dialog.jsx` | Modal dialog; open state managed via signal |
+| `Switch` | `components/ui/Switch.jsx` | Toggle; accepts optional `checkedSignal` |
+| `NavigationMenu` + sub-components | `components/ui/NavigationMenu.jsx` | Accessible nav links via Radix |
+
+Supporting utilities:
+
+| Path | Description |
+|---|---|
+| `src/lib/utils.js` | `cn()` — class merging via clsx + tailwind-merge |
+| `src/hooks/useDialog.js` | `useDialog(initialOpen?)` — signal-based dialog state |
+
+Rules:
+
+- **DO** use `src/components/ui/` primitives for all interactive elements.
+- **DO** extend an existing primitive (via props or a wrapper) before creating a new one.
+- **DON'T** write raw `<button>`, `<a>`-as-button, or custom modal markup outside of `ui/`.
+- **DON'T** add a new `ui/` component without a corresponding section in `/design-elements`.
+
+The `/design-elements` route (visible when `VITE_COVE_ENV=dev`) is the live showcase for all `ui/` components. Every primitive must be represented there with all meaningful states (variants, sizes, disabled, active, etc.).

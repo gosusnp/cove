@@ -19,6 +19,12 @@ backend/          — Go module (github.com/gosusnp/cove/backend)
     testdb/       — shared test infrastructure (testcontainers + pgtestdb)
   main.go         — HTTP server entry point
 frontend/         — Preact + Vite + Tailwind v4
+  src/
+    components/
+      ui/         — gold standard primitives (Button, Dialog, Switch, NavigationMenu)
+    hooks/        — signal-based hooks (useDialog, …)
+    lib/          — shared utilities (cn)
+    pages/        — route-level page components
 docs/             — architecture and style guides
 ```
 
