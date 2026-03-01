@@ -81,8 +81,12 @@ func main() {
 	handlers.NewProgramSetHandler(svcs.ProgramSets).RegisterRoutes(apiMux)
 	handlers.NewProgramExerciseHandler(svcs.ProgramExercises).RegisterRoutes(apiMux)
 
+	usersMux := http.NewServeMux()
+	handlers.NewUserHandler(service.NewUserService(userStore)).RegisterRoutes(usersMux)
+
 	mux := http.NewServeMux()
 	mux.Handle("/api/", http.StripPrefix("/api", middleware.APIKey(apiKey, apiMux)))
+	mux.Handle("/api/users/", http.StripPrefix("/api/users", middleware.OAuth(userStore, usersMux)))
 	mux.Handle("/mcp/", middleware.OAuth(userStore, covemcp.NewHTTPHandler(svcs)))
 
 	var staticFS fs.FS

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
+import { useEffect } from "preact/hooks";
 import { useLocation } from "preact-iso";
 import { useAuth } from "../auth.jsx";
 
@@ -61,8 +62,24 @@ function Row({ label, children, last }) {
 }
 
 export function Settings() {
-	const { user, logout } = useAuth();
+	const { user, token, logout, updateUser } = useAuth();
 	const { route } = useLocation();
+
+	useEffect(() => {
+		if (!token) return;
+		fetch("/api/users/me", {
+			headers: { Authorization: `Bearer ${token}` },
+		})
+			.then((r) => {
+				if (r.status === 401) {
+					logout();
+					route("/login");
+					return;
+				}
+				return r.json().then(updateUser);
+			})
+			.catch(() => {});
+	}, [token]);
 
 	function handleSignOut() {
 		logout();

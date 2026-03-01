@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { render, screen, fireEvent } from "@testing-library/preact";
-import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/preact";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { LocationProvider } from "preact-iso";
 import { AuthContext } from "./auth.jsx";
 import { App } from "./App.jsx";
@@ -20,6 +20,7 @@ function withProviders(ui, { path = "/", user = null } = {}) {
 		token: user ? "tok" : null,
 		login: vi.fn(),
 		logout: vi.fn(),
+		updateUser: vi.fn(),
 	};
 	return {
 		...render(
@@ -89,6 +90,60 @@ describe("Settings", () => {
 		});
 		fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
 		expect(auth.logout).toHaveBeenCalled();
+	});
+
+	describe("fetch /api/users/me", () => {
+		afterEach(() => vi.restoreAllMocks());
+
+		it("sends bearer token", async () => {
+			const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue({
+				json: () => Promise.resolve(MOCK_USER),
+			});
+
+			withProviders(<Settings />, { user: MOCK_USER });
+
+			await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+			expect(fetchSpy).toHaveBeenCalledWith("/api/users/me", {
+				headers: { Authorization: "Bearer tok" },
+			});
+		});
+
+		it("calls updateUser with API response", async () => {
+			const apiUser = {
+				email: "api@example.com",
+				created_at: "2026-01-01T00:00:00Z",
+			};
+			vi.spyOn(global, "fetch").mockResolvedValue({
+				json: () => Promise.resolve(apiUser),
+			});
+
+			const { auth } = withProviders(<Settings />, { user: MOCK_USER });
+
+			await waitFor(() =>
+				expect(auth.updateUser).toHaveBeenCalledWith(apiUser),
+			);
+		});
+
+		it("shows auth context user when fetch fails", async () => {
+			vi.spyOn(global, "fetch").mockRejectedValue(new Error("network error"));
+
+			withProviders(<Settings />, { user: MOCK_USER });
+
+			await waitFor(() =>
+				expect(screen.getByText(MOCK_USER.email)).toBeInTheDocument(),
+			);
+		});
+
+		it("logs out and redirects when /me returns 401", async () => {
+			vi.spyOn(global, "fetch").mockResolvedValue({ status: 401 });
+
+			const { auth } = withProviders(<Settings />, {
+				path: "/settings",
+				user: MOCK_USER,
+			});
+
+			await waitFor(() => expect(auth.logout).toHaveBeenCalled());
+		});
 	});
 });
 

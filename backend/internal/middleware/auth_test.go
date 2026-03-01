@@ -4,15 +4,41 @@
 package middleware
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/gosusnp/cove/backend/internal/db"
 	"github.com/gosusnp/cove/backend/internal/store"
 	"github.com/gosusnp/cove/backend/internal/testdb"
 )
+
+// createExpiredSession inserts a session that is already expired and returns the raw token.
+func createExpiredSession(t *testing.T, database *sql.DB, userID uuid.UUID) string {
+	t.Helper()
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		t.Fatalf("rand: %v", err)
+	}
+	token := hex.EncodeToString(buf)
+	h := sha256.Sum256([]byte(token))
+	hash := hex.EncodeToString(h[:])
+	expiresAt := time.Now().Add(-time.Hour)
+	if _, err := database.Exec(
+		`INSERT INTO user_sessions (user_id, token, expires_at) VALUES ($1, $2, $3)`,
+		userID, hash, expiresAt,
+	); err != nil {
+		t.Fatalf("insert expired session: %v", err)
+	}
+	return token
+}
 
 func newTestDB(t *testing.T) *sql.DB {
 	t.Helper()
@@ -86,6 +112,27 @@ func TestOAuth(t *testing.T) {
 		}
 	})
 
+	t.Run("expired token returns 401", func(t *testing.T) {
+		database := newTestDB(t)
+		us := store.NewUserStore(database)
+
+		user, _, err := us.GetOrCreate("expired@example.com", "sub-expired")
+		if err != nil {
+			t.Fatalf("GetOrCreate: %v", err)
+		}
+		token := createExpiredSession(t, database, user.ID)
+
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+
+		OAuth(us, next).ServeHTTP(w, r)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusUnauthorized)
+		}
+	})
+
 	t.Run("valid token calls next", func(t *testing.T) {
 		us := store.NewUserStore(newTestDB(t))
 
@@ -106,6 +153,38 @@ func TestOAuth(t *testing.T) {
 
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("valid token stores user in context", func(t *testing.T) {
+		us := store.NewUserStore(newTestDB(t))
+
+		user, _, err := us.GetOrCreate("ctx@example.com", "sub-ctx")
+		if err != nil {
+			t.Fatalf("GetOrCreate: %v", err)
+		}
+		token, err := us.CreateSession(user.ID)
+		if err != nil {
+			t.Fatalf("CreateSession: %v", err)
+		}
+
+		var gotUser *store.User
+		capture := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotUser = UserFromContext(r.Context())
+			w.WriteHeader(http.StatusOK)
+		})
+
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+
+		OAuth(us, capture).ServeHTTP(w, r)
+
+		if gotUser == nil {
+			t.Fatal("expected user in context, got nil")
+		}
+		if gotUser.Email != "ctx@example.com" {
+			t.Errorf("got email %q, want %q", gotUser.Email, "ctx@example.com")
 		}
 	})
 }

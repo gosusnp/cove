@@ -29,3 +29,11 @@ test("can navigate from home to settings via avatar", async ({ page }) => {
 	await expect(page).toHaveURL("/settings");
 	await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
 });
+
+test("nav avatar shows user initial after load", async ({ page }) => {
+	await page.goto("/");
+	const avatar = page
+		.getByRole("link", { name: "Account settings" })
+		.locator("*");
+	await expect(avatar).not.toHaveText("?");
+});

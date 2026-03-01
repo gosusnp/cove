@@ -104,6 +104,22 @@ func sha256TokenHash(token string) string {
 	return hex.EncodeToString(h[:])
 }
 
+// GetByID returns the user with the given ID.
+func (s *UserStore) GetByID(id uuid.UUID) (*User, error) {
+	var user User
+	err := s.db.QueryRow(`
+		SELECT id, email, google_sub, created_at
+		FROM users WHERE id = $1
+	`, id).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get user by id: %w", err)
+	}
+	return &user, nil
+}
+
 // GetUserByToken hashes the provided token and looks up the matching non-expired session.
 func (s *UserStore) GetUserByToken(token string) (*User, error) {
 	var user User

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { createContext } from "preact";
-import { useContext, useState } from "preact/hooks";
+import { useContext, useEffect, useState } from "preact/hooks";
 
 const STORAGE_KEY = "cove_session";
 
@@ -40,6 +40,31 @@ export function AuthProvider({ children }) {
 		setSession(null);
 	}
 
+	function updateUser(user) {
+		setSession((s) => {
+			if (!s) return s;
+			const next = { ...s, user };
+			localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+			return next;
+		});
+	}
+
+	useEffect(() => {
+		const token = session?.token;
+		if (!token) return;
+		fetch("/api/users/me", {
+			headers: { Authorization: `Bearer ${token}` },
+		})
+			.then((r) => {
+				if (r.status === 401) {
+					logout();
+					return;
+				}
+				return r.json().then(updateUser);
+			})
+			.catch(() => {});
+	}, []);
+
 	return (
 		<AuthContext.Provider
 			value={{
@@ -47,6 +72,7 @@ export function AuthProvider({ children }) {
 				token: session?.token ?? null,
 				login,
 				logout,
+				updateUser,
 			}}
 		>
 			{children}
