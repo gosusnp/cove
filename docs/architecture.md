@@ -20,8 +20,9 @@ backend/          — Go module (github.com/gosusnp/cove/backend)
   main.go         — HTTP server entry point
 frontend/         — Preact + Vite + Tailwind v4
   src/
+    __mocks__/    — jsdom-compatible mocks for Radix packages used in tests
     components/
-      ui/         — gold standard primitives (Button, Dialog, Switch, NavigationMenu)
+      ui/         — gold standard primitives (Button, Dialog, Switch, NavigationMenu, NavigationMenuBrand, TopBar, Avatar)
     hooks/        — signal-based hooks (useDialog, …)
     lib/          — shared utilities (cn)
     pages/        — route-level page components

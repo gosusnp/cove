@@ -129,6 +129,15 @@ Every source file begins with a copyright and license header.
 <div className="flex gap-3 items-center">
 ```
 
+**Exception — Radix `asChild` children:** when an element is passed as the child of a Radix component using `asChild`, it is processed by Radix's Slot which merges props using the React `className` convention. Use `className=` on those elements only.
+
+```jsx
+// Inside a ui/ component wrapping Radix with asChild — use className=
+<RadixDialog.Trigger asChild>
+  <a href={href} className={styles}>…</a>
+</RadixDialog.Trigger>
+```
+
 ### Styling
 
 - **DO** use Tailwind utility classes for layout, spacing, and typography.
@@ -179,3 +188,23 @@ Rules:
 - **DON'T** add a new `ui/` component without a corresponding section in `/design-elements`.
 
 The `/design-elements` route (visible when `VITE_COVE_ENV=dev`) is the live showcase for all `ui/` components. Every primitive must be represented there with all meaningful states (variants, sizes, disabled, active, etc.).
+
+---
+
+### Testing UI Components
+
+Radix UI packages use browser APIs (`ResizeObserver`, CSS custom properties) that jsdom does not support. Any Radix package that causes `InvalidCharacterError` in tests must have a jsdom-compatible mock in `src/__mocks__/`.
+
+The mock is wired via a vitest-only alias in `vite.config.js`:
+
+```js
+test: {
+  alias: {
+    "@radix-ui/react-navigation-menu": resolve(import.meta.dirname, "src/__mocks__/radix-navigation-menu.jsx"),
+  },
+}
+```
+
+- **DO** add a mock to `src/__mocks__/` for any new Radix package that breaks tests.
+- **DO** keep mocks minimal — passthrough components that render children are enough.
+- **DON'T** add the alias to the main Vite config — only inside the `test` block.
