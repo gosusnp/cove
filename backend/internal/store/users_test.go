@@ -265,6 +265,69 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 		}
 	})
 
+	t.Run("sets last_used_at on first use", func(t *testing.T) {
+		s := newTestUserStore(t)
+		user, _, err := s.GetOrCreate("ida@example.com", "sub-ida")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		token, err := s.CreateSession(user.ID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if _, _, err = s.GetUserByToken(token); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		var lastUsedAt *time.Time
+		if err = s.db.QueryRow(
+			`SELECT last_used_at FROM user_tokens WHERE user_id = $1 AND kind = 'session'`, user.ID,
+		).Scan(&lastUsedAt); err != nil {
+			t.Fatalf("query last_used_at: %v", err)
+		}
+		if lastUsedAt == nil {
+			t.Error("expected last_used_at to be set after first use")
+		}
+	})
+
+	t.Run("does not update last_used_at within throttle window", func(t *testing.T) {
+		s := newTestUserStore(t)
+		user, _, err := s.GetOrCreate("jack@example.com", "sub-jack")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		token, err := s.CreateSession(user.ID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// First call: sets last_used_at.
+		if _, _, err = s.GetUserByToken(token); err != nil {
+			t.Fatalf("first call: %v", err)
+		}
+		var first time.Time
+		if err = s.db.QueryRow(
+			`SELECT last_used_at FROM user_tokens WHERE user_id = $1 AND kind = 'session'`, user.ID,
+		).Scan(&first); err != nil {
+			t.Fatalf("query first last_used_at: %v", err)
+		}
+
+		// Second call immediately: last_used_at must not change.
+		if _, _, err = s.GetUserByToken(token); err != nil {
+			t.Fatalf("second call: %v", err)
+		}
+		var second time.Time
+		if err = s.db.QueryRow(
+			`SELECT last_used_at FROM user_tokens WHERE user_id = $1 AND kind = 'session'`, user.ID,
+		).Scan(&second); err != nil {
+			t.Fatalf("query second last_used_at: %v", err)
+		}
+		if !second.Equal(first) {
+			t.Errorf("last_used_at changed within throttle window: %v → %v", first, second)
+		}
+	})
+
 	t.Run("expired token returns ErrNotFound", func(t *testing.T) {
 		s := newTestUserStore(t)
 		user, _, err := s.GetOrCreate("henry@example.com", "sub-henry")

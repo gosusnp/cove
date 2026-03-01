@@ -74,9 +74,10 @@ type createTokenResponse struct {
 }
 
 type tokenResponse struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
+	ID         uuid.UUID  `json:"id"`
+	Name       string     `json:"name"`
+	CreatedAt  time.Time  `json:"created_at"`
+	LastUsedAt *time.Time `json:"last_used_at"`
 }
 
 func (h *UserHandler) listTokens(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +93,7 @@ func (h *UserHandler) listTokens(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := make([]tokenResponse, len(pats))
 	for i, p := range pats {
-		resp[i] = tokenResponse{ID: p.ID, Name: p.Name, CreatedAt: p.CreatedAt}
+		resp[i] = tokenResponse{ID: p.ID, Name: p.Name, CreatedAt: p.CreatedAt, LastUsedAt: p.LastUsedAt}
 	}
 	jsonOK(w, resp)
 }

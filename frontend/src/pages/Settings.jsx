@@ -16,6 +16,7 @@ import {
 } from "../components/ui/Dialog.jsx";
 import { PageTitle } from "../components/ui/PageTitle.jsx";
 import { Section, Row } from "../components/ui/Section.jsx";
+import { timeAgo } from "../lib/utils";
 import { TextField } from "../components/ui/TextField.jsx";
 import { useDialog } from "../hooks/useDialog.js";
 
@@ -200,8 +201,11 @@ export function Settings() {
 
 			<Section title="API Tokens">
 				{tokens.value.map((t) => (
-					<Row key={t.id} label={t.name}>
-						<span>{new Date(t.created_at).toLocaleDateString()}</span>
+					<Row
+						key={t.id}
+						label={t.name}
+						sublabel={`Created ${new Date(t.created_at).toLocaleDateString()} · Last used ${t.last_used_at ? timeAgo(t.last_used_at) : "never"}`}
+					>
 						<Button
 							variant="destructive"
 							size="sm"

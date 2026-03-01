@@ -23,17 +23,24 @@ export function Section({ title, children }) {
 	);
 }
 
-export function Row({ label, children, last }) {
+export function Row({ label, sublabel, children, last }) {
 	return (
 		<div
 			class="flex items-center justify-between px-4 py-3 gap-4"
 			style={last ? {} : { borderBottom: "1px solid var(--color-border)" }}
 		>
-			<span class="text-sm" style={{ color: "var(--color-text)" }}>
-				{label}
-			</span>
+			<div class="flex flex-col gap-0.5 min-w-0">
+				<span class="text-sm" style={{ color: "var(--color-text)" }}>
+					{label}
+				</span>
+				{sublabel && (
+					<span class="text-xs" style={{ color: "var(--color-muted)" }}>
+						{sublabel}
+					</span>
+				)}
+			</div>
 			<div
-				class="flex items-center gap-2 text-sm"
+				class="flex items-center gap-2 text-sm shrink-0"
 				style={{ color: "var(--color-muted)" }}
 			>
 				{children}

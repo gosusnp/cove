@@ -151,12 +151,47 @@ describe("Settings", () => {
 						id: "id1",
 						name: "CI pipeline",
 						created_at: "2026-01-01T00:00:00Z",
+						last_used_at: "2026-03-01T10:00:00Z",
 					},
 				],
 			});
 			withProviders(<Settings />);
 			await waitFor(() =>
 				expect(screen.getByText("CI pipeline")).toBeInTheDocument(),
+			);
+		});
+
+		it("shows never in sublabel when last_used_at is null", async () => {
+			mockFetch({
+				tokens: [
+					{
+						id: "id1",
+						name: "CI pipeline",
+						created_at: "2026-01-01T00:00:00Z",
+						last_used_at: null,
+					},
+				],
+			});
+			withProviders(<Settings />);
+			await waitFor(() =>
+				expect(screen.getByText(/Last used never/)).toBeInTheDocument(),
+			);
+		});
+
+		it("shows relative time in sublabel when last_used_at is set", async () => {
+			mockFetch({
+				tokens: [
+					{
+						id: "id1",
+						name: "CI pipeline",
+						created_at: "2026-01-01T00:00:00Z",
+						last_used_at: "2026-02-01T00:00:00Z",
+					},
+				],
+			});
+			withProviders(<Settings />);
+			await waitFor(() =>
+				expect(screen.getByText(/Last used .+ ago/)).toBeInTheDocument(),
 			);
 		});
 
@@ -167,6 +202,7 @@ describe("Settings", () => {
 						id: "abc-123",
 						name: "My token",
 						created_at: "2026-01-01T00:00:00Z",
+						last_used_at: null,
 					},
 				],
 			});
@@ -188,6 +224,7 @@ describe("Settings", () => {
 						id: "abc-123",
 						name: "My token",
 						created_at: "2026-01-01T00:00:00Z",
+						last_used_at: null,
 					},
 				],
 			});

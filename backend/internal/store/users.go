@@ -136,7 +136,7 @@ func (s *UserStore) CreatePAT(userID, orgID uuid.UUID, name string) (string, *PA
 // ListPATs returns all PATs for the given user, ordered by creation time.
 func (s *UserStore) ListPATs(userID uuid.UUID) ([]PAT, error) {
 	rows, err := s.db.Query(`
-		SELECT id, name, created_at
+		SELECT id, name, created_at, last_used_at
 		FROM user_tokens
 		WHERE user_id = $1 AND kind = 'pat'
 		ORDER BY created_at
@@ -149,7 +149,7 @@ func (s *UserStore) ListPATs(userID uuid.UUID) ([]PAT, error) {
 	pats := []PAT{}
 	for rows.Next() {
 		var p PAT
-		if err := rows.Scan(&p.ID, &p.Name, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.CreatedAt, &p.LastUsedAt); err != nil {
 			return nil, fmt.Errorf("scan pat: %w", err)
 		}
 		pats = append(pats, p)
@@ -207,10 +207,17 @@ func (s *UserStore) GetByID(id uuid.UUID) (*User, error) {
 
 // GetUserByToken hashes the provided token and looks up the matching non-expired token.
 // Returns both the user and the org the token is scoped to.
+// As a side effect, updates last_used_at at most once per minute to reduce DB churn.
 func (s *UserStore) GetUserByToken(token string) (*User, *Org, error) {
 	var user User
 	var org Org
 	err := s.db.QueryRow(`
+		WITH updated AS (
+			UPDATE user_tokens SET last_used_at = NOW()
+			WHERE token = $1
+			  AND (expires_at IS NULL OR expires_at > NOW())
+			  AND (last_used_at IS NULL OR last_used_at < NOW() - INTERVAL '1 minute')
+		)
 		SELECT u.id, u.email, u.google_sub, u.created_at, t.org_id
 		FROM user_tokens t
 		JOIN users u ON u.id = t.user_id

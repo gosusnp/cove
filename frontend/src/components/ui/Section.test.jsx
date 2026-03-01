@@ -38,6 +38,22 @@ describe("Row", () => {
 		expect(screen.getByText("user@example.com")).toBeInTheDocument();
 	});
 
+	it("renders sublabel when provided", () => {
+		render(
+			<Row label="Token" sublabel="Created Jan 1 · Last used never">
+				value
+			</Row>,
+		);
+		expect(
+			screen.getByText("Created Jan 1 · Last used never"),
+		).toBeInTheDocument();
+	});
+
+	it("omits sublabel element when not provided", () => {
+		render(<Row label="Token">value</Row>);
+		expect(screen.queryByText(/Last used/)).not.toBeInTheDocument();
+	});
+
 	it("applies a bottom border when last is not set", () => {
 		const { container } = render(<Row label="Email">value</Row>);
 		const div = container.firstChild;
