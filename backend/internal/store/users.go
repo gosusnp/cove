@@ -111,21 +111,69 @@ func (s *UserStore) CreateSession(userID uuid.UUID) (string, error) {
 
 // CreatePAT generates a named personal access token (prefixed with "pat_") that never expires.
 // The raw token is returned once; only its SHA-256 hash is stored.
-func (s *UserStore) CreatePAT(userID, orgID uuid.UUID, name string) (string, error) {
+func (s *UserStore) CreatePAT(userID, orgID uuid.UUID, name string) (string, *PAT, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return "", nil, fmt.Errorf("generate pat id: %w", err)
+	}
 	token, err := generateToken("pat_")
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	hash := sha256TokenHash(token)
 
-	_, err = s.db.Exec(
-		`INSERT INTO user_tokens (user_id, org_id, kind, name, token) VALUES ($1, $2, 'pat', $3, $4)`,
-		userID, orgID, name, hash,
+	var pat PAT
+	err = s.db.QueryRow(
+		`INSERT INTO user_tokens (id, user_id, org_id, kind, name, token) VALUES ($1, $2, $3, 'pat', $4, $5) RETURNING id, name, created_at`,
+		id, userID, orgID, name, hash,
+	).Scan(&pat.ID, &pat.Name, &pat.CreatedAt)
+	if err != nil {
+		return "", nil, fmt.Errorf("create pat: %w", err)
+	}
+	return token, &pat, nil
+}
+
+// ListPATs returns all PATs for the given user, ordered by creation time.
+func (s *UserStore) ListPATs(userID uuid.UUID) ([]PAT, error) {
+	rows, err := s.db.Query(`
+		SELECT id, name, created_at
+		FROM user_tokens
+		WHERE user_id = $1 AND kind = 'pat'
+		ORDER BY created_at
+	`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list pats: %w", err)
+	}
+	defer rows.Close()
+
+	pats := []PAT{}
+	for rows.Next() {
+		var p PAT
+		if err := rows.Scan(&p.ID, &p.Name, &p.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan pat: %w", err)
+		}
+		pats = append(pats, p)
+	}
+	return pats, rows.Err()
+}
+
+// DeletePAT deletes the PAT with the given id scoped to the user. Returns ErrNotFound if no row was deleted.
+func (s *UserStore) DeletePAT(userID uuid.UUID, id uuid.UUID) error {
+	res, err := s.db.Exec(
+		`DELETE FROM user_tokens WHERE id = $1 AND user_id = $2 AND kind = 'pat'`,
+		id, userID,
 	)
 	if err != nil {
-		return "", fmt.Errorf("create pat: %w", err)
+		return fmt.Errorf("delete pat: %w", err)
 	}
-	return token, nil
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func generateToken(prefix string) (string, error) {

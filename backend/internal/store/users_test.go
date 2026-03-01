@@ -191,12 +191,18 @@ func TestUserStore_CreatePAT(t *testing.T) {
 		}
 		orgID := lookupOrgID(t, s, user.ID)
 
-		token, err := s.CreatePAT(user.ID, orgID, "my-token")
+		token, pat, err := s.CreatePAT(user.ID, orgID, "my-token")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if len(token) < 4 || token[:4] != "pat_" {
 			t.Errorf("expected pat_ prefix, got %q", token[:min(len(token), 10)])
+		}
+		if pat.ID == (uuid.UUID{}) {
+			t.Error("expected non-zero PAT id")
+		}
+		if pat.Name != "my-token" {
+			t.Errorf("got name %q, want %q", pat.Name, "my-token")
 		}
 	})
 
@@ -208,7 +214,7 @@ func TestUserStore_CreatePAT(t *testing.T) {
 		}
 		orgID := lookupOrgID(t, s, user.ID)
 
-		token, err := s.CreatePAT(user.ID, orgID, "ci-token")
+		token, _, err := s.CreatePAT(user.ID, orgID, "ci-token")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

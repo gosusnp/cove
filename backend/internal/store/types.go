@@ -3,6 +3,12 @@
 
 package store
 
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
 type Exercise struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`
@@ -53,6 +59,12 @@ type ProgramSet struct {
 	Rounds              int     `json:"rounds"`
 	IntraSetRestSeconds *int    `json:"rest_s,omitempty"`
 	SortOrder           *int    `json:"sort_order,omitempty"`
+}
+
+type PAT struct {
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type ProgramExercise struct {

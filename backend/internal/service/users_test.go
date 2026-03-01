@@ -7,6 +7,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
@@ -51,6 +53,125 @@ func TestUserService_Get(t *testing.T) {
 		id[0] ^= 0xff
 
 		_, err = svc.Get(id)
+		if !errors.Is(err, store.ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func setupUserWithOrg(t *testing.T, us *store.UserStore) (*store.User, uuid.UUID) {
+	t.Helper()
+	user, _, err := us.GetOrCreate("pat@example.com", "sub-pat-svc")
+	if err != nil {
+		t.Fatalf("GetOrCreate: %v", err)
+	}
+	// Use CreateSession + GetUserByToken to discover the org without DB access.
+	token, err := us.CreateSession(user.ID)
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	_, org, err := us.GetUserByToken(token)
+	if err != nil {
+		t.Fatalf("GetUserByToken: %v", err)
+	}
+	return user, org.ID
+}
+
+func TestUserService_CreatePAT(t *testing.T) {
+	t.Run("returns token with pat_ prefix", func(t *testing.T) {
+		svc, us := newTestUserService(t)
+		user, orgID := setupUserWithOrg(t, us)
+
+		token, pat, err := svc.CreatePAT(user.ID, orgID, "my-key")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(token) < 4 || token[:4] != "pat_" {
+			t.Errorf("expected pat_ prefix, got %q", token[:min(len(token), 10)])
+		}
+		if pat.Name != "my-key" {
+			t.Errorf("got name %q, want %q", pat.Name, "my-key")
+		}
+	})
+
+	t.Run("empty name returns ValidationError", func(t *testing.T) {
+		svc, us := newTestUserService(t)
+		user, orgID := setupUserWithOrg(t, us)
+
+		_, _, err := svc.CreatePAT(user.ID, orgID, "  ")
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Errorf("got %v, want ValidationError", err)
+		}
+	})
+}
+
+func TestUserService_ListPATs(t *testing.T) {
+	t.Run("returns empty list when none exist", func(t *testing.T) {
+		svc, us := newTestUserService(t)
+		user, _ := setupUserWithOrg(t, us)
+
+		pats, err := svc.ListPATs(user.ID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(pats) != 0 {
+			t.Errorf("expected 0 pats, got %d", len(pats))
+		}
+	})
+
+	t.Run("returns created PATs", func(t *testing.T) {
+		svc, us := newTestUserService(t)
+		user, orgID := setupUserWithOrg(t, us)
+
+		if _, _, err := svc.CreatePAT(user.ID, orgID, "key-a"); err != nil {
+			t.Fatalf("CreatePAT: %v", err)
+		}
+		if _, _, err := svc.CreatePAT(user.ID, orgID, "key-b"); err != nil {
+			t.Fatalf("CreatePAT: %v", err)
+		}
+
+		pats, err := svc.ListPATs(user.ID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(pats) != 2 {
+			t.Fatalf("expected 2 pats, got %d", len(pats))
+		}
+		if pats[0].Name != "key-a" {
+			t.Errorf("expected first pat name %q, got %q", "key-a", pats[0].Name)
+		}
+	})
+}
+
+func TestUserService_DeletePAT(t *testing.T) {
+	t.Run("deletes existing PAT", func(t *testing.T) {
+		svc, us := newTestUserService(t)
+		user, orgID := setupUserWithOrg(t, us)
+
+		_, pat, err := svc.CreatePAT(user.ID, orgID, "to-delete")
+		if err != nil {
+			t.Fatalf("CreatePAT: %v", err)
+		}
+
+		if err := svc.DeletePAT(user.ID, pat.ID); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		pats, err := svc.ListPATs(user.ID)
+		if err != nil {
+			t.Fatalf("ListPATs: %v", err)
+		}
+		if len(pats) != 0 {
+			t.Errorf("expected 0 pats after delete, got %d", len(pats))
+		}
+	})
+
+	t.Run("unknown id returns ErrNotFound", func(t *testing.T) {
+		svc, us := newTestUserService(t)
+		user, _ := setupUserWithOrg(t, us)
+
+		err := svc.DeletePAT(user.ID, uuid.Max)
 		if !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
