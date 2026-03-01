@@ -4,11 +4,14 @@ preview: build
 # Runs backend at :8080 in dev move and watch rebuild UI assets
 # Develop at localhost:8080. OAuth redirect URL must point to localhost:8080/auth/callback.
 dev:
-	$(MAKE) -j2 run.backend dev.watch
+	$(MAKE) -j2 backend.watch frontend.watch
 
 # build+watch: rebuilds frontend into backend/ui/ on every file change.
 # Use this when you need the backend to serve the built frontend (e.g. debugging embedded files).
-dev.watch:
+frontend.watch:
+	$(MAKE) -C frontend watch
+
+backend.watch:
 	$(MAKE) -C frontend watch
 
 run.backend:
@@ -54,4 +57,4 @@ devenv.down:
 devenv.reset:
 	$(MAKE) -C backend devenv.reset
 
-.PHONY: preview dev dev.watch run.backend run.frontend build test.e2e test lint fmt check fix devenv.up devenv.down devenv.reset
+.PHONY: preview dev backend.watch frontend.watch run.backend run.frontend build test.e2e test lint fmt check fix devenv.up devenv.down devenv.reset

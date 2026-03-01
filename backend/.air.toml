@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Jimmy Ma
+# SPDX-License-Identifier: Elastic-2.0
+
+[build]
+  cmd = "go build -o ./bin/cove ."
+  bin = "./bin/cove"
+  include_ext = ["go", "sql"]
+  exclude_dir = ["bin", "ui"]
+  delay = 100
