@@ -24,6 +24,17 @@ import {
 	NavigationMenuLink,
 } from "../components/ui/NavigationMenu.jsx";
 import { Avatar } from "../components/ui/Avatar.jsx";
+import { TextField } from "../components/ui/TextField.jsx";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "../components/ui/Tooltip.jsx";
+import {
+	Section as CardSection,
+	Row,
+	Divider,
+} from "../components/ui/Section.jsx";
 
 const PREVIEW_NAV_ITEMS = [
 	{ label: "Home", href: "/" },
@@ -70,7 +81,7 @@ function NavPreview({ user, activeHref }) {
 	);
 }
 
-function Section({ title, children }) {
+function PageSection({ title, children }) {
 	return (
 		<section class="flex flex-col gap-4">
 			<h2
@@ -84,7 +95,7 @@ function Section({ title, children }) {
 	);
 }
 
-function Row({ label, children }) {
+function PreviewRow({ label, children }) {
 	return (
 		<div class="flex flex-col gap-2">
 			<span class="text-xs" style={{ color: "var(--color-muted)" }}>
@@ -93,10 +104,6 @@ function Row({ label, children }) {
 			<div class="flex flex-wrap items-center gap-3">{children}</div>
 		</div>
 	);
-}
-
-function Divider() {
-	return <hr style={{ borderColor: "var(--color-border)" }} />;
 }
 
 export function DesignElements() {
@@ -130,40 +137,40 @@ export function DesignElements() {
 			<Divider />
 
 			{/* ── Top Navigation ─────────────────────────────── */}
-			<Section title="Top Navigation">
-				<Row label="signed out">
+			<PageSection title="Top Navigation">
+				<PreviewRow label="signed out">
 					<div class="w-full">
 						<NavPreview user={null} activeHref="/" />
 					</div>
-				</Row>
-				<Row label="signed in — Home active">
+				</PreviewRow>
+				<PreviewRow label="signed in — Home active">
 					<div class="w-full">
 						<NavPreview
 							user={{ initials: "JM", email: "jimmy@example.com" }}
 							activeHref="/"
 						/>
 					</div>
-				</Row>
-				<Row label="signed in — Exercises active">
+				</PreviewRow>
+				<PreviewRow label="signed in — Exercises active">
 					<div class="w-full">
 						<NavPreview
 							user={{ initials: "JM", email: "jimmy@example.com" }}
 							activeHref="/exercises"
 						/>
 					</div>
-				</Row>
-			</Section>
+				</PreviewRow>
+			</PageSection>
 
 			<Divider />
 
 			{/* ── Button ─────────────────────────────────────── */}
-			<Section title="Button">
-				<Row label="variant=primary">
+			<PageSection title="Button">
+				<PreviewRow label="variant=primary">
 					<Button size="sm">Small</Button>
 					<Button size="md">Medium</Button>
 					<Button size="lg">Large</Button>
-				</Row>
-				<Row label="variant=outline">
+				</PreviewRow>
+				<PreviewRow label="variant=outline">
 					<Button variant="outline" size="sm">
 						Small
 					</Button>
@@ -173,8 +180,8 @@ export function DesignElements() {
 					<Button variant="outline" size="lg">
 						Large
 					</Button>
-				</Row>
-				<Row label="variant=ghost">
+				</PreviewRow>
+				<PreviewRow label="variant=ghost">
 					<Button variant="ghost" size="sm">
 						Small
 					</Button>
@@ -184,8 +191,8 @@ export function DesignElements() {
 					<Button variant="ghost" size="lg">
 						Large
 					</Button>
-				</Row>
-				<Row label="disabled">
+				</PreviewRow>
+				<PreviewRow label="disabled">
 					<Button disabled>Primary</Button>
 					<Button variant="outline" disabled>
 						Outline
@@ -193,14 +200,14 @@ export function DesignElements() {
 					<Button variant="ghost" disabled>
 						Ghost
 					</Button>
-				</Row>
-			</Section>
+				</PreviewRow>
+			</PageSection>
 
 			<Divider />
 
 			{/* ── Dialog ─────────────────────────────────────── */}
-			<Section title="Dialog">
-				<Row label="signal-controlled via useDialog()">
+			<PageSection title="Dialog">
+				<PreviewRow label="signal-controlled via useDialog()">
 					<Dialog openSignal={dialog.open}>
 						<DialogTrigger>
 							<Button variant="outline">Open Dialog</Button>
@@ -226,46 +233,123 @@ export function DesignElements() {
 					<Button variant="ghost" size="sm" onClick={dialog.show}>
 						Open (imperative)
 					</Button>
-				</Row>
-			</Section>
+				</PreviewRow>
+			</PageSection>
 
 			<Divider />
 
 			{/* ── Switch ─────────────────────────────────────── */}
-			<Section title="Switch">
-				<Row label="uncontrolled (internal signal)">
+			<PageSection title="Switch">
+				<PreviewRow label="uncontrolled (internal signal)">
 					<Switch />
-				</Row>
-				<Row label="controlled — off">
+				</PreviewRow>
+				<PreviewRow label="controlled — off">
 					<Switch checkedSignal={switchA} />
 					<span class="text-sm" style={{ color: "var(--color-muted)" }}>
 						value: {String(switchA.value)}
 					</span>
-				</Row>
-				<Row label="controlled — on">
+				</PreviewRow>
+				<PreviewRow label="controlled — on">
 					<Switch checkedSignal={switchB} />
 					<span class="text-sm" style={{ color: "var(--color-muted)" }}>
 						value: {String(switchB.value)}
 					</span>
-				</Row>
-				<Row label="disabled">
+				</PreviewRow>
+				<PreviewRow label="disabled">
 					<Switch disabled />
 					<Switch checkedSignal={switchB} disabled />
-				</Row>
-			</Section>
+				</PreviewRow>
+			</PageSection>
 
 			<Divider />
 
 			{/* ── Avatar ──────────────────────────────────────── */}
-			<Section title="Avatar">
-				<Row label="initials">
+			<PageSection title="Avatar">
+				<PreviewRow label="initials">
 					<Avatar initials="JM" />
 					<Avatar initials="A" />
-				</Row>
-				<Row label="with aria-label">
+				</PreviewRow>
+				<PreviewRow label="with aria-label">
 					<Avatar initials="JM" label="jimmy@example.com" />
-				</Row>
-			</Section>
+				</PreviewRow>
+			</PageSection>
+
+			<Divider />
+
+			{/* ── TextField ───────────────────────────────────── */}
+			<PageSection title="TextField">
+				<PreviewRow label="default">
+					<TextField id="ex-default" placeholder="Placeholder text" />
+				</PreviewRow>
+				<PreviewRow label="with label">
+					<TextField
+						id="ex-label"
+						label="Token name"
+						placeholder="e.g. CI pipeline"
+					/>
+				</PreviewRow>
+				<PreviewRow label="disabled">
+					<TextField
+						id="ex-disabled"
+						label="Disabled"
+						placeholder="Placeholder"
+						disabled
+					/>
+				</PreviewRow>
+				<PreviewRow label="read-only">
+					<TextField
+						id="ex-readonly"
+						label="Token (read-only)"
+						value="pat_a1b2c3d4e5f6..."
+						readOnly
+					/>
+				</PreviewRow>
+			</PageSection>
+
+			<Divider />
+
+			{/* ── Tooltip ─────────────────────────────────────── */}
+			<PageSection title="Tooltip">
+				<PreviewRow label="default">
+					<Tooltip>
+						<TooltipTrigger>
+							<Button variant="outline" size="sm">
+								Hover me
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>This is a tooltip</TooltipContent>
+					</Tooltip>
+				</PreviewRow>
+				<PreviewRow label="copy pattern">
+					<Tooltip>
+						<TooltipTrigger>
+							<Button variant="ghost" size="sm">
+								Copy
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Copied!</TooltipContent>
+					</Tooltip>
+				</PreviewRow>
+			</PageSection>
+
+			<Divider />
+
+			{/* ── Section / Row ───────────────────────────────── */}
+			<PageSection title="Section + Row">
+				<PreviewRow label="card section with rows">
+					<div class="w-full">
+						<CardSection title="Example section">
+							<Row label="First item">Value</Row>
+							<Row label="Second item">Another value</Row>
+							<Row label="Last item" last>
+								<Button size="sm" variant="outline">
+									Action
+								</Button>
+							</Row>
+						</CardSection>
+					</div>
+				</PreviewRow>
+			</PageSection>
 		</main>
 	);
 }

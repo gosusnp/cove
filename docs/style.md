@@ -172,6 +172,9 @@ All interactive and reusable UI elements must come from `src/components/ui/`. Th
 | `NavigationMenu`, `NavigationMenuItem`, `NavigationMenuLink`, `NavigationMenuBrand` | `components/ui/NavigationMenu.jsx` | Accessible nav links via Radix |
 | `TopBar` | `components/ui/TopBar.jsx` | Fixed desktop top navigation shell |
 | `Avatar` | `components/ui/Avatar.jsx` | User initials avatar; `label` prop sets `aria-label` |
+| `TextField` | `components/ui/TextField.jsx` | Text input; optional `label` prop; supports `disabled` and `readOnly` |
+| `Tooltip`, `TooltipTrigger`, `TooltipContent` | `components/ui/Tooltip.jsx` | Hover tooltip; wraps Radix; self-contained provider |
+| `Section`, `Row`, `Divider` | `components/ui/Section.jsx` | Page section card with title; labeled row with right-side slot; `last` prop on `Row` drops the bottom border |
 
 Supporting utilities:
 

@@ -34,6 +34,28 @@ vi.mock("../components/ui/Switch.jsx", () => ({
 	),
 }));
 
+vi.mock("../components/ui/Tooltip.jsx", () => ({
+	Tooltip: ({ children }) => <div>{children}</div>,
+	TooltipTrigger: ({ children }) => <div>{children}</div>,
+	TooltipContent: ({ children }) => <div role="tooltip">{children}</div>,
+}));
+
+vi.mock("../components/ui/Section.jsx", () => ({
+	Section: ({ title, children }) => (
+		<section>
+			<h2>{title}</h2>
+			{children}
+		</section>
+	),
+	Row: ({ label, children }) => (
+		<div>
+			<span>{label}</span>
+			{children}
+		</div>
+	),
+	Divider: () => <hr />,
+}));
+
 function withProviders(ui) {
 	return render(<LocationProvider>{ui}</LocationProvider>);
 }
@@ -59,6 +81,15 @@ describe("DesignElements", () => {
 		expect(screen.getByRole("heading", { name: "Dialog" })).toBeInTheDocument();
 		expect(screen.getByRole("heading", { name: "Switch" })).toBeInTheDocument();
 		expect(screen.getByRole("heading", { name: "Avatar" })).toBeInTheDocument();
+		expect(
+			screen.getByRole("heading", { name: "TextField" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("heading", { name: "Tooltip" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("heading", { name: "Section + Row" }),
+		).toBeInTheDocument();
 	});
 
 	it("renders different button variants", () => {

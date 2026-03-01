@@ -1,0 +1,63 @@
+// Copyright (c) 2026 Jimmy Ma
+// SPDX-License-Identifier: Elastic-2.0
+
+import { render, screen } from "@testing-library/preact";
+import { describe, it, expect } from "vitest";
+import { Section, Row, Divider } from "./Section.jsx";
+
+describe("Section", () => {
+	it("renders the title", () => {
+		render(
+			<Section title="Profile">
+				<p>content</p>
+			</Section>,
+		);
+		expect(
+			screen.getByRole("heading", { name: "Profile" }),
+		).toBeInTheDocument();
+	});
+
+	it("renders children", () => {
+		render(
+			<Section title="Profile">
+				<p>content</p>
+			</Section>,
+		);
+		expect(screen.getByText("content")).toBeInTheDocument();
+	});
+});
+
+describe("Row", () => {
+	it("renders the label", () => {
+		render(<Row label="Email">value</Row>);
+		expect(screen.getByText("Email")).toBeInTheDocument();
+	});
+
+	it("renders children", () => {
+		render(<Row label="Email">user@example.com</Row>);
+		expect(screen.getByText("user@example.com")).toBeInTheDocument();
+	});
+
+	it("applies a bottom border when last is not set", () => {
+		const { container } = render(<Row label="Email">value</Row>);
+		const div = container.firstChild;
+		expect(div.style.borderBottom).toMatch(/var\(--color-border\)/);
+	});
+
+	it("omits the bottom border when last is set", () => {
+		const { container } = render(
+			<Row label="Email" last>
+				value
+			</Row>,
+		);
+		const div = container.firstChild;
+		expect(div.style.borderBottom).toBe("");
+	});
+});
+
+describe("Divider", () => {
+	it("renders an hr", () => {
+		render(<Divider />);
+		expect(document.querySelector("hr")).toBeInTheDocument();
+	});
+});

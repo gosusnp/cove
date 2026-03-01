@@ -29,6 +29,10 @@ export default defineConfig({
 				import.meta.dirname,
 				"src/__mocks__/radix-navigation-menu.jsx",
 			),
+			"@radix-ui/react-tooltip": resolve(
+				import.meta.dirname,
+				"src/__mocks__/radix-tooltip.jsx",
+			),
 		},
 		coverage: {
 			provider: "v8",
