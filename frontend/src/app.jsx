@@ -8,6 +8,7 @@ import { Nav } from "./components/Nav.jsx";
 import { Login } from "./pages/Login.jsx";
 import { Home } from "./pages/Home.jsx";
 import { Settings } from "./pages/Settings.jsx";
+import { DesignElements } from "./pages/DesignElements.jsx";
 
 function Layout() {
 	const { url, route } = useLocation();
@@ -32,6 +33,9 @@ function Layout() {
 				<Route path="/login" component={Login} />
 				<Route path="/" component={Home} />
 				<Route path="/settings" component={Settings} />
+				{import.meta.env.VITE_COVE_ENV === "dev" && (
+					<Route path="/design-elements" component={DesignElements} />
+				)}
 			</Router>
 		</div>
 	);

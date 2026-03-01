@@ -19,8 +19,15 @@
 		"e2e:report": "playwright show-report"
 	},
 	"dependencies": {
+		"@preact/signals": "^2.8.1",
+		"@radix-ui/react-dialog": "^1.1.15",
+		"@radix-ui/react-navigation-menu": "^1.2.14",
+		"@radix-ui/react-switch": "^1.2.6",
+		"class-variance-authority": "^0.7.1",
+		"clsx": "^2.1.1",
 		"preact": "^10.27.2",
-		"preact-iso": "^2.11.1"
+		"preact-iso": "^2.11.1",
+		"tailwind-merge": "^3.5.0"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.4",

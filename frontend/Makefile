@@ -1,5 +1,5 @@
 run:
-	npm run dev
+	VITE_COVE_ENV=dev npm run dev
 
 watch:
 	npm run watch
