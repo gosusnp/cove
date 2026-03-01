@@ -16,9 +16,8 @@ Root commands operate on both backend and frontend:
 | Task | Command |
 |---|---|
 | Start dev database | `make devenv.up` |
-| Run backend | `make run.backend` |
-| Run frontend | `make run.frontend` |
-| Run all tests | `make test` |
+| Run backend | `make backend.run` |
+| Run frontend | `make frontend.run` |
 | Lint + test | `make check` |
 | Format + license headers | `make fix` |
 

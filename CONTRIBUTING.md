@@ -15,5 +15,5 @@ By submitting a Pull Request or contributing code/documentation to this reposito
 
 1. Fork the repo and create your branch from `main`.
 2. Ensure your code follows the project's Go style and passes `make check`.
-3. **Run `make license-fix`** to ensure your new files have the correct copyright headers.
+3. **Run `make fix`** to format code and ensure your new files have the correct copyright headers.
 4. Open a Pull Request with a clear description of your changes.

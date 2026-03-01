@@ -1,9 +1,6 @@
 -include .env
 export
 
-COVE_API_KEY ?= dev-key
-DATABASE_URL ?= postgres://cove:covedev@localhost:5432/cove?sslmode=disable
-
 run:
 	COVE_DEV=1 go run main.go
 

@@ -1,53 +1,23 @@
 preview: build
 	cd backend && set -a && . .env && set +a && ./bin/cove
 
-# Runs backend at :8080 in dev move and watch rebuild UI assets
+# Must not run in parallel because backend.build depends on the frontend.build
+build: frontend.build backend.build
+
+# Runs backend at :8080 in dev move and watch rebuild UI assets and backend
 # Develop at localhost:8080. OAuth redirect URL must point to localhost:8080/auth/callback.
 dev:
 	$(MAKE) -j2 backend.watch frontend.watch
 
-# build+watch: rebuilds frontend into backend/ui/ on every file change.
-# Use this when you need the backend to serve the built frontend (e.g. debugging embedded files).
-frontend.watch:
-	$(MAKE) -C frontend watch
+check: backend.check frontend.check
 
-backend.watch:
-	$(MAKE) -C backend watch
+fix: backend.fix frontend.fix
 
-run.backend:
-	$(MAKE) -C backend run
-
-run.frontend:
-	$(MAKE) -C frontend run
-
-build:
-	$(MAKE) -C frontend build
-	$(MAKE) -C backend build
-	$(MAKE) -C backend build-mcp
-
-test.e2e: build
+test.e2e:
 	$(MAKE) -C frontend test.e2e
 
-test:
-	$(MAKE) -C backend test
-	$(MAKE) -C frontend test
-
-lint:
-	$(MAKE) -C backend lint
-	$(MAKE) -C frontend lint
-
-fmt:
-	$(MAKE) -C backend fmt
-	$(MAKE) -C frontend fmt
-
-fix:
-	$(MAKE) -C backend fix
-	$(MAKE) -C frontend fix
-
-check:
-	$(MAKE) -C backend check
-	$(MAKE) -C frontend check
-
+##################################################
+# Devenv dispatch
 devenv.up:
 	$(MAKE) -C backend devenv.up
 
@@ -57,4 +27,40 @@ devenv.down:
 devenv.reset:
 	$(MAKE) -C backend devenv.reset
 
-.PHONY: preview dev backend.watch frontend.watch run.backend run.frontend build test.e2e test lint fmt check fix devenv.up devenv.down devenv.reset
+
+##################################################
+# Backend dispatch
+backend.build:
+	$(MAKE) -C backend build
+
+backend.check:
+	$(MAKE) -C backend check
+
+backend.fix:
+	$(MAKE) -C backend fix
+
+backend.run:
+	$(MAKE) -C backend run
+
+backend.watch:
+	$(MAKE) -C backend watch
+
+
+##################################################
+# Frontend dispatch
+frontend.build:
+	$(MAKE) -C frontend build
+
+frontend.check:
+	$(MAKE) -C frontend check
+
+frontend.fix:
+	$(MAKE) -C frontend fix
+
+frontend.run:
+	$(MAKE) -C frontend run
+
+frontend.watch:
+	$(MAKE) -C frontend watch
+
+.PHONY: preview dev build check fix test.e2e devenv.up devenv.down devenv.reset backend.build backend.check backend.fix backend.run backend.watch frontend.build frontend.check frontend.fix frontend.run frontend.watch
