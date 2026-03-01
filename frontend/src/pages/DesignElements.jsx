@@ -23,8 +23,12 @@ import {
 	NavigationMenuItem,
 	NavigationMenuLink,
 } from "../components/ui/NavigationMenu.jsx";
-import { NAV_ITEMS } from "../components/Nav.jsx";
 import { Avatar } from "../components/ui/Avatar.jsx";
+
+const PREVIEW_NAV_ITEMS = [
+	{ label: "Home", href: "/" },
+	{ label: "Exercises", href: "/exercises" },
+];
 
 // ── Nav preview helpers ───────────────────────────────────────────────────────
 
@@ -42,7 +46,7 @@ function NavPreview({ user, activeHref }) {
 				<NavigationMenuItem>
 					<NavigationMenuBrand href="/">Cove</NavigationMenuBrand>
 				</NavigationMenuItem>
-				{NAV_ITEMS.map(({ label, href }) => (
+				{PREVIEW_NAV_ITEMS.map(({ label, href }) => (
 					<NavigationMenuItem key={href}>
 						<NavigationMenuLink href={href} active={href === activeHref}>
 							{label}
