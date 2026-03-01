@@ -9,6 +9,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 func newTestUserStore(t *testing.T) *UserStore {
@@ -120,7 +122,7 @@ func TestUserStore_GetOrCreate(t *testing.T) {
 }
 
 func TestUserStore_CreateSession(t *testing.T) {
-	t.Run("returns non-empty token", func(t *testing.T) {
+	t.Run("returns non-empty token with sess_ prefix", func(t *testing.T) {
 		s := newTestUserStore(t)
 		user, _, err := s.GetOrCreate("eve@example.com", "sub-eve")
 		if err != nil {
@@ -133,6 +135,9 @@ func TestUserStore_CreateSession(t *testing.T) {
 		}
 		if token == "" {
 			t.Error("expected non-empty token")
+		}
+		if len(token) < 5 || token[:5] != "sess_" {
+			t.Errorf("expected sess_ prefix, got %q", token[:min(len(token), 10)])
 		}
 	})
 
@@ -152,7 +157,7 @@ func TestUserStore_CreateSession(t *testing.T) {
 		wantHash := hex.EncodeToString(h[:])
 
 		var storedToken string
-		err = s.db.QueryRow(`SELECT token FROM user_sessions WHERE user_id = $1`, user.ID).Scan(&storedToken)
+		err = s.db.QueryRow(`SELECT token FROM user_tokens WHERE user_id = $1 AND kind = 'session'`, user.ID).Scan(&storedToken)
 		if err != nil {
 			t.Fatalf("query session: %v", err)
 		}
@@ -161,6 +166,59 @@ func TestUserStore_CreateSession(t *testing.T) {
 		}
 		if storedToken != wantHash {
 			t.Errorf("stored token %q, want SHA-256 hash %q", storedToken, wantHash)
+		}
+	})
+}
+
+func TestUserStore_CreatePAT(t *testing.T) {
+	// lookupOrgID fetches the user's org from org_members.
+	lookupOrgID := func(t *testing.T, s *UserStore, userID uuid.UUID) uuid.UUID {
+		t.Helper()
+		var orgID uuid.UUID
+		if err := s.db.QueryRow(
+			`SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`, userID,
+		).Scan(&orgID); err != nil {
+			t.Fatalf("lookup org: %v", err)
+		}
+		return orgID
+	}
+
+	t.Run("returns token with pat_ prefix", func(t *testing.T) {
+		s := newTestUserStore(t)
+		user, _, err := s.GetOrCreate("pat@example.com", "sub-pat")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		orgID := lookupOrgID(t, s, user.ID)
+
+		token, err := s.CreatePAT(user.ID, orgID, "my-token")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(token) < 4 || token[:4] != "pat_" {
+			t.Errorf("expected pat_ prefix, got %q", token[:min(len(token), 10)])
+		}
+	})
+
+	t.Run("PAT is valid for GetUserByToken", func(t *testing.T) {
+		s := newTestUserStore(t)
+		user, _, err := s.GetOrCreate("pat2@example.com", "sub-pat2")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		orgID := lookupOrgID(t, s, user.ID)
+
+		token, err := s.CreatePAT(user.ID, orgID, "ci-token")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got, _, err := s.GetUserByToken(token)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.ID != user.ID {
+			t.Errorf("got user ID %v, want %v", got.ID, user.ID)
 		}
 	})
 }
@@ -177,7 +235,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		got, err := s.GetUserByToken(token)
+		got, org, err := s.GetUserByToken(token)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -187,12 +245,15 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 		if got.Email != user.Email {
 			t.Errorf("got email %q, want %q", got.Email, user.Email)
 		}
+		if org.ID == (uuid.UUID{}) {
+			t.Error("expected non-zero org ID")
+		}
 	})
 
 	t.Run("invalid token returns ErrNotFound", func(t *testing.T) {
 		s := newTestUserStore(t)
 
-		_, err := s.GetUserByToken("notavalidtoken")
+		_, _, err := s.GetUserByToken("notavalidtoken")
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -205,11 +266,18 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
+		var orgID uuid.UUID
+		if err = s.db.QueryRow(
+			`SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`, user.ID,
+		).Scan(&orgID); err != nil {
+			t.Fatalf("lookup org: %v", err)
+		}
+
 		// Insert an already-expired session directly.
 		expiredAt := time.Now().Add(-1 * time.Hour)
 		_, err = s.db.Exec(
-			`INSERT INTO user_sessions (user_id, token, expires_at) VALUES ($1, $2, $3)`,
-			user.ID, "expiredtokenhash", expiredAt,
+			`INSERT INTO user_tokens (user_id, org_id, kind, token, expires_at) VALUES ($1, $2, 'session', $3, $4)`,
+			user.ID, orgID, "expiredtokenhash", expiredAt,
 		)
 		if err != nil {
 			t.Fatalf("insert expired session: %v", err)
@@ -220,7 +288,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 		// with the stored hash value (simulating a lookup by hash).
 		var count int
 		err = s.db.QueryRow(
-			`SELECT count(*) FROM user_sessions WHERE token = $1 AND expires_at > NOW()`,
+			`SELECT count(*) FROM user_tokens WHERE token = $1 AND expires_at > NOW()`,
 			"expiredtokenhash",
 		).Scan(&count)
 		if err != nil {

@@ -12,6 +12,7 @@ import (
 )
 
 type userCtxKey struct{}
+type orgCtxKey struct{}
 
 // UserFromContext returns the authenticated user stored in the request context by OAuth middleware.
 func UserFromContext(ctx context.Context) *store.User {
@@ -19,8 +20,14 @@ func UserFromContext(ctx context.Context) *store.User {
 	return u
 }
 
+// OrgFromContext returns the org the auth token is scoped to.
+func OrgFromContext(ctx context.Context) *store.Org {
+	o, _ := ctx.Value(orgCtxKey{}).(*store.Org)
+	return o
+}
+
 // OAuth guards routes by validating a session token via UserStore.
-// On success, it stores the authenticated user in the request context.
+// On success, it stores the authenticated user and org in the request context.
 func OAuth(us *store.UserStore, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
@@ -30,7 +37,7 @@ func OAuth(us *store.UserStore, next http.Handler) http.Handler {
 			_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
 			return
 		}
-		user, err := us.GetUserByToken(token)
+		user, org, err := us.GetUserByToken(token)
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
@@ -38,20 +45,7 @@ func OAuth(us *store.UserStore, next http.Handler) http.Handler {
 			return
 		}
 		ctx := context.WithValue(r.Context(), userCtxKey{}, user)
+		ctx = context.WithValue(ctx, orgCtxKey{}, org)
 		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-// APIKey guards all routes with a bearer token check against the provided key.
-func APIKey(key string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if !ok || token == "" || token != key {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
-			return
-		}
-		next.ServeHTTP(w, r)
 	})
 }

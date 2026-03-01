@@ -20,7 +20,6 @@ Personal fitness tracking app with an MCP interface for AI-assisted workout plan
    | Variable | Default | Notes |
    |---|---|---|
    | `DATABASE_URL` | `postgres://cove:covedev@localhost:5432/cove` | Set by devenv |
-   | `COVE_API_KEY` | `dev-key` | Any string for local dev |
    | `GOOGLE_CLIENT_ID` | — | From Google Cloud Console |
    | `GOOGLE_CLIENT_SECRET` | — | From Google Cloud Console |
    | `GOOGLE_REDIRECT_URL` | `http://localhost:8080/auth/callback` | |

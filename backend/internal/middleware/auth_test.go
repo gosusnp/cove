@@ -27,13 +27,21 @@ func createExpiredSession(t *testing.T, database *sql.DB, userID uuid.UUID) stri
 	if _, err := rand.Read(buf); err != nil {
 		t.Fatalf("rand: %v", err)
 	}
-	token := hex.EncodeToString(buf)
+	token := "sess_" + hex.EncodeToString(buf)
 	h := sha256.Sum256([]byte(token))
 	hash := hex.EncodeToString(h[:])
+
+	var orgID uuid.UUID
+	if err := database.QueryRow(
+		`SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`, userID,
+	).Scan(&orgID); err != nil {
+		t.Fatalf("get org: %v", err)
+	}
+
 	expiresAt := time.Now().Add(-time.Hour)
 	if _, err := database.Exec(
-		`INSERT INTO user_sessions (user_id, token, expires_at) VALUES ($1, $2, $3)`,
-		userID, hash, expiresAt,
+		`INSERT INTO user_tokens (user_id, org_id, kind, token, expires_at) VALUES ($1, $2, 'session', $3, $4)`,
+		userID, orgID, hash, expiresAt,
 	); err != nil {
 		t.Fatalf("insert expired session: %v", err)
 	}
@@ -43,43 +51,6 @@ func createExpiredSession(t *testing.T, database *sql.DB, userID uuid.UUID) stri
 func newTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	return testdb.New(t, containerDSN, db.MigrationsFS)
-}
-
-func TestAPIKey(t *testing.T) {
-	const key = "test-key"
-
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	handler := APIKey(key, next)
-
-	tests := []struct {
-		name       string
-		authHeader string
-		wantStatus int
-	}{
-		{"valid key", "Bearer test-key", http.StatusOK},
-		{"wrong key", "Bearer wrong-key", http.StatusUnauthorized},
-		{"missing header", "", http.StatusUnauthorized},
-		{"bearer prefix only", "Bearer ", http.StatusUnauthorized},
-		{"no bearer prefix", "test-key", http.StatusUnauthorized},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodGet, "/", nil)
-			if tt.authHeader != "" {
-				r.Header.Set("Authorization", tt.authHeader)
-			}
-			w := httptest.NewRecorder()
-
-			handler.ServeHTTP(w, r)
-
-			if w.Code != tt.wantStatus {
-				t.Errorf("got status %d, want %d", w.Code, tt.wantStatus)
-			}
-		})
-	}
 }
 
 func TestOAuth(t *testing.T) {

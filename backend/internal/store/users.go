@@ -22,6 +22,10 @@ type User struct {
 	CreatedAt time.Time
 }
 
+type Org struct {
+	ID uuid.UUID
+}
+
 type UserStore struct {
 	db *sql.DB
 }
@@ -78,25 +82,58 @@ func (s *UserStore) GetOrCreate(email, googleSub string) (*User, bool, error) {
 	return &user, created, nil
 }
 
-// CreateSession generates a random session token, stores its SHA-256 hash,
-// and returns the raw token to the caller (only time it is ever in plaintext).
+// CreateSession generates a random session token (prefixed with "sess_"), stores its
+// SHA-256 hash in user_tokens, and returns the raw token (only time it is ever plaintext).
 func (s *UserStore) CreateSession(userID uuid.UUID) (string, error) {
-	buf := make([]byte, 32)
-	if _, err := rand.Read(buf); err != nil {
-		return "", fmt.Errorf("generate token: %w", err)
+	var orgID uuid.UUID
+	if err := s.db.QueryRow(
+		`SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`, userID,
+	).Scan(&orgID); err != nil {
+		return "", fmt.Errorf("get org for session: %w", err)
 	}
-	token := hex.EncodeToString(buf)
+
+	token, err := generateToken("sess_")
+	if err != nil {
+		return "", err
+	}
 	hash := sha256TokenHash(token)
 
 	expiresAt := time.Now().Add(30 * 24 * time.Hour)
-	_, err := s.db.Exec(
-		`INSERT INTO user_sessions (user_id, token, expires_at) VALUES ($1, $2, $3)`,
-		userID, hash, expiresAt,
+	_, err = s.db.Exec(
+		`INSERT INTO user_tokens (user_id, org_id, kind, token, expires_at) VALUES ($1, $2, 'session', $3, $4)`,
+		userID, orgID, hash, expiresAt,
 	)
 	if err != nil {
 		return "", fmt.Errorf("create session: %w", err)
 	}
 	return token, nil
+}
+
+// CreatePAT generates a named personal access token (prefixed with "pat_") that never expires.
+// The raw token is returned once; only its SHA-256 hash is stored.
+func (s *UserStore) CreatePAT(userID, orgID uuid.UUID, name string) (string, error) {
+	token, err := generateToken("pat_")
+	if err != nil {
+		return "", err
+	}
+	hash := sha256TokenHash(token)
+
+	_, err = s.db.Exec(
+		`INSERT INTO user_tokens (user_id, org_id, kind, name, token) VALUES ($1, $2, 'pat', $3, $4)`,
+		userID, orgID, name, hash,
+	)
+	if err != nil {
+		return "", fmt.Errorf("create pat: %w", err)
+	}
+	return token, nil
+}
+
+func generateToken(prefix string) (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("generate token: %w", err)
+	}
+	return prefix + hex.EncodeToString(buf), nil
 }
 
 func sha256TokenHash(token string) string {
@@ -120,20 +157,22 @@ func (s *UserStore) GetByID(id uuid.UUID) (*User, error) {
 	return &user, nil
 }
 
-// GetUserByToken hashes the provided token and looks up the matching non-expired session.
-func (s *UserStore) GetUserByToken(token string) (*User, error) {
+// GetUserByToken hashes the provided token and looks up the matching non-expired token.
+// Returns both the user and the org the token is scoped to.
+func (s *UserStore) GetUserByToken(token string) (*User, *Org, error) {
 	var user User
+	var org Org
 	err := s.db.QueryRow(`
-		SELECT u.id, u.email, u.google_sub, u.created_at
-		FROM user_sessions s
-		JOIN users u ON u.id = s.user_id
-		WHERE s.token = $1 AND s.expires_at > NOW()
-	`, sha256TokenHash(token)).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt)
+		SELECT u.id, u.email, u.google_sub, u.created_at, t.org_id
+		FROM user_tokens t
+		JOIN users u ON u.id = t.user_id
+		WHERE t.token = $1 AND (t.expires_at IS NULL OR t.expires_at > NOW())
+	`, sha256TokenHash(token)).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt, &org.ID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
+		return nil, nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, fmt.Errorf("get user by token: %w", err)
+		return nil, nil, fmt.Errorf("get user by token: %w", err)
 	}
-	return &user, nil
+	return &user, &org, nil
 }

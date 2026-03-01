@@ -26,11 +26,6 @@ import (
 var uiFS embed.FS
 
 func main() {
-	apiKey := os.Getenv("COVE_API_KEY")
-	if apiKey == "" {
-		log.Fatal("COVE_API_KEY is required")
-	}
-
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		log.Fatal("DATABASE_URL is required")
@@ -80,13 +75,10 @@ func main() {
 	handlers.NewProgramHandler(svcs.Programs).RegisterRoutes(apiMux)
 	handlers.NewProgramSetHandler(svcs.ProgramSets).RegisterRoutes(apiMux)
 	handlers.NewProgramExerciseHandler(svcs.ProgramExercises).RegisterRoutes(apiMux)
-
-	usersMux := http.NewServeMux()
-	handlers.NewUserHandler(service.NewUserService(userStore)).RegisterRoutes(usersMux)
+	handlers.NewUserHandler(service.NewUserService(userStore)).RegisterRoutes(apiMux)
 
 	mux := http.NewServeMux()
-	mux.Handle("/api/", http.StripPrefix("/api", middleware.APIKey(apiKey, apiMux)))
-	mux.Handle("/api/users/", http.StripPrefix("/api/users", middleware.OAuth(userStore, usersMux)))
+	mux.Handle("/api/", http.StripPrefix("/api", middleware.OAuth(userStore, apiMux)))
 	mux.Handle("/mcp/", middleware.OAuth(userStore, covemcp.NewHTTPHandler(svcs)))
 
 	var staticFS fs.FS

@@ -68,7 +68,7 @@ Every source file begins with a copyright and license header.
 
 ### Environment Variables
 
-- **DO** use `UPPER_SNAKE_CASE`: `DATABASE_URL`, `COVE_API_KEY`, `GOOGLE_CLIENT_ID`
+- **DO** use `UPPER_SNAKE_CASE`: `DATABASE_URL`, `GOOGLE_CLIENT_ID`
 - **DON'T** use any other casing for env vars.
 
 ### Comments
