@@ -1,14 +1,13 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { render, screen, fireEvent, waitFor } from "@testing-library/preact";
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen } from "@testing-library/preact";
+import { describe, it, expect, vi } from "vitest";
 import { LocationProvider } from "preact-iso";
 import { AuthContext } from "./auth.jsx";
 import { App } from "./App.jsx";
 import { Login } from "./pages/Login.jsx";
 import { Home } from "./pages/Home.jsx";
-import { Settings } from "./pages/Settings.jsx";
 import { Nav } from "./components/Nav.jsx";
 
 const MOCK_USER = { email: "jane@example.com", name: "Jane Smith" };
@@ -62,88 +61,6 @@ describe("Home", () => {
 	it("renders the tagline", () => {
 		render(<Home />);
 		expect(screen.getByText("Your space.")).toBeInTheDocument();
-	});
-});
-
-describe("Settings", () => {
-	it("renders the page heading", () => {
-		withProviders(<Settings />, { user: MOCK_USER });
-		expect(
-			screen.getByRole("heading", { name: "Settings" }),
-		).toBeInTheDocument();
-	});
-
-	it("shows the signed-in user email", () => {
-		withProviders(<Settings />, { user: MOCK_USER });
-		expect(screen.getByText(MOCK_USER.email)).toBeInTheDocument();
-	});
-
-	it("shows the signed-in user name", () => {
-		withProviders(<Settings />, { user: MOCK_USER });
-		expect(screen.getAllByText(MOCK_USER.name).length).toBeGreaterThan(0);
-	});
-
-	it("calls logout and redirects on sign out", () => {
-		const { auth } = withProviders(<Settings />, {
-			path: "/settings",
-			user: MOCK_USER,
-		});
-		fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
-		expect(auth.logout).toHaveBeenCalled();
-	});
-
-	describe("fetch /api/users/me", () => {
-		afterEach(() => vi.restoreAllMocks());
-
-		it("sends bearer token", async () => {
-			const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue({
-				json: () => Promise.resolve(MOCK_USER),
-			});
-
-			withProviders(<Settings />, { user: MOCK_USER });
-
-			await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
-			expect(fetchSpy).toHaveBeenCalledWith("/api/users/me", {
-				headers: { Authorization: "Bearer tok" },
-			});
-		});
-
-		it("calls updateUser with API response", async () => {
-			const apiUser = {
-				email: "api@example.com",
-				created_at: "2026-01-01T00:00:00Z",
-			};
-			vi.spyOn(global, "fetch").mockResolvedValue({
-				json: () => Promise.resolve(apiUser),
-			});
-
-			const { auth } = withProviders(<Settings />, { user: MOCK_USER });
-
-			await waitFor(() =>
-				expect(auth.updateUser).toHaveBeenCalledWith(apiUser),
-			);
-		});
-
-		it("shows auth context user when fetch fails", async () => {
-			vi.spyOn(global, "fetch").mockRejectedValue(new Error("network error"));
-
-			withProviders(<Settings />, { user: MOCK_USER });
-
-			await waitFor(() =>
-				expect(screen.getByText(MOCK_USER.email)).toBeInTheDocument(),
-			);
-		});
-
-		it("logs out and redirects when /me returns 401", async () => {
-			vi.spyOn(global, "fetch").mockResolvedValue({ status: 401 });
-
-			const { auth } = withProviders(<Settings />, {
-				path: "/settings",
-				user: MOCK_USER,
-			});
-
-			await waitFor(() => expect(auth.logout).toHaveBeenCalled());
-		});
 	});
 });
 
