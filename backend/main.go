@@ -68,17 +68,8 @@ func main() {
 		ProgramExercises: service.NewProgramExerciseService(store.NewProgramExerciseStore(database)),
 	}
 
-	// API sub-mux: handlers register routes without a prefix (e.g. /exercises).
-	// Mounted at /api/ via StripPrefix so no handler files need changing.
-	apiMux := http.NewServeMux()
-	handlers.NewExerciseHandler(svcs.Exercises).RegisterRoutes(apiMux)
-	handlers.NewProgramHandler(svcs.Programs).RegisterRoutes(apiMux)
-	handlers.NewProgramSetHandler(svcs.ProgramSets).RegisterRoutes(apiMux)
-	handlers.NewProgramExerciseHandler(svcs.ProgramExercises).RegisterRoutes(apiMux)
-	handlers.NewUserHandler(service.NewUserService(userStore)).RegisterRoutes(apiMux)
-
 	mux := http.NewServeMux()
-	mux.Handle("/api/", http.StripPrefix("/api", middleware.OAuth(userStore, apiMux)))
+	mux.Handle("/api/", NewAPIHandler(userStore, svcs))
 	mux.Handle("/mcp/", middleware.OAuth(userStore, covemcp.NewHTTPHandler(svcs)))
 
 	var staticFS fs.FS
