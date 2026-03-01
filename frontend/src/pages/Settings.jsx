@@ -4,6 +4,9 @@
 import { useEffect } from "preact/hooks";
 import { useLocation } from "preact-iso";
 import { useAuth } from "../auth.jsx";
+import { Avatar } from "../components/ui/Avatar.jsx";
+import { Button } from "../components/ui/Button.jsx";
+import { PageTitle } from "../components/ui/PageTitle.jsx";
 import { Section, Row } from "../components/ui/Section.jsx";
 
 function initials(user) {
@@ -48,24 +51,18 @@ export function Settings() {
 
 	return (
 		<main class="flex flex-1 flex-col gap-6 px-4 py-6 max-w-lg mx-auto w-full">
-			<h1 class="text-2xl font-semibold" style={{ color: "var(--color-text)" }}>
-				Settings
-			</h1>
+			<PageTitle>Settings</PageTitle>
 
 			<Section title="Profile">
 				<div
 					class="flex items-center gap-4 px-4 py-4"
 					style={{ borderBottom: "1px solid var(--color-border)" }}
 				>
-					<div
-						class="w-14 h-14 rounded-full flex items-center justify-center text-xl font-semibold shrink-0"
-						style={{
-							background: "var(--color-accent)",
-							color: "var(--color-surface)",
-						}}
-					>
-						{user ? initials(user) : "?"}
-					</div>
+					<Avatar
+						initials={user ? initials(user) : "?"}
+						label={user?.email}
+						class="w-14 h-14 text-xl shrink-0"
+					/>
 					<div class="flex flex-col gap-0.5">
 						{user?.name && (
 							<span class="font-medium" style={{ color: "var(--color-text)" }}>
@@ -108,18 +105,9 @@ export function Settings() {
 
 			<Section title="Account">
 				<Row label="Sign out" last>
-					<button
-						type="button"
-						onClick={handleSignOut}
-						class="text-sm font-medium px-3 py-1 rounded-lg transition-colors cursor-pointer"
-						style={{
-							color: "#dc2626",
-							background: "#fef2f2",
-							border: "1px solid #fecaca",
-						}}
-					>
+					<Button variant="destructive" size="sm" onClick={handleSignOut}>
 						Sign out
-					</button>
+					</Button>
 				</Row>
 			</Section>
 		</main>

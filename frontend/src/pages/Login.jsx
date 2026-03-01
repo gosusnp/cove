@@ -31,16 +31,13 @@ function GoogleIcon() {
 	);
 }
 
+import { PageTitle } from "../components/ui/PageTitle.jsx";
+
 export function Login() {
 	return (
 		<main class="flex min-h-dvh flex-col items-center justify-center gap-8 px-4">
 			<div class="flex flex-col items-center gap-2">
-				<h1
-					class="text-6xl font-semibold tracking-tight"
-					style={{ color: "var(--color-text)" }}
-				>
-					Cove
-				</h1>
+				<PageTitle class="text-6xl tracking-tight">Cove</PageTitle>
 				<p class="text-sm" style={{ color: "var(--color-muted)" }}>
 					Your space.
 				</p>

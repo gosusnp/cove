@@ -21,6 +21,10 @@ const button = cva(
 					"text-(--color-text) hover:bg-(--color-bg)",
 				],
 				ghost: ["bg-transparent text-(--color-text)", "hover:bg-(--color-bg)"],
+				destructive: [
+					"border border-red-200 bg-red-50 text-red-600",
+					"hover:bg-red-100",
+				],
 			},
 			size: {
 				sm: "h-8 px-3 text-sm gap-1.5",

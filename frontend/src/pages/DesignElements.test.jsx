@@ -90,14 +90,19 @@ describe("DesignElements", () => {
 		expect(
 			screen.getByRole("heading", { name: "Section + Row" }),
 		).toBeInTheDocument();
+		expect(
+			screen.getByRole("heading", { name: "PageTitle" }),
+		).toBeInTheDocument();
 	});
 
 	it("renders different button variants", () => {
 		import.meta.env.VITE_COVE_ENV = "dev";
 		withProviders(<DesignElements />);
 		// Section headers also have some text, but we check for the specific size labels
-		expect(screen.getAllByText("Small").length).toBe(3);
-		expect(screen.getAllByText("Medium").length).toBe(3);
+		// 3 variants (primary/outline/ghost) + 1 destructive = 4 "Small" buttons
+		expect(screen.getAllByText("Small").length).toBe(4);
+		// 3 variants (primary/outline/ghost) + 1 destructive = 4 "Medium" buttons
+		expect(screen.getAllByText("Medium").length).toBe(4);
 		expect(screen.getAllByText("Large").length).toBe(3);
 	});
 

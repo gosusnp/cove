@@ -35,6 +35,7 @@ import {
 	Row,
 	Divider,
 } from "../components/ui/Section.jsx";
+import { PageTitle } from "../components/ui/PageTitle.jsx";
 
 const PREVIEW_NAV_ITEMS = [
 	{ label: "Home", href: "/" },
@@ -190,6 +191,14 @@ export function DesignElements() {
 					</Button>
 					<Button variant="ghost" size="lg">
 						Large
+					</Button>
+				</PreviewRow>
+				<PreviewRow label="variant=destructive">
+					<Button variant="destructive" size="sm">
+						Small
+					</Button>
+					<Button variant="destructive" size="md">
+						Medium
 					</Button>
 				</PreviewRow>
 				<PreviewRow label="disabled">
@@ -348,6 +357,18 @@ export function DesignElements() {
 							</Row>
 						</CardSection>
 					</div>
+				</PreviewRow>
+			</PageSection>
+
+			<Divider />
+
+			{/* ── PageTitle ─────────────────────────────────── */}
+			<PageSection title="PageTitle">
+				<PreviewRow label="default (text-2xl)">
+					<PageTitle>Settings</PageTitle>
+				</PreviewRow>
+				<PreviewRow label="hero (text-6xl)">
+					<PageTitle class="text-6xl tracking-tight">Cove</PageTitle>
 				</PreviewRow>
 			</PageSection>
 		</main>
