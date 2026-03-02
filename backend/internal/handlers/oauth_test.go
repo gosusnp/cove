@@ -41,7 +41,7 @@ func newTestOAuthHandler(t *testing.T, allowed []string, tokenURL, userinfoURL s
 	t.Helper()
 	dbConn := testdb.New(t, containerDSN, db.MigrationsFS)
 	us := store.NewUserStore(dbConn)
-	orgs := store.NewOrgStore(dbConn)
+	orgs := store.NewOrgStore()
 	svc := service.NewUserService(dbConn, us, orgs)
 	cfg := &oauth2.Config{
 		ClientID:     "test-client-id",

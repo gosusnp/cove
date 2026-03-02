@@ -62,7 +62,7 @@ func (h *OAuthHandler) devLogin(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "email is required", http.StatusBadRequest)
 		return
 	}
-	user, _, err := h.userSvc.GetOrCreate(req.Email, "dev:"+req.Email)
+	user, _, err := h.userSvc.GetOrCreate(r.Context(), req.Email, "dev:"+req.Email)
 	if err != nil {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
@@ -124,7 +124,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get or create user + org
-	user, _, err := h.userSvc.GetOrCreate(info.Email, info.Sub)
+	user, _, err := h.userSvc.GetOrCreate(r.Context(), info.Email, info.Sub)
 	if err != nil {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return

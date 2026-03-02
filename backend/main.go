@@ -53,7 +53,7 @@ func main() {
 	defer database.Close()
 
 	userStore := store.NewUserStore(database)
-	orgStore := store.NewOrgStore(database)
+	orgStore := store.NewOrgStore()
 	userSvc := service.NewUserService(database, userStore, orgStore)
 	oauthCfg := &oauth2.Config{
 		ClientID:     googleClientID,

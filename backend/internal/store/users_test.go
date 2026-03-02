@@ -16,13 +16,15 @@ import (
 func newTestUserStore(t *testing.T) (*UserStore, *OrgStore) {
 	t.Helper()
 	db := newTestDB(t)
-	return NewUserStore(db), NewOrgStore(db)
+	return NewUserStore(db), NewOrgStore()
 }
 
 // createTestUser seeds a user with an org and owner membership, mirroring the
 // full setup that UserService.GetOrCreate performs in production.
 func createTestUser(t *testing.T, s *UserStore, os *OrgStore, email, googleSub string) *User {
 	t.Helper()
+
+	ctx := t.Context()
 
 	userID, err := uuid.NewV7()
 	if err != nil {
@@ -37,10 +39,10 @@ func createTestUser(t *testing.T, s *UserStore, os *OrgStore, email, googleSub s
 		if err != nil {
 			t.Fatalf("generate org id: %v", err)
 		}
-		if err := os.CreateOrg(orgID, email); err != nil {
+		if err := os.CreateOrg(ctx, s.db, orgID, email); err != nil {
 			t.Fatalf("CreateOrg: %v", err)
 		}
-		if err := os.CreateOrgMember(orgID, user.ID, "owner"); err != nil {
+		if err := os.CreateOrgMember(ctx, s.db, orgID, user.ID, "owner"); err != nil {
 			t.Fatalf("CreateOrgMember: %v", err)
 		}
 	}

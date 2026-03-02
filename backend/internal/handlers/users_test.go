@@ -4,6 +4,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -18,21 +19,21 @@ import (
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
-func newUsersServer(t *testing.T) (http.Handler, *store.UserStore, *service.UserService) {
+func newUsersServer(t *testing.T) (context.Context, http.Handler, *store.UserStore, *service.UserService) {
 	t.Helper()
 	db := newTestDB(t)
 	us := store.NewUserStore(db)
-	orgs := store.NewOrgStore(db)
+	orgs := store.NewOrgStore()
 	svc := service.NewUserService(db, us, orgs)
 	mux := http.NewServeMux()
 	NewUserHandler(svc).RegisterRoutes(mux)
-	return middleware.OAuth(us, mux), us, svc
+	return t.Context(), middleware.OAuth(us, mux), us, svc
 }
 
 func TestUserHandler_Logout(t *testing.T) {
 	t.Run("deletes current session", func(t *testing.T) {
-		handler, us, svc := newUsersServer(t)
-		user, _, err := svc.GetOrCreate("logout@example.com", "sub-logout")
+		ctx, handler, us, svc := newUsersServer(t)
+		user, _, err := svc.GetOrCreate(ctx, "logout@example.com", "sub-logout")
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
@@ -65,7 +66,7 @@ func TestUserHandler_Logout(t *testing.T) {
 	})
 
 	t.Run("returns 401 for missing token", func(t *testing.T) {
-		handler, _, _ := newUsersServer(t)
+		_, handler, _, _ := newUsersServer(t)
 		r := httptest.NewRequest(http.MethodPost, "/users/logout", nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, r)
@@ -77,9 +78,9 @@ func TestUserHandler_Logout(t *testing.T) {
 }
 func TestUserHandler_Me(t *testing.T) {
 	t.Run("returns current user", func(t *testing.T) {
-		handler, us, svc := newUsersServer(t)
+		ctx, handler, us, svc := newUsersServer(t)
 
-		user, _, err := svc.GetOrCreate("me@example.com", "sub-me")
+		user, _, err := svc.GetOrCreate(ctx, "me@example.com", "sub-me")
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
@@ -113,7 +114,7 @@ func TestUserHandler_Me(t *testing.T) {
 	})
 
 	t.Run("missing token returns 401", func(t *testing.T) {
-		handler, _, _ := newUsersServer(t)
+		_, handler, _, _ := newUsersServer(t)
 
 		r := httptest.NewRequest(http.MethodGet, "/users/me", nil)
 		w := httptest.NewRecorder()
@@ -125,7 +126,7 @@ func TestUserHandler_Me(t *testing.T) {
 	})
 
 	t.Run("invalid token returns 401", func(t *testing.T) {
-		handler, _, _ := newUsersServer(t)
+		_, handler, _, _ := newUsersServer(t)
 
 		r := httptest.NewRequest(http.MethodGet, "/users/me", nil)
 		r.Header.Set("Authorization", "Bearer notavalidtoken")
@@ -141,8 +142,8 @@ func TestUserHandler_Me(t *testing.T) {
 func TestUserHandler_Sessions(t *testing.T) {
 	setup := func(t *testing.T) (http.Handler, *store.UserStore, string) {
 		t.Helper()
-		handler, us, svc := newUsersServer(t)
-		user, _, err := svc.GetOrCreate("sess-h@example.com", "sub-sess-h")
+		ctx, handler, us, svc := newUsersServer(t)
+		user, _, err := svc.GetOrCreate(ctx, "sess-h@example.com", "sub-sess-h")
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
@@ -205,10 +206,10 @@ func TestUserHandler_Sessions(t *testing.T) {
 	})
 
 	t.Run("cannot list another user's sessions", func(t *testing.T) {
-		handler, us, svc := newUsersServer(t)
+		ctx, handler, us, svc := newUsersServer(t)
 
 		// User A has a session.
-		userA, _, err := svc.GetOrCreate("a-sess@example.com", "sub-a-sess")
+		userA, _, err := svc.GetOrCreate(ctx, "a-sess@example.com", "sub-a-sess")
 		if err != nil {
 			t.Fatalf("GetOrCreate A: %v", err)
 		}
@@ -217,7 +218,7 @@ func TestUserHandler_Sessions(t *testing.T) {
 		}
 
 		// User B lists sessions — should only see their own.
-		userB, _, err := svc.GetOrCreate("b-sess@example.com", "sub-b-sess")
+		userB, _, err := svc.GetOrCreate(ctx, "b-sess@example.com", "sub-b-sess")
 		if err != nil {
 			t.Fatalf("GetOrCreate B: %v", err)
 		}
@@ -244,10 +245,10 @@ func TestUserHandler_Sessions(t *testing.T) {
 	})
 
 	t.Run("cannot delete another user's session", func(t *testing.T) {
-		handler, us, svc := newUsersServer(t)
+		ctx, handler, us, svc := newUsersServer(t)
 
 		// User A has a session.
-		userA, _, err := svc.GetOrCreate("a-sess-del@example.com", "sub-a-sess-del")
+		userA, _, err := svc.GetOrCreate(ctx, "a-sess-del@example.com", "sub-a-sess-del")
 		if err != nil {
 			t.Fatalf("GetOrCreate A: %v", err)
 		}
@@ -261,7 +262,7 @@ func TestUserHandler_Sessions(t *testing.T) {
 		idA := sessionsA[0].ID
 
 		// User B attempts to delete User A's session.
-		userB, _, err := svc.GetOrCreate("b-sess-del@example.com", "sub-b-sess-del")
+		userB, _, err := svc.GetOrCreate(ctx, "b-sess-del@example.com", "sub-b-sess-del")
 		if err != nil {
 			t.Fatalf("GetOrCreate B: %v", err)
 		}
@@ -290,8 +291,8 @@ func TestUserHandler_Sessions(t *testing.T) {
 func TestUserHandler_Tokens(t *testing.T) {
 	setup := func(t *testing.T) (http.Handler, *store.UserStore, string) {
 		t.Helper()
-		handler, us, svc := newUsersServer(t)
-		user, _, err := svc.GetOrCreate("tok@example.com", "sub-tok")
+		ctx, handler, us, svc := newUsersServer(t)
+		user, _, err := svc.GetOrCreate(ctx, "tok@example.com", "sub-tok")
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
@@ -444,10 +445,10 @@ func TestUserHandler_Tokens(t *testing.T) {
 	})
 
 	t.Run("cannot list another user's tokens", func(t *testing.T) {
-		handler, us, svc := newUsersServer(t)
+		ctx, handler, us, svc := newUsersServer(t)
 
 		// User A creates a token.
-		userA, _, err := svc.GetOrCreate("a@example.com", "sub-a")
+		userA, _, err := svc.GetOrCreate(ctx, "a@example.com", "sub-a")
 		if err != nil {
 			t.Fatalf("GetOrCreate A: %v", err)
 		}
@@ -462,7 +463,7 @@ func TestUserHandler_Tokens(t *testing.T) {
 		handler.ServeHTTP(httptest.NewRecorder(), r)
 
 		// User B lists tokens — should see none.
-		userB, _, err := svc.GetOrCreate("b@example.com", "sub-b")
+		userB, _, err := svc.GetOrCreate(ctx, "b@example.com", "sub-b")
 		if err != nil {
 			t.Fatalf("GetOrCreate B: %v", err)
 		}
@@ -485,10 +486,10 @@ func TestUserHandler_Tokens(t *testing.T) {
 	})
 
 	t.Run("cannot delete another user's token", func(t *testing.T) {
-		handler, us, svc := newUsersServer(t)
+		ctx, handler, us, svc := newUsersServer(t)
 
 		// User A creates a token.
-		userA, _, err := svc.GetOrCreate("a2@example.com", "sub-a2")
+		userA, _, err := svc.GetOrCreate(ctx, "a2@example.com", "sub-a2")
 		if err != nil {
 			t.Fatalf("GetOrCreate A: %v", err)
 		}
@@ -509,7 +510,7 @@ func TestUserHandler_Tokens(t *testing.T) {
 		tokenID := created["id"].(string)
 
 		// User B attempts to delete A's token.
-		userB, _, err := svc.GetOrCreate("b2@example.com", "sub-b2")
+		userB, _, err := svc.GetOrCreate(ctx, "b2@example.com", "sub-b2")
 		if err != nil {
 			t.Fatalf("GetOrCreate B: %v", err)
 		}

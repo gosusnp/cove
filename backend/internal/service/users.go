@@ -4,6 +4,7 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -28,7 +29,7 @@ func NewUserService(db *sql.DB, users *store.UserStore, orgs *store.OrgStore) *U
 
 // GetOrCreate upserts a user by google_sub, creating an org and membership on first insert.
 // Returns the user and whether it was newly created.
-func (s *UserService) GetOrCreate(email, googleSub string) (*store.User, bool, error) {
+func (s *UserService) GetOrCreate(ctx context.Context, email, googleSub string) (*store.User, bool, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, false, fmt.Errorf("begin tx: %w", err)
@@ -41,7 +42,6 @@ func (s *UserService) GetOrCreate(email, googleSub string) (*store.User, bool, e
 	}
 
 	txUsers := s.users.WithTx(tx)
-	txOrgs := s.orgs.WithTx(tx)
 
 	user, created, err := txUsers.UpsertUser(newID, email, googleSub)
 	if err != nil {
@@ -53,10 +53,10 @@ func (s *UserService) GetOrCreate(email, googleSub string) (*store.User, bool, e
 		if err != nil {
 			return nil, false, fmt.Errorf("generate org id: %w", err)
 		}
-		if err := txOrgs.CreateOrg(orgID, email); err != nil {
+		if err := s.orgs.CreateOrg(ctx, tx, orgID, email); err != nil {
 			return nil, false, err
 		}
-		if err := txOrgs.CreateOrgMember(orgID, user.ID, "owner"); err != nil {
+		if err := s.orgs.CreateOrgMember(ctx, tx, orgID, user.ID, "owner"); err != nil {
 			return nil, false, err
 		}
 	}
