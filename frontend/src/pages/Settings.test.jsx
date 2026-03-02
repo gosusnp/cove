@@ -1,7 +1,13 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { render, screen, fireEvent, waitFor } from "@testing-library/preact";
+import {
+	render,
+	screen,
+	fireEvent,
+	waitFor,
+	within,
+} from "@testing-library/preact";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { LocationProvider } from "preact-iso";
 import { AuthContext } from "../auth.jsx";
@@ -42,7 +48,7 @@ function withProviders(ui, { path = "/settings", user = MOCK_USER } = {}) {
 	};
 }
 
-function mockFetch({ tokens = [], meUser = MOCK_USER } = {}) {
+function mockFetch({ tokens = [], sessions = [], meUser = MOCK_USER } = {}) {
 	return vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
 		if (url === "/api/users/tokens" && opts?.method === "POST") {
 			const name = JSON.parse(opts.body).name;
@@ -61,6 +67,12 @@ function mockFetch({ tokens = [], meUser = MOCK_USER } = {}) {
 			return Promise.resolve({
 				ok: true,
 				json: () => Promise.resolve(tokens),
+			});
+		}
+		if (url.startsWith("/api/users/sessions")) {
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve(sessions),
 			});
 		}
 		return Promise.resolve({ json: () => Promise.resolve(meUser) });
@@ -109,6 +121,9 @@ describe("Settings", () => {
 			};
 			vi.spyOn(global, "fetch").mockImplementation((url) => {
 				if (url.startsWith("/api/users/tokens")) {
+					return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+				}
+				if (url.startsWith("/api/users/sessions")) {
 					return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
 				}
 				return Promise.resolve({ json: () => Promise.resolve(apiUser) });
@@ -269,6 +284,173 @@ describe("Settings", () => {
 			fireEvent.submit(screen.getByLabelText("Token name").closest("form"));
 
 			expect(screen.getByText("Token name is required.")).toBeInTheDocument();
+		});
+	});
+
+	describe("Sessions", () => {
+		it("renders sessions returned by the API", async () => {
+			mockFetch({
+				sessions: [
+					{
+						id: "s1",
+						initial_browser: "Chrome",
+						initial_os: "macOS",
+						initial_ip_masked: "1.1.1.0",
+						is_current: true,
+						last_used_at: "2026-03-01T10:00:00Z",
+					},
+				],
+			});
+			withProviders(<Settings />);
+			await waitFor(() =>
+				expect(
+					screen.getByText(/Chrome on macOS · Current/),
+				).toBeInTheDocument(),
+			);
+		});
+
+		it("shows last_used_at relative time in sublabel", async () => {
+			mockFetch({
+				sessions: [
+					{
+						id: "s1",
+						initial_browser: "Chrome",
+						initial_os: "macOS",
+						initial_ip_masked: "1.1.1.0",
+						created_at: "2026-01-01T00:00:00Z",
+						last_used_at: "2026-02-01T00:00:00Z",
+					},
+				],
+			});
+			withProviders(<Settings />);
+			await waitFor(() =>
+				expect(screen.getByText(/Active .+ ago/)).toBeInTheDocument(),
+			);
+		});
+
+		it("falls back to created_at when last_used_at is null", async () => {
+			mockFetch({
+				sessions: [
+					{
+						id: "s1",
+						initial_browser: "Chrome",
+						initial_os: "macOS",
+						initial_ip_masked: "1.1.1.0",
+						created_at: "2026-02-01T00:00:00Z",
+						last_used_at: null,
+					},
+				],
+			});
+			withProviders(<Settings />);
+			await waitFor(() =>
+				expect(screen.getByText(/Active .+ ago/)).toBeInTheDocument(),
+			);
+		});
+
+		it("calls DELETE when a session is revoked", async () => {
+			const fetchSpy = mockFetch({
+				sessions: [
+					{
+						id: "abc-456",
+						initial_browser: "Firefox",
+						initial_os: "Linux",
+						is_current: false,
+					},
+				],
+			});
+			withProviders(<Settings />);
+			await waitFor(() =>
+				expect(screen.getByText(/Firefox on Linux/)).toBeInTheDocument(),
+			);
+			fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+			expect(fetchSpy).toHaveBeenCalledWith("/api/users/sessions/abc-456", {
+				method: "DELETE",
+				headers: { Authorization: "Bearer tok" },
+			});
+		});
+
+		it("signs out when current session is deleted", async () => {
+			mockFetch({
+				sessions: [
+					{
+						id: "current-id",
+						initial_browser: "Chrome",
+						initial_os: "macOS",
+						is_current: true,
+					},
+				],
+			});
+			const { auth } = withProviders(<Settings />);
+			await waitFor(() =>
+				expect(screen.getByText(/Chrome on macOS · Current/)).toBeInTheDocument(),
+			);
+
+			const sessionsSection = screen
+				.getByText("Active Sessions")
+				.closest("section");
+			fireEvent.click(
+				within(sessionsSection).getByRole("button", { name: "Sign out" }),
+			);
+
+			expect(auth.logout).toHaveBeenCalled();
+		});
+
+		it("shows error row when sessions fetch fails", async () => {
+			vi.spyOn(global, "fetch").mockImplementation((url) => {
+				if (url === "/api/users/sessions") {
+					return Promise.reject(new Error("network"));
+				}
+				if (url.startsWith("/api/users/tokens")) {
+					return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+				}
+				return Promise.resolve({ json: () => Promise.resolve(MOCK_USER) });
+			});
+			withProviders(<Settings />);
+			await waitFor(() =>
+				expect(
+					screen.getByText("Could not load sessions."),
+				).toBeInTheDocument(),
+			);
+		});
+
+		it("keeps session in list when DELETE fails", async () => {
+			vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+				if (url === "/api/users/sessions" && !opts?.method) {
+					return Promise.resolve({
+						ok: true,
+						json: () =>
+							Promise.resolve([
+								{
+									id: "s1",
+									initial_browser: "Firefox",
+									initial_os: "Linux",
+									is_current: false,
+								},
+							]),
+					});
+				}
+				if (
+					url.startsWith("/api/users/sessions/") &&
+					opts?.method === "DELETE"
+				) {
+					return Promise.resolve({ ok: false });
+				}
+				if (url.startsWith("/api/users/tokens")) {
+					return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+				}
+				return Promise.resolve({ json: () => Promise.resolve(MOCK_USER) });
+			});
+			withProviders(<Settings />);
+			await waitFor(() =>
+				expect(screen.getByText(/Firefox on Linux/)).toBeInTheDocument(),
+			);
+			fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: "Revoke" }),
+				).toBeInTheDocument(),
+			);
+			expect(screen.getByText(/Firefox on Linux/)).toBeInTheDocument();
 		});
 	});
 });

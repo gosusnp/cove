@@ -81,6 +81,28 @@ export function Settings() {
 			});
 	}, [token]);
 
+	// ── Sessions ─────────────────────────────────────────────────────────
+	const sessions = useSignal([]);
+	const sessionsLoading = useSignal(true);
+	const sessionsError = useSignal(false);
+
+	useEffect(() => {
+		if (!token) return;
+		fetch("/api/users/sessions", {
+			headers: { Authorization: `Bearer ${token}` },
+		})
+			.then((r) => (r.ok ? r.json() : Promise.reject()))
+			.then((data) => {
+				sessions.value = data;
+			})
+			.catch(() => {
+				sessionsError.value = true;
+			})
+			.finally(() => {
+				sessionsLoading.value = false;
+			});
+	}, [token]);
+
 	function openCreateDialog() {
 		tokenName.value = "";
 		createError.value = "";
@@ -130,6 +152,21 @@ export function Settings() {
 			method: "DELETE",
 			headers: { Authorization: `Bearer ${token}` },
 		});
+	}
+
+	async function handleDeleteSession(id) {
+		const s = sessions.value.find((sess) => sess.id === id);
+		if (s?.is_current) {
+			handleSignOut();
+			return;
+		}
+		const r = await fetch(`/api/users/sessions/${id}`, {
+			method: "DELETE",
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		if (r.ok) {
+			sessions.value = sessions.value.filter((sess) => sess.id !== id);
+		}
 	}
 
 	function handleCopy() {
@@ -225,6 +262,33 @@ export function Settings() {
 						Create
 					</Button>
 				</Row>
+			</Section>
+
+			<Section title="Active Sessions">
+				{sessionsLoading.value ? (
+					<Row label="Loading…" last />
+				) : sessionsError.value ? (
+					<Row label="Could not load sessions." last />
+				) : sessions.value.length === 0 ? (
+					<Row label="No active sessions" last />
+				) : (
+					sessions.value.map((s, i) => (
+						<Row
+							key={s.id}
+							label={`${s.last_browser ?? s.initial_browser ?? "Unknown Browser"} on ${s.last_os ?? s.initial_os ?? "Unknown OS"}${s.is_current ? " · Current" : ""}`}
+							sublabel={`${s.last_ip_masked ?? s.initial_ip_masked ?? "Unknown IP"} · Active ${timeAgo(s.last_used_at ?? s.created_at)}`}
+							last={i === sessions.value.length - 1}
+						>
+							<Button
+								variant="destructive"
+								size="sm"
+								onClick={() => handleDeleteSession(s.id)}
+							>
+								{s.is_current ? "Sign out" : "Revoke"}
+							</Button>
+						</Row>
+					))
+				)}
 			</Section>
 
 			<Section title="Account">
