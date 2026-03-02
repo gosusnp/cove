@@ -13,16 +13,46 @@ import (
 	"github.com/google/uuid"
 )
 
-func newTestUserStore(t *testing.T) *UserStore {
+func newTestUserStore(t *testing.T) (*UserStore, *OrgStore) {
 	t.Helper()
-	return NewUserStore(newTestDB(t))
+	db := newTestDB(t)
+	return NewUserStore(db), NewOrgStore(db)
 }
 
-func TestUserStore_GetOrCreate(t *testing.T) {
-	t.Run("creates new user", func(t *testing.T) {
-		s := newTestUserStore(t)
+// createTestUser seeds a user with an org and owner membership, mirroring the
+// full setup that UserService.GetOrCreate performs in production.
+func createTestUser(t *testing.T, s *UserStore, os *OrgStore, email, googleSub string) *User {
+	t.Helper()
 
-		user, created, err := s.GetOrCreate("alice@example.com", "sub-alice")
+	userID, err := uuid.NewV7()
+	if err != nil {
+		t.Fatalf("generate user id: %v", err)
+	}
+	user, created, err := s.UpsertUser(userID, email, googleSub)
+	if err != nil {
+		t.Fatalf("UpsertUser: %v", err)
+	}
+	if created {
+		orgID, err := uuid.NewV7()
+		if err != nil {
+			t.Fatalf("generate org id: %v", err)
+		}
+		if err := os.CreateOrg(orgID, email); err != nil {
+			t.Fatalf("CreateOrg: %v", err)
+		}
+		if err := os.CreateOrgMember(orgID, user.ID, "owner"); err != nil {
+			t.Fatalf("CreateOrgMember: %v", err)
+		}
+	}
+	return user
+}
+
+func TestUserStore_UpsertUser(t *testing.T) {
+	t.Run("creates new user", func(t *testing.T) {
+		s, _ := newTestUserStore(t)
+
+		id, _ := uuid.NewV7()
+		user, created, err := s.UpsertUser(id, "alice@example.com", "sub-alice")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -40,56 +70,17 @@ func TestUserStore_GetOrCreate(t *testing.T) {
 		}
 	})
 
-	t.Run("creates org and membership for new user", func(t *testing.T) {
-		s := newTestUserStore(t)
+	t.Run("returns existing user on conflict", func(t *testing.T) {
+		s, _ := newTestUserStore(t)
 
-		user, _, err := s.GetOrCreate("bob@example.com", "sub-bob")
+		id, _ := uuid.NewV7()
+		first, _, err := s.UpsertUser(id, "carol@example.com", "sub-carol")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		var count int
-		err = s.db.QueryRow(
-			`SELECT count(*) FROM org_members WHERE user_id = $1 AND role = 'owner'`,
-			user.ID,
-		).Scan(&count)
-		if err != nil {
-			t.Fatalf("query org_members: %v", err)
-		}
-		if count != 1 {
-			t.Errorf("expected 1 org membership, got %d", count)
-		}
-	})
-
-	t.Run("does not create duplicate org on second login", func(t *testing.T) {
-		s := newTestUserStore(t)
-
-		if _, _, err := s.GetOrCreate("carol@example.com", "sub-carol"); err != nil {
-			t.Fatalf("first call: %v", err)
-		}
-		user, _, err := s.GetOrCreate("carol@example.com", "sub-carol")
-		if err != nil {
-			t.Fatalf("second call: %v", err)
-		}
-
-		var count int
-		if err := s.db.QueryRow(`SELECT count(*) FROM org_members WHERE user_id = $1`, user.ID).Scan(&count); err != nil {
-			t.Fatalf("query org_members: %v", err)
-		}
-		if count != 1 {
-			t.Errorf("expected 1 org membership, got %d", count)
-		}
-	})
-
-	t.Run("returns existing user on second call", func(t *testing.T) {
-		s := newTestUserStore(t)
-
-		first, _, err := s.GetOrCreate("carol@example.com", "sub-carol")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		second, created, err := s.GetOrCreate("carol@example.com", "sub-carol")
+		id2, _ := uuid.NewV7()
+		second, created, err := s.UpsertUser(id2, "carol@example.com", "sub-carol")
 		if err != nil {
 			t.Fatalf("unexpected error on second call: %v", err)
 		}
@@ -102,13 +93,15 @@ func TestUserStore_GetOrCreate(t *testing.T) {
 	})
 
 	t.Run("updates email when google sub already exists", func(t *testing.T) {
-		s := newTestUserStore(t)
+		s, _ := newTestUserStore(t)
 
-		if _, _, err := s.GetOrCreate("old@example.com", "sub-dave"); err != nil {
+		id, _ := uuid.NewV7()
+		if _, _, err := s.UpsertUser(id, "old@example.com", "sub-dave"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		updated, created, err := s.GetOrCreate("new@example.com", "sub-dave")
+		id2, _ := uuid.NewV7()
+		updated, created, err := s.UpsertUser(id2, "new@example.com", "sub-dave")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -123,11 +116,8 @@ func TestUserStore_GetOrCreate(t *testing.T) {
 
 func TestUserStore_CreateSession(t *testing.T) {
 	t.Run("returns non-empty token with sess_ prefix", func(t *testing.T) {
-		s := newTestUserStore(t)
-		user, _, err := s.GetOrCreate("eve@example.com", "sub-eve")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		s, orgs := newTestUserStore(t)
+		user := createTestUser(t, s, orgs, "eve@example.com", "sub-eve")
 
 		token, err := s.CreateSession(user.ID, "", "", "")
 		if err != nil {
@@ -142,11 +132,8 @@ func TestUserStore_CreateSession(t *testing.T) {
 	})
 
 	t.Run("stores hash not plaintext", func(t *testing.T) {
-		s := newTestUserStore(t)
-		user, _, err := s.GetOrCreate("frank@example.com", "sub-frank")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		s, orgs := newTestUserStore(t)
+		user := createTestUser(t, s, orgs, "frank@example.com", "sub-frank")
 
 		token, err := s.CreateSession(user.ID, "", "", "")
 		if err != nil {
@@ -170,13 +157,10 @@ func TestUserStore_CreateSession(t *testing.T) {
 	})
 
 	t.Run("stores initial session info", func(t *testing.T) {
-		s := newTestUserStore(t)
-		user, _, err := s.GetOrCreate("session-info@example.com", "sub-session-info")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		s, orgs := newTestUserStore(t)
+		user := createTestUser(t, s, orgs, "session-info@example.com", "sub-session-info")
 
-		_, err = s.CreateSession(user.ID, "1.2.3.0", "Chrome", "macOS")
+		_, err := s.CreateSession(user.ID, "1.2.3.0", "Chrome", "macOS")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -216,11 +200,8 @@ func TestUserStore_CreatePAT(t *testing.T) {
 	}
 
 	t.Run("returns token with pat_ prefix", func(t *testing.T) {
-		s := newTestUserStore(t)
-		user, _, err := s.GetOrCreate("pat@example.com", "sub-pat")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		s, orgs := newTestUserStore(t)
+		user := createTestUser(t, s, orgs, "pat@example.com", "sub-pat")
 		orgID := lookupOrgID(t, s, user.ID)
 
 		token, pat, err := s.CreatePAT(user.ID, orgID, "my-token", "", "", "")
@@ -239,11 +220,8 @@ func TestUserStore_CreatePAT(t *testing.T) {
 	})
 
 	t.Run("PAT is valid for GetUserByToken", func(t *testing.T) {
-		s := newTestUserStore(t)
-		user, _, err := s.GetOrCreate("pat2@example.com", "sub-pat2")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		s, orgs := newTestUserStore(t)
+		user := createTestUser(t, s, orgs, "pat2@example.com", "sub-pat2")
 		orgID := lookupOrgID(t, s, user.ID)
 
 		token, _, err := s.CreatePAT(user.ID, orgID, "ci-token", "", "", "")
@@ -263,14 +241,11 @@ func TestUserStore_CreatePAT(t *testing.T) {
 
 func TestUserStore_Sessions(t *testing.T) {
 	t.Run("ListSessions returns all active sessions", func(t *testing.T) {
-		s := newTestUserStore(t)
-		user, _, err := s.GetOrCreate("sess-list@example.com", "sub-sess-list")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		s, orgs := newTestUserStore(t)
+		user := createTestUser(t, s, orgs, "sess-list@example.com", "sub-sess-list")
 
 		// Create two sessions.
-		_, err = s.CreateSession(user.ID, "1.1.1.1", "Chrome", "macOS")
+		_, err := s.CreateSession(user.ID, "1.1.1.1", "Chrome", "macOS")
 		if err != nil {
 			t.Fatalf("CreateSession 1: %v", err)
 		}
@@ -295,13 +270,10 @@ func TestUserStore_Sessions(t *testing.T) {
 	})
 
 	t.Run("DeleteSession removes session", func(t *testing.T) {
-		s := newTestUserStore(t)
-		user, _, err := s.GetOrCreate("sess-del@example.com", "sub-sess-del")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		s, orgs := newTestUserStore(t)
+		user := createTestUser(t, s, orgs, "sess-del@example.com", "sub-sess-del")
 
-		_, err = s.CreateSession(user.ID, "", "", "")
+		_, err := s.CreateSession(user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession: %v", err)
 		}
@@ -325,11 +297,8 @@ func TestUserStore_Sessions(t *testing.T) {
 
 func TestUserStore_GetUserByToken(t *testing.T) {
 	t.Run("valid token returns user", func(t *testing.T) {
-		s := newTestUserStore(t)
-		user, _, err := s.GetOrCreate("grace@example.com", "sub-grace")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		s, orgs := newTestUserStore(t)
+		user := createTestUser(t, s, orgs, "grace@example.com", "sub-grace")
 		token, err := s.CreateSession(user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -351,7 +320,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 	})
 
 	t.Run("invalid token returns ErrNotFound", func(t *testing.T) {
-		s := newTestUserStore(t)
+		s, _ := newTestUserStore(t)
 
 		_, _, _, err := s.GetUserByToken("notavalidtoken", "", "", "")
 		if !errors.Is(err, ErrNotFound) {
@@ -360,11 +329,8 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 	})
 
 	t.Run("sets last_used_at on first use", func(t *testing.T) {
-		s := newTestUserStore(t)
-		user, _, err := s.GetOrCreate("ida@example.com", "sub-ida")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		s, orgs := newTestUserStore(t)
+		user := createTestUser(t, s, orgs, "ida@example.com", "sub-ida")
 		token, err := s.CreateSession(user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -386,11 +352,8 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 	})
 
 	t.Run("does not update last_used_at within throttle window", func(t *testing.T) {
-		s := newTestUserStore(t)
-		user, _, err := s.GetOrCreate("jack@example.com", "sub-jack")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		s, orgs := newTestUserStore(t)
+		user := createTestUser(t, s, orgs, "jack@example.com", "sub-jack")
 		token, err := s.CreateSession(user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -423,14 +386,11 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 	})
 
 	t.Run("expired token returns ErrNotFound", func(t *testing.T) {
-		s := newTestUserStore(t)
-		user, _, err := s.GetOrCreate("henry@example.com", "sub-henry")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		s, orgs := newTestUserStore(t)
+		user := createTestUser(t, s, orgs, "henry@example.com", "sub-henry")
 
 		var orgID uuid.UUID
-		if err = s.db.QueryRow(
+		if err := s.db.QueryRow(
 			`SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`, user.ID,
 		).Scan(&orgID); err != nil {
 			t.Fatalf("lookup org: %v", err)
@@ -438,7 +398,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 
 		// Insert an already-expired session directly.
 		expiredAt := time.Now().Add(-1 * time.Hour)
-		_, err = s.db.Exec(
+		_, err := s.db.Exec(
 			`INSERT INTO user_tokens (user_id, org_id, kind, token, expires_at, initial_ip_masked, initial_browser, initial_os) VALUES ($1, $2, 'session', $3, $4, '', '', '')`,
 			user.ID, orgID, "expiredtokenhash", expiredAt,
 		)

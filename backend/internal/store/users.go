@@ -27,62 +27,37 @@ type Org struct {
 }
 
 type UserStore struct {
-	db *sql.DB
+	baseStore
 }
 
 func NewUserStore(db *sql.DB) *UserStore {
-	return &UserStore{db: db}
+	return &UserStore{baseStore{db: db}}
 }
 
-func (s *UserStore) DB() *sql.DB {
+// DB returns the underlying query executor, used for direct database access in tests.
+func (s *UserStore) DB() Querier {
 	return s.db
 }
 
-// GetOrCreate upserts a user by google_sub, creating an org+membership on first insert.
+// WithTx returns a UserStore that executes queries within tx.
+func (s *UserStore) WithTx(tx *sql.Tx) *UserStore {
+	return &UserStore{s.withTx(tx)}
+}
+
+// UpsertUser inserts or updates a user by google_sub.
 // Returns the user and whether it was newly created.
-func (s *UserStore) GetOrCreate(email, googleSub string) (*User, bool, error) {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return nil, false, fmt.Errorf("begin tx: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	newID, err := uuid.NewV7()
-	if err != nil {
-		return nil, false, fmt.Errorf("generate user id: %w", err)
-	}
-
+func (s *UserStore) UpsertUser(id uuid.UUID, email, googleSub string) (*User, bool, error) {
 	var user User
 	var created bool
-
-	// xmax = 0 means the row was inserted (not updated)
-	err = tx.QueryRow(`
+	err := s.db.QueryRow(`
 		INSERT INTO users (id, email, google_sub)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (google_sub) DO UPDATE SET email = EXCLUDED.email
 		RETURNING id, email, google_sub, created_at, (xmax = 0)
-	`, newID, email, googleSub).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt, &created)
+	`, id, email, googleSub).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt, &created)
 	if err != nil {
 		return nil, false, fmt.Errorf("upsert user: %w", err)
 	}
-
-	if created {
-		orgID, err := uuid.NewV7()
-		if err != nil {
-			return nil, false, fmt.Errorf("generate org id: %w", err)
-		}
-		if _, err = tx.Exec(`INSERT INTO orgs (id, name) VALUES ($1, $2)`, orgID, email); err != nil {
-			return nil, false, fmt.Errorf("create org: %w", err)
-		}
-		if _, err = tx.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'owner')`, orgID, user.ID); err != nil {
-			return nil, false, fmt.Errorf("create org member: %w", err)
-		}
-	}
-
-	if err = tx.Commit(); err != nil {
-		return nil, false, fmt.Errorf("commit: %w", err)
-	}
-
 	return &user, created, nil
 }
 

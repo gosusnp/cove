@@ -12,6 +12,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/gosusnp/cove/backend/internal/db"
+	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
 	"github.com/gosusnp/cove/backend/internal/testdb"
 )
@@ -40,6 +41,8 @@ func newTestOAuthHandler(t *testing.T, allowed []string, tokenURL, userinfoURL s
 	t.Helper()
 	dbConn := testdb.New(t, containerDSN, db.MigrationsFS)
 	us := store.NewUserStore(dbConn)
+	orgs := store.NewOrgStore(dbConn)
+	svc := service.NewUserService(dbConn, us, orgs)
 	cfg := &oauth2.Config{
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
@@ -49,7 +52,7 @@ func newTestOAuthHandler(t *testing.T, allowed []string, tokenURL, userinfoURL s
 			TokenURL: tokenURL,
 		},
 	}
-	h := NewOAuthHandler(cfg, us, allowed)
+	h := NewOAuthHandler(cfg, svc, allowed)
 	h.userinfoURL = userinfoURL
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)

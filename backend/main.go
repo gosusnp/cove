@@ -53,6 +53,8 @@ func main() {
 	defer database.Close()
 
 	userStore := store.NewUserStore(database)
+	orgStore := store.NewOrgStore(database)
+	userSvc := service.NewUserService(database, userStore, orgStore)
 	oauthCfg := &oauth2.Config{
 		ClientID:     googleClientID,
 		ClientSecret: googleClientSecret,
@@ -69,7 +71,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/api/", NewAPIHandler(userStore, svcs))
+	mux.Handle("/api/", NewAPIHandler(userStore, userSvc, svcs))
 	mux.Handle("/mcp/", middleware.OAuth(userStore, covemcp.NewHTTPHandler(svcs)))
 
 	var staticFS fs.FS
@@ -97,7 +99,7 @@ func main() {
 
 	// Outer mux: UI at / (no auth), everything else to mux.
 	outer := http.NewServeMux()
-	oauthHandler := handlers.NewOAuthHandler(oauthCfg, userStore, allowedEmails)
+	oauthHandler := handlers.NewOAuthHandler(oauthCfg, userSvc, allowedEmails)
 	oauthHandler.RegisterRoutes(outer)
 	if os.Getenv("COVE_DEV") != "" {
 		oauthHandler.RegisterDevRoutes(outer)

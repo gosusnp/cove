@@ -15,29 +15,29 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/gosusnp/cove/backend/internal/httputil"
-	"github.com/gosusnp/cove/backend/internal/store"
+	"github.com/gosusnp/cove/backend/internal/service"
 )
 
 type OAuthHandler struct {
 	config        *oauth2.Config
-	userStore     *store.UserStore
+	userSvc       *service.UserService
 	allowedEmails map[string]struct{}
 	userinfoURL   string
 }
 
 func (h *OAuthHandler) createSession(r *http.Request, userID uuid.UUID) (string, error) {
 	ip, browser, os := httputil.FromRequest(r)
-	return h.userStore.CreateSession(userID, ip, browser, os)
+	return h.userSvc.CreateSession(userID, ip, browser, os)
 }
 
-func NewOAuthHandler(cfg *oauth2.Config, us *store.UserStore, allowed []string) *OAuthHandler {
+func NewOAuthHandler(cfg *oauth2.Config, svc *service.UserService, allowed []string) *OAuthHandler {
 	m := make(map[string]struct{}, len(allowed))
 	for _, e := range allowed {
 		m[e] = struct{}{}
 	}
 	return &OAuthHandler{
 		config:        cfg,
-		userStore:     us,
+		userSvc:       svc,
 		allowedEmails: m,
 		userinfoURL:   "https://www.googleapis.com/oauth2/v3/userinfo",
 	}
@@ -62,7 +62,7 @@ func (h *OAuthHandler) devLogin(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "email is required", http.StatusBadRequest)
 		return
 	}
-	user, _, err := h.userStore.GetOrCreate(req.Email, "dev:"+req.Email)
+	user, _, err := h.userSvc.GetOrCreate(req.Email, "dev:"+req.Email)
 	if err != nil {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
@@ -124,7 +124,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get or create user + org
-	user, _, err := h.userStore.GetOrCreate(info.Email, info.Sub)
+	user, _, err := h.userSvc.GetOrCreate(info.Email, info.Sub)
 	if err != nil {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return

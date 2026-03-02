@@ -159,30 +159,43 @@ func (s *ExerciseService) Create(name string, progression *string) (*store.Exerc
 
 ### Transactions
 
-When a service operation spans multiple tables, it manages the transaction:
+When a service operation spans multiple stores, the service owns the transaction lifecycle and passes it down via `WithTx`:
 
 ```go
-type ProgramService struct {
+type UserService struct {
     db    *sql.DB
-    store *store.ProgramStore
+    users *store.UserStore
+    orgs  *store.OrgStore
 }
 
-func (s *ProgramService) CreateFull(...) (*store.Program, error) {
+func (s *UserService) GetOrCreate(email, googleSub string) (*store.User, bool, error) {
     tx, err := s.db.Begin()
     if err != nil {
-        return nil, fmt.Errorf("begin tx: %w", err)
+        return nil, false, fmt.Errorf("begin tx: %w", err)
     }
-    defer tx.Rollback() //nolint:errcheck
-    // ... operations ...
-    if err := tx.Commit(); err != nil {
-        return nil, fmt.Errorf("commit: %w", err)
+    defer func() { _ = tx.Rollback() }()
+
+    txUsers := s.users.WithTx(tx)
+    txOrgs := s.orgs.WithTx(tx)
+
+    user, created, err := txUsers.UpsertUser(id, email, googleSub)
+    if err != nil {
+        return nil, false, err
     }
-    return result, nil
+    if created {
+        if err := txOrgs.CreateOrg(orgID, email); err != nil {
+            return nil, false, err
+        }
+    }
+
+    return user, created, tx.Commit()
 }
 ```
 
-- **DO** call `defer tx.Rollback()` immediately after `tx.Begin()` — it is a no-op after `Commit`.
-- **DON'T** manage transactions inside a store method — stores receive a `*sql.DB`, not a `*sql.Tx`.
+- **DO** hold `*sql.DB` on the service when it manages transactions.
+- **DO** call `defer func() { _ = tx.Rollback() }()` immediately after `tx.Begin()` — it is a no-op after `Commit`.
+- **DO** create transaction-scoped store copies with `WithTx` and use those for all operations within the transaction.
+- **DON'T** manage transactions inside a store method — transaction lifecycle belongs to the service.
 
 ---
 
@@ -190,15 +203,45 @@ func (s *ProgramService) CreateFull(...) (*store.Program, error) {
 
 Stores own data access: raw SQL, scanning rows, and database error translation.
 
+All stores embed `baseStore` (defined in `store/base.go`) instead of holding a `*sql.DB` directly. This allows any store to be scoped to a transaction via `WithTx` without changing its method signatures.
+
+```go
+// store/base.go — shared by all stores
+type Querier interface {
+    Query(query string, args ...any) (*sql.Rows, error)
+    Exec(query string, args ...any) (sql.Result, error)
+    QueryRow(query string, args ...any) *sql.Row
+}
+
+type baseStore struct {
+    db Querier // *sql.DB or *sql.Tx
+}
+
+func (b baseStore) withTx(tx *sql.Tx) baseStore {
+    return baseStore{db: tx}
+}
+```
+
+Each concrete store embeds `baseStore` and exposes `WithTx`:
+
 ```go
 type ExerciseStore struct {
-    db *sql.DB
+    baseStore
 }
 
 func NewExerciseStore(db *sql.DB) *ExerciseStore {
-    return &ExerciseStore{db: db}
+    return &ExerciseStore{baseStore{db: db}}
+}
+
+// WithTx returns an ExerciseStore that executes queries within tx.
+func (s *ExerciseStore) WithTx(tx *sql.Tx) *ExerciseStore {
+    return &ExerciseStore{s.withTx(tx)}
 }
 ```
+
+- **DO** embed `baseStore` in every store — never hold a bare `*sql.DB` field.
+- **DO** expose `WithTx(tx *sql.Tx) *ConcreteStore` on every store that participates in cross-table transactions.
+- **DON'T** accept or store a `*sql.Tx` in the constructor — use `WithTx` at call time.
 
 ### Sentinel Errors
 

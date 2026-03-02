@@ -35,13 +35,15 @@ func newTestAPIHandler(t *testing.T) http.Handler {
 	t.Helper()
 	database := testdb.New(t, containerDSN, db.MigrationsFS)
 	userStore := store.NewUserStore(database)
+	orgStore := store.NewOrgStore(database)
+	userSvc := service.NewUserService(database, userStore, orgStore)
 	svcs := covemcp.Services{
 		Exercises:        service.NewExerciseService(store.NewExerciseStore(database)),
 		Programs:         service.NewProgramService(database),
 		ProgramSets:      service.NewProgramSetService(store.NewProgramSetStore(database)),
 		ProgramExercises: service.NewProgramExerciseService(store.NewProgramExerciseStore(database)),
 	}
-	return NewAPIHandler(userStore, svcs)
+	return NewAPIHandler(userStore, userSvc, svcs)
 }
 
 // TestAPIRoutesSmokeTest verifies every API route is wired correctly by sending

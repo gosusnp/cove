@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/gosusnp/cove/backend/internal/db"
+	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
 	"github.com/gosusnp/cove/backend/internal/testdb"
 )
@@ -86,8 +87,10 @@ func TestOAuth(t *testing.T) {
 	t.Run("expired token returns 401", func(t *testing.T) {
 		database := newTestDB(t)
 		us := store.NewUserStore(database)
+		orgs := store.NewOrgStore(database)
+		svc := service.NewUserService(database, us, orgs)
 
-		user, _, err := us.GetOrCreate("expired@example.com", "sub-expired")
+		user, _, err := svc.GetOrCreate("expired@example.com", "sub-expired")
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
@@ -105,9 +108,12 @@ func TestOAuth(t *testing.T) {
 	})
 
 	t.Run("valid token calls next", func(t *testing.T) {
-		us := store.NewUserStore(newTestDB(t))
+		database := newTestDB(t)
+		us := store.NewUserStore(database)
+		orgs := store.NewOrgStore(database)
+		svc := service.NewUserService(database, us, orgs)
 
-		user, _, err := us.GetOrCreate("test@example.com", "sub-test")
+		user, _, err := svc.GetOrCreate("test@example.com", "sub-test")
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
@@ -128,9 +134,12 @@ func TestOAuth(t *testing.T) {
 	})
 
 	t.Run("valid token stores user in context", func(t *testing.T) {
-		us := store.NewUserStore(newTestDB(t))
+		database := newTestDB(t)
+		us := store.NewUserStore(database)
+		orgs := store.NewOrgStore(database)
+		svc := service.NewUserService(database, us, orgs)
 
-		user, _, err := us.GetOrCreate("ctx@example.com", "sub-ctx")
+		user, _, err := svc.GetOrCreate("ctx@example.com", "sub-ctx")
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}

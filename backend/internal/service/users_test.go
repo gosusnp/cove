@@ -14,15 +14,120 @@ import (
 
 func newTestUserService(t *testing.T) (*UserService, *store.UserStore) {
 	t.Helper()
-	us := store.NewUserStore(newTestDB(t))
-	return NewUserService(us), us
+	db := newTestDB(t)
+	us := store.NewUserStore(db)
+	orgs := store.NewOrgStore(db)
+	return NewUserService(db, us, orgs), us
+}
+
+func TestUserService_GetOrCreate(t *testing.T) {
+	t.Run("creates new user", func(t *testing.T) {
+		svc, _ := newTestUserService(t)
+
+		user, created, err := svc.GetOrCreate("alice@example.com", "sub-alice")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !created {
+			t.Error("expected created=true for new user")
+		}
+		if user.Email != "alice@example.com" {
+			t.Errorf("got email %q, want %q", user.Email, "alice@example.com")
+		}
+		if user.GoogleSub != "sub-alice" {
+			t.Errorf("got sub %q, want %q", user.GoogleSub, "sub-alice")
+		}
+		if user.ID == [16]byte{} {
+			t.Error("expected non-zero UUID")
+		}
+	})
+
+	t.Run("creates org and membership for new user", func(t *testing.T) {
+		svc, us := newTestUserService(t)
+
+		user, _, err := svc.GetOrCreate("bob@example.com", "sub-bob")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		var count int
+		err = us.DB().QueryRow(
+			`SELECT count(*) FROM org_members WHERE user_id = $1 AND role = 'owner'`,
+			user.ID,
+		).Scan(&count)
+		if err != nil {
+			t.Fatalf("query org_members: %v", err)
+		}
+		if count != 1 {
+			t.Errorf("expected 1 org membership, got %d", count)
+		}
+	})
+
+	t.Run("does not create duplicate org on second login", func(t *testing.T) {
+		svc, us := newTestUserService(t)
+
+		if _, _, err := svc.GetOrCreate("carol@example.com", "sub-carol"); err != nil {
+			t.Fatalf("first call: %v", err)
+		}
+		user, _, err := svc.GetOrCreate("carol@example.com", "sub-carol")
+		if err != nil {
+			t.Fatalf("second call: %v", err)
+		}
+
+		var count int
+		if err := us.DB().QueryRow(`SELECT count(*) FROM org_members WHERE user_id = $1`, user.ID).Scan(&count); err != nil {
+			t.Fatalf("query org_members: %v", err)
+		}
+		if count != 1 {
+			t.Errorf("expected 1 org membership, got %d", count)
+		}
+	})
+
+	t.Run("returns existing user on second call", func(t *testing.T) {
+		svc, _ := newTestUserService(t)
+
+		first, _, err := svc.GetOrCreate("carol2@example.com", "sub-carol2")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		second, created, err := svc.GetOrCreate("carol2@example.com", "sub-carol2")
+		if err != nil {
+			t.Fatalf("unexpected error on second call: %v", err)
+		}
+		if created {
+			t.Error("expected created=false for existing user")
+		}
+		if first.ID != second.ID {
+			t.Errorf("expected same ID, got %v and %v", first.ID, second.ID)
+		}
+	})
+
+	t.Run("updates email when google sub already exists", func(t *testing.T) {
+		svc, _ := newTestUserService(t)
+
+		if _, _, err := svc.GetOrCreate("old@example.com", "sub-dave"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		updated, created, err := svc.GetOrCreate("new@example.com", "sub-dave")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if created {
+			t.Error("expected created=false")
+		}
+		if updated.Email != "new@example.com" {
+			t.Errorf("got email %q, want %q", updated.Email, "new@example.com")
+		}
+	})
 }
 
 func TestUserService_Get(t *testing.T) {
 	t.Run("returns existing user", func(t *testing.T) {
-		svc, us := newTestUserService(t)
+		svc, _ := newTestUserService(t)
 
-		created, _, err := us.GetOrCreate("get@example.com", "sub-get")
+		created, _, err := svc.GetOrCreate("get@example.com", "sub-get")
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
@@ -40,10 +145,10 @@ func TestUserService_Get(t *testing.T) {
 	})
 
 	t.Run("unknown id returns ErrNotFound", func(t *testing.T) {
-		svc, us := newTestUserService(t)
+		svc, _ := newTestUserService(t)
 
 		// Create a user to generate a valid UUID format, then discard it.
-		user, _, err := us.GetOrCreate("other@example.com", "sub-other")
+		user, _, err := svc.GetOrCreate("other@example.com", "sub-other")
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
@@ -59,9 +164,9 @@ func TestUserService_Get(t *testing.T) {
 	})
 }
 
-func setupUserWithOrg(t *testing.T, us *store.UserStore) (*store.User, uuid.UUID) {
+func setupUserWithOrg(t *testing.T, svc *UserService, us *store.UserStore) (*store.User, uuid.UUID) {
 	t.Helper()
-	user, _, err := us.GetOrCreate("pat@example.com", "sub-pat-svc")
+	user, _, err := svc.GetOrCreate("pat@example.com", "sub-pat-svc")
 	if err != nil {
 		t.Fatalf("GetOrCreate: %v", err)
 	}
@@ -80,7 +185,7 @@ func setupUserWithOrg(t *testing.T, us *store.UserStore) (*store.User, uuid.UUID
 func TestUserService_CreatePAT(t *testing.T) {
 	t.Run("returns token with pat_ prefix", func(t *testing.T) {
 		svc, us := newTestUserService(t)
-		user, orgID := setupUserWithOrg(t, us)
+		user, orgID := setupUserWithOrg(t, svc, us)
 
 		token, pat, err := svc.CreatePAT(user.ID, orgID, "my-key", "", "", "")
 		if err != nil {
@@ -96,7 +201,7 @@ func TestUserService_CreatePAT(t *testing.T) {
 
 	t.Run("empty name returns ValidationError", func(t *testing.T) {
 		svc, us := newTestUserService(t)
-		user, orgID := setupUserWithOrg(t, us)
+		user, orgID := setupUserWithOrg(t, svc, us)
 
 		_, _, err := svc.CreatePAT(user.ID, orgID, "  ", "", "", "")
 		var ve *ValidationError
@@ -109,7 +214,7 @@ func TestUserService_CreatePAT(t *testing.T) {
 func TestUserService_ListPATs(t *testing.T) {
 	t.Run("returns empty list when none exist", func(t *testing.T) {
 		svc, us := newTestUserService(t)
-		user, _ := setupUserWithOrg(t, us)
+		user, _ := setupUserWithOrg(t, svc, us)
 
 		pats, err := svc.ListPATs(user.ID)
 		if err != nil {
@@ -122,7 +227,7 @@ func TestUserService_ListPATs(t *testing.T) {
 
 	t.Run("returns created PATs", func(t *testing.T) {
 		svc, us := newTestUserService(t)
-		user, orgID := setupUserWithOrg(t, us)
+		user, orgID := setupUserWithOrg(t, svc, us)
 
 		if _, _, err := svc.CreatePAT(user.ID, orgID, "key-a", "", "", ""); err != nil {
 			t.Fatalf("CreatePAT: %v", err)
@@ -147,7 +252,7 @@ func TestUserService_ListPATs(t *testing.T) {
 func TestUserService_DeletePAT(t *testing.T) {
 	t.Run("deletes existing PAT", func(t *testing.T) {
 		svc, us := newTestUserService(t)
-		user, orgID := setupUserWithOrg(t, us)
+		user, orgID := setupUserWithOrg(t, svc, us)
 
 		_, pat, err := svc.CreatePAT(user.ID, orgID, "to-delete", "", "", "")
 		if err != nil {
@@ -169,7 +274,7 @@ func TestUserService_DeletePAT(t *testing.T) {
 
 	t.Run("unknown id returns ErrNotFound", func(t *testing.T) {
 		svc, us := newTestUserService(t)
-		user, _ := setupUserWithOrg(t, us)
+		user, _ := setupUserWithOrg(t, svc, us)
 
 		err := svc.DeletePAT(user.ID, uuid.Max)
 		if !errors.Is(err, ErrNotFound) {
@@ -181,7 +286,7 @@ func TestUserService_DeletePAT(t *testing.T) {
 func TestUserService_Sessions(t *testing.T) {
 	t.Run("lists sessions", func(t *testing.T) {
 		svc, us := newTestUserService(t)
-		user, _ := setupUserWithOrg(t, us)
+		user, _ := setupUserWithOrg(t, svc, us)
 
 		sessions, err := svc.ListSessions(user.ID)
 		if err != nil {
@@ -195,7 +300,7 @@ func TestUserService_Sessions(t *testing.T) {
 
 	t.Run("deletes session", func(t *testing.T) {
 		svc, us := newTestUserService(t)
-		user, _ := setupUserWithOrg(t, us)
+		user, _ := setupUserWithOrg(t, svc, us)
 
 		sessions, _ := svc.ListSessions(user.ID)
 		if err := svc.DeleteSession(user.ID, sessions[0].ID); err != nil {
