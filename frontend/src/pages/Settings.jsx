@@ -183,7 +183,7 @@ export function Settings() {
 	}
 
 	return (
-		<main class="flex flex-1 flex-col gap-6 px-4 py-6 max-w-lg mx-auto w-full">
+		<main class="flex flex-1 flex-col gap-8 px-4 py-6 max-w-lg mx-auto w-full">
 			<PageTitle>Settings</PageTitle>
 
 			<Section title="Profile">
@@ -236,23 +236,9 @@ export function Settings() {
 				</Row>
 			</Section>
 
-			<Section title="API Tokens">
-				{tokens.value.map((t) => (
-					<Row
-						key={t.id}
-						label={t.name}
-						sublabel={`Created ${new Date(t.created_at).toLocaleDateString()} · Last used ${t.last_used_at ? timeAgo(t.last_used_at) : "never"}`}
-					>
-						<Button
-							variant="destructive"
-							size="sm"
-							onClick={() => handleDelete(t.id)}
-						>
-							Delete
-						</Button>
-					</Row>
-				))}
-				<Row label="New token" last>
+			<Section
+				title="API Tokens"
+				action={
 					<Button
 						variant="outline"
 						size="sm"
@@ -261,7 +247,28 @@ export function Settings() {
 					>
 						Create
 					</Button>
-				</Row>
+				}
+			>
+				{tokens.value.length === 0 && !tokensLoading.value ? (
+					<Row label="No tokens yet" last />
+				) : (
+					tokens.value.map((t, i) => (
+						<Row
+							key={t.id}
+							label={t.name}
+							sublabel={`Created ${new Date(t.created_at).toLocaleDateString()} · Last used ${t.last_used_at ? timeAgo(t.last_used_at) : "never"}`}
+							last={i === tokens.value.length - 1}
+						>
+							<Button
+								variant="destructive"
+								size="sm"
+								onClick={() => handleDelete(t.id)}
+							>
+								Delete
+							</Button>
+						</Row>
+					))
+				)}
 			</Section>
 
 			<Section title="Active Sessions">

@@ -159,6 +159,14 @@ describe("Settings", () => {
 	});
 
 	describe("API tokens", () => {
+		it("shows empty state when there are no tokens", async () => {
+			mockFetch({ tokens: [] });
+			withProviders(<Settings />);
+			await waitFor(() =>
+				expect(screen.getByText("No tokens yet")).toBeInTheDocument(),
+			);
+		});
+
 		it("renders tokens returned by the API", async () => {
 			mockFetch({
 				tokens: [
@@ -382,7 +390,9 @@ describe("Settings", () => {
 			});
 			const { auth } = withProviders(<Settings />);
 			await waitFor(() =>
-				expect(screen.getByText(/Chrome on macOS · Current/)).toBeInTheDocument(),
+				expect(
+					screen.getByText(/Chrome on macOS · Current/),
+				).toBeInTheDocument(),
 			);
 
 			const sessionsSection = screen

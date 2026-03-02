@@ -25,6 +25,24 @@ describe("Section", () => {
 		);
 		expect(screen.getByText("content")).toBeInTheDocument();
 	});
+
+	it("renders the action when provided", () => {
+		render(
+			<Section title="Profile" action={<button type="button">Add</button>}>
+				<p>content</p>
+			</Section>,
+		);
+		expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
+	});
+
+	it("renders without an action when omitted", () => {
+		render(
+			<Section title="Profile">
+				<p>content</p>
+			</Section>,
+		);
+		expect(screen.queryByRole("button")).not.toBeInTheDocument();
+	});
 });
 
 describe("Row", () => {

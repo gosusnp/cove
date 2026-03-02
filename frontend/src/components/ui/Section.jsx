@@ -1,15 +1,18 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-export function Section({ title, children }) {
+export function Section({ title, action, children }) {
 	return (
-		<section class="flex flex-col gap-3">
-			<h2
-				class="text-xs font-semibold uppercase tracking-widest"
-				style={{ color: "var(--color-muted)" }}
-			>
-				{title}
-			</h2>
+		<section class="flex flex-col gap-4">
+			<div class="flex items-center justify-between">
+				<h2
+					class="text-xs font-semibold uppercase tracking-widest"
+					style={{ color: "var(--color-muted)" }}
+				>
+					{title}
+				</h2>
+				{action}
+			</div>
 			<div
 				class="rounded-xl overflow-hidden"
 				style={{
