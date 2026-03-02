@@ -4,6 +4,7 @@
 package store
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
@@ -14,17 +15,6 @@ import (
 
 	"github.com/google/uuid"
 )
-
-type User struct {
-	ID        uuid.UUID
-	Email     string
-	GoogleSub string
-	CreatedAt time.Time
-}
-
-type Org struct {
-	ID uuid.UUID
-}
 
 type UserStore struct {
 	baseStore
@@ -46,10 +36,10 @@ func (s *UserStore) WithTx(tx *sql.Tx) *UserStore {
 
 // UpsertUser inserts or updates a user by google_sub.
 // Returns the user and whether it was newly created.
-func (s *UserStore) UpsertUser(id uuid.UUID, email, googleSub string) (*User, bool, error) {
+func (s *UserStore) UpsertUser(ctx context.Context, q Querier, id uuid.UUID, email, googleSub string) (*User, bool, error) {
 	var user User
 	var created bool
-	err := s.db.QueryRow(`
+	err := q.QueryRowContext(ctx, `
 		INSERT INTO users (id, email, google_sub)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (google_sub) DO UPDATE SET email = EXCLUDED.email

@@ -41,7 +41,7 @@ func TestOrgStore_CreateOrgMember(t *testing.T) {
 		ctx, db, os, us := newTestOrgStore(t)
 
 		userID, _ := uuid.NewV7()
-		user, _, err := us.UpsertUser(userID, "member@example.com", "sub-member")
+		user, _, err := us.UpsertUser(ctx, db, userID, "member@example.com", "sub-member")
 		if err != nil {
 			t.Fatalf("UpsertUser: %v", err)
 		}

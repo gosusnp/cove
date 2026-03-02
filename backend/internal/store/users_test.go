@@ -4,7 +4,9 @@
 package store
 
 import (
+	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"testing"
@@ -13,10 +15,10 @@ import (
 	"github.com/google/uuid"
 )
 
-func newTestUserStore(t *testing.T) (*UserStore, *OrgStore) {
+func newTestUserStore(t *testing.T) (context.Context, *sql.DB, *UserStore, *OrgStore) {
 	t.Helper()
 	db := newTestDB(t)
-	return NewUserStore(db), NewOrgStore()
+	return t.Context(), db, NewUserStore(db), NewOrgStore()
 }
 
 // createTestUser seeds a user with an org and owner membership, mirroring the
@@ -30,7 +32,7 @@ func createTestUser(t *testing.T, s *UserStore, os *OrgStore, email, googleSub s
 	if err != nil {
 		t.Fatalf("generate user id: %v", err)
 	}
-	user, created, err := s.UpsertUser(userID, email, googleSub)
+	user, created, err := s.UpsertUser(ctx, s.db, userID, email, googleSub)
 	if err != nil {
 		t.Fatalf("UpsertUser: %v", err)
 	}
@@ -51,10 +53,10 @@ func createTestUser(t *testing.T, s *UserStore, os *OrgStore, email, googleSub s
 
 func TestUserStore_UpsertUser(t *testing.T) {
 	t.Run("creates new user", func(t *testing.T) {
-		s, _ := newTestUserStore(t)
+		ctx, db, s, _ := newTestUserStore(t)
 
 		id, _ := uuid.NewV7()
-		user, created, err := s.UpsertUser(id, "alice@example.com", "sub-alice")
+		user, created, err := s.UpsertUser(ctx, db, id, "alice@example.com", "sub-alice")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -73,16 +75,16 @@ func TestUserStore_UpsertUser(t *testing.T) {
 	})
 
 	t.Run("returns existing user on conflict", func(t *testing.T) {
-		s, _ := newTestUserStore(t)
+		ctx, db, s, _ := newTestUserStore(t)
 
 		id, _ := uuid.NewV7()
-		first, _, err := s.UpsertUser(id, "carol@example.com", "sub-carol")
+		first, _, err := s.UpsertUser(ctx, db, id, "carol@example.com", "sub-carol")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
 		id2, _ := uuid.NewV7()
-		second, created, err := s.UpsertUser(id2, "carol@example.com", "sub-carol")
+		second, created, err := s.UpsertUser(ctx, db, id2, "carol@example.com", "sub-carol")
 		if err != nil {
 			t.Fatalf("unexpected error on second call: %v", err)
 		}
@@ -95,15 +97,15 @@ func TestUserStore_UpsertUser(t *testing.T) {
 	})
 
 	t.Run("updates email when google sub already exists", func(t *testing.T) {
-		s, _ := newTestUserStore(t)
+		ctx, db, s, _ := newTestUserStore(t)
 
 		id, _ := uuid.NewV7()
-		if _, _, err := s.UpsertUser(id, "old@example.com", "sub-dave"); err != nil {
+		if _, _, err := s.UpsertUser(ctx, db, id, "old@example.com", "sub-dave"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
 		id2, _ := uuid.NewV7()
-		updated, created, err := s.UpsertUser(id2, "new@example.com", "sub-dave")
+		updated, created, err := s.UpsertUser(ctx, db, id2, "new@example.com", "sub-dave")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -118,7 +120,7 @@ func TestUserStore_UpsertUser(t *testing.T) {
 
 func TestUserStore_CreateSession(t *testing.T) {
 	t.Run("returns non-empty token with sess_ prefix", func(t *testing.T) {
-		s, orgs := newTestUserStore(t)
+		_, _, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "eve@example.com", "sub-eve")
 
 		token, err := s.CreateSession(user.ID, "", "", "")
@@ -134,7 +136,7 @@ func TestUserStore_CreateSession(t *testing.T) {
 	})
 
 	t.Run("stores hash not plaintext", func(t *testing.T) {
-		s, orgs := newTestUserStore(t)
+		_, _, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "frank@example.com", "sub-frank")
 
 		token, err := s.CreateSession(user.ID, "", "", "")
@@ -159,7 +161,7 @@ func TestUserStore_CreateSession(t *testing.T) {
 	})
 
 	t.Run("stores initial session info", func(t *testing.T) {
-		s, orgs := newTestUserStore(t)
+		_, _, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "session-info@example.com", "sub-session-info")
 
 		_, err := s.CreateSession(user.ID, "1.2.3.0", "Chrome", "macOS")
@@ -202,7 +204,7 @@ func TestUserStore_CreatePAT(t *testing.T) {
 	}
 
 	t.Run("returns token with pat_ prefix", func(t *testing.T) {
-		s, orgs := newTestUserStore(t)
+		_, _, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "pat@example.com", "sub-pat")
 		orgID := lookupOrgID(t, s, user.ID)
 
@@ -222,7 +224,7 @@ func TestUserStore_CreatePAT(t *testing.T) {
 	})
 
 	t.Run("PAT is valid for GetUserByToken", func(t *testing.T) {
-		s, orgs := newTestUserStore(t)
+		_, _, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "pat2@example.com", "sub-pat2")
 		orgID := lookupOrgID(t, s, user.ID)
 
@@ -243,7 +245,7 @@ func TestUserStore_CreatePAT(t *testing.T) {
 
 func TestUserStore_Sessions(t *testing.T) {
 	t.Run("ListSessions returns all active sessions", func(t *testing.T) {
-		s, orgs := newTestUserStore(t)
+		_, _, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "sess-list@example.com", "sub-sess-list")
 
 		// Create two sessions.
@@ -272,7 +274,7 @@ func TestUserStore_Sessions(t *testing.T) {
 	})
 
 	t.Run("DeleteSession removes session", func(t *testing.T) {
-		s, orgs := newTestUserStore(t)
+		_, _, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "sess-del@example.com", "sub-sess-del")
 
 		_, err := s.CreateSession(user.ID, "", "", "")
@@ -299,7 +301,7 @@ func TestUserStore_Sessions(t *testing.T) {
 
 func TestUserStore_GetUserByToken(t *testing.T) {
 	t.Run("valid token returns user", func(t *testing.T) {
-		s, orgs := newTestUserStore(t)
+		_, _, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "grace@example.com", "sub-grace")
 		token, err := s.CreateSession(user.ID, "", "", "")
 		if err != nil {
@@ -322,7 +324,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 	})
 
 	t.Run("invalid token returns ErrNotFound", func(t *testing.T) {
-		s, _ := newTestUserStore(t)
+		_, _, s, _ := newTestUserStore(t)
 
 		_, _, _, err := s.GetUserByToken("notavalidtoken", "", "", "")
 		if !errors.Is(err, ErrNotFound) {
@@ -331,7 +333,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 	})
 
 	t.Run("sets last_used_at on first use", func(t *testing.T) {
-		s, orgs := newTestUserStore(t)
+		_, _, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "ida@example.com", "sub-ida")
 		token, err := s.CreateSession(user.ID, "", "", "")
 		if err != nil {
@@ -354,7 +356,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 	})
 
 	t.Run("does not update last_used_at within throttle window", func(t *testing.T) {
-		s, orgs := newTestUserStore(t)
+		_, _, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "jack@example.com", "sub-jack")
 		token, err := s.CreateSession(user.ID, "", "", "")
 		if err != nil {
@@ -388,7 +390,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 	})
 
 	t.Run("expired token returns ErrNotFound", func(t *testing.T) {
-		s, orgs := newTestUserStore(t)
+		_, _, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "henry@example.com", "sub-henry")
 
 		var orgID uuid.UUID

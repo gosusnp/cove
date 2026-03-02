@@ -41,9 +41,7 @@ func (s *UserService) GetOrCreate(ctx context.Context, email, googleSub string) 
 		return nil, false, fmt.Errorf("generate user id: %w", err)
 	}
 
-	txUsers := s.users.WithTx(tx)
-
-	user, created, err := txUsers.UpsertUser(newID, email, googleSub)
+	user, created, err := s.users.UpsertUser(ctx, tx, newID, email, googleSub)
 	if err != nil {
 		return nil, false, err
 	}
