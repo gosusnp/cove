@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 
+	"github.com/gosusnp/cove/backend/internal/httputil"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
@@ -21,6 +23,11 @@ type OAuthHandler struct {
 	userStore     *store.UserStore
 	allowedEmails map[string]struct{}
 	userinfoURL   string
+}
+
+func (h *OAuthHandler) createSession(r *http.Request, userID uuid.UUID) (string, error) {
+	ip, browser, os := httputil.FromRequest(r)
+	return h.userStore.CreateSession(userID, ip, browser, os)
 }
 
 func NewOAuthHandler(cfg *oauth2.Config, us *store.UserStore, allowed []string) *OAuthHandler {
@@ -60,7 +67,7 @@ func (h *OAuthHandler) devLogin(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	token, err := h.userStore.CreateSession(user.ID)
+	token, err := h.createSession(r, user.ID)
 	if err != nil {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
@@ -124,7 +131,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Issue session
-	sessionToken, err := h.userStore.CreateSession(user.ID)
+	sessionToken, err := h.createSession(r, user.ID)
 	if err != nil {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return

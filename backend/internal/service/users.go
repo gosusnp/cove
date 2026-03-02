@@ -32,12 +32,12 @@ func (s *UserService) Get(id uuid.UUID) (*store.User, error) {
 }
 
 // CreatePAT creates a named PAT for the user. Returns the raw token (shown once) and the PAT metadata.
-func (s *UserService) CreatePAT(userID, orgID uuid.UUID, name string) (string, *store.PAT, error) {
+func (s *UserService) CreatePAT(userID, orgID uuid.UUID, name, ipMasked, browser, os string) (string, *store.PAT, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", nil, &ValidationError{Msg: "name is required"}
 	}
-	token, pat, err := s.store.CreatePAT(userID, orgID, name)
+	token, pat, err := s.store.CreatePAT(userID, orgID, name, ipMasked, browser, os)
 	if err != nil {
 		return "", nil, fmt.Errorf("create pat: %w", err)
 	}

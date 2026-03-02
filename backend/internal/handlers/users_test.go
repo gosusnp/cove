@@ -34,7 +34,7 @@ func TestUserHandler_Me(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
-		token, err := us.CreateSession(user.ID)
+		token, err := us.CreateSession(user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession: %v", err)
 		}
@@ -97,7 +97,7 @@ func TestUserHandler_Tokens(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
-		session, err := us.CreateSession(user.ID)
+		session, err := us.CreateSession(user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession: %v", err)
 		}
@@ -253,7 +253,7 @@ func TestUserHandler_Tokens(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetOrCreate A: %v", err)
 		}
-		sessionA, err := us.CreateSession(userA.ID)
+		sessionA, err := us.CreateSession(userA.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession A: %v", err)
 		}
@@ -268,7 +268,7 @@ func TestUserHandler_Tokens(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetOrCreate B: %v", err)
 		}
-		sessionB, err := us.CreateSession(userB.ID)
+		sessionB, err := us.CreateSession(userB.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession B: %v", err)
 		}
@@ -294,7 +294,7 @@ func TestUserHandler_Tokens(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetOrCreate A: %v", err)
 		}
-		sessionA, err := us.CreateSession(userA.ID)
+		sessionA, err := us.CreateSession(userA.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession A: %v", err)
 		}
@@ -315,7 +315,7 @@ func TestUserHandler_Tokens(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetOrCreate B: %v", err)
 		}
-		sessionB, err := us.CreateSession(userB.ID)
+		sessionB, err := us.CreateSession(userB.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession B: %v", err)
 		}

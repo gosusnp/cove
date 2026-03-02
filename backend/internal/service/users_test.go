@@ -66,11 +66,11 @@ func setupUserWithOrg(t *testing.T, us *store.UserStore) (*store.User, uuid.UUID
 		t.Fatalf("GetOrCreate: %v", err)
 	}
 	// Use CreateSession + GetUserByToken to discover the org without DB access.
-	token, err := us.CreateSession(user.ID)
+	token, err := us.CreateSession(user.ID, "", "", "")
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
-	_, org, err := us.GetUserByToken(token)
+	_, org, err := us.GetUserByToken(token, "", "", "")
 	if err != nil {
 		t.Fatalf("GetUserByToken: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestUserService_CreatePAT(t *testing.T) {
 		svc, us := newTestUserService(t)
 		user, orgID := setupUserWithOrg(t, us)
 
-		token, pat, err := svc.CreatePAT(user.ID, orgID, "my-key")
+		token, pat, err := svc.CreatePAT(user.ID, orgID, "my-key", "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -98,7 +98,7 @@ func TestUserService_CreatePAT(t *testing.T) {
 		svc, us := newTestUserService(t)
 		user, orgID := setupUserWithOrg(t, us)
 
-		_, _, err := svc.CreatePAT(user.ID, orgID, "  ")
+		_, _, err := svc.CreatePAT(user.ID, orgID, "  ", "", "", "")
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Errorf("got %v, want ValidationError", err)
@@ -124,10 +124,10 @@ func TestUserService_ListPATs(t *testing.T) {
 		svc, us := newTestUserService(t)
 		user, orgID := setupUserWithOrg(t, us)
 
-		if _, _, err := svc.CreatePAT(user.ID, orgID, "key-a"); err != nil {
+		if _, _, err := svc.CreatePAT(user.ID, orgID, "key-a", "", "", ""); err != nil {
 			t.Fatalf("CreatePAT: %v", err)
 		}
-		if _, _, err := svc.CreatePAT(user.ID, orgID, "key-b"); err != nil {
+		if _, _, err := svc.CreatePAT(user.ID, orgID, "key-b", "", "", ""); err != nil {
 			t.Fatalf("CreatePAT: %v", err)
 		}
 
@@ -149,7 +149,7 @@ func TestUserService_DeletePAT(t *testing.T) {
 		svc, us := newTestUserService(t)
 		user, orgID := setupUserWithOrg(t, us)
 
-		_, pat, err := svc.CreatePAT(user.ID, orgID, "to-delete")
+		_, pat, err := svc.CreatePAT(user.ID, orgID, "to-delete", "", "", "")
 		if err != nil {
 			t.Fatalf("CreatePAT: %v", err)
 		}

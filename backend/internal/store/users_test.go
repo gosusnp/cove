@@ -129,7 +129,7 @@ func TestUserStore_CreateSession(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		token, err := s.CreateSession(user.ID)
+		token, err := s.CreateSession(user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -148,7 +148,7 @@ func TestUserStore_CreateSession(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		token, err := s.CreateSession(user.ID)
+		token, err := s.CreateSession(user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -166,6 +166,38 @@ func TestUserStore_CreateSession(t *testing.T) {
 		}
 		if storedToken != wantHash {
 			t.Errorf("stored token %q, want SHA-256 hash %q", storedToken, wantHash)
+		}
+	})
+
+	t.Run("stores initial session info", func(t *testing.T) {
+		s := newTestUserStore(t)
+		user, _, err := s.GetOrCreate("session-info@example.com", "sub-session-info")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		_, err = s.CreateSession(user.ID, "1.2.3.0", "Chrome", "macOS")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		var ip, browser, os string
+		err = s.db.QueryRow(
+			`SELECT initial_ip_masked, initial_browser, initial_os FROM user_tokens WHERE user_id = $1 AND kind = 'session'`,
+			user.ID,
+		).Scan(&ip, &browser, &os)
+		if err != nil {
+			t.Fatalf("query session info: %v", err)
+		}
+
+		if ip != "1.2.3.0" {
+			t.Errorf("got ip %q, want %q", ip, "1.2.3.0")
+		}
+		if browser != "Chrome" {
+			t.Errorf("got browser %q, want %q", browser, "Chrome")
+		}
+		if os != "macOS" {
+			t.Errorf("got os %q, want %q", os, "macOS")
 		}
 	})
 }
@@ -191,7 +223,7 @@ func TestUserStore_CreatePAT(t *testing.T) {
 		}
 		orgID := lookupOrgID(t, s, user.ID)
 
-		token, pat, err := s.CreatePAT(user.ID, orgID, "my-token")
+		token, pat, err := s.CreatePAT(user.ID, orgID, "my-token", "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -214,12 +246,12 @@ func TestUserStore_CreatePAT(t *testing.T) {
 		}
 		orgID := lookupOrgID(t, s, user.ID)
 
-		token, _, err := s.CreatePAT(user.ID, orgID, "ci-token")
+		token, _, err := s.CreatePAT(user.ID, orgID, "ci-token", "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		got, _, err := s.GetUserByToken(token)
+		got, _, err := s.GetUserByToken(token, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -236,12 +268,12 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		token, err := s.CreateSession(user.ID)
+		token, err := s.CreateSession(user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		got, org, err := s.GetUserByToken(token)
+		got, org, err := s.GetUserByToken(token, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -259,7 +291,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 	t.Run("invalid token returns ErrNotFound", func(t *testing.T) {
 		s := newTestUserStore(t)
 
-		_, _, err := s.GetUserByToken("notavalidtoken")
+		_, _, err := s.GetUserByToken("notavalidtoken", "", "", "")
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -271,12 +303,12 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		token, err := s.CreateSession(user.ID)
+		token, err := s.CreateSession(user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if _, _, err = s.GetUserByToken(token); err != nil {
+		if _, _, err = s.GetUserByToken(token, "", "", ""); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -297,13 +329,13 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		token, err := s.CreateSession(user.ID)
+		token, err := s.CreateSession(user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
 		// First call: sets last_used_at.
-		if _, _, err = s.GetUserByToken(token); err != nil {
+		if _, _, err = s.GetUserByToken(token, "", "", ""); err != nil {
 			t.Fatalf("first call: %v", err)
 		}
 		var first time.Time
@@ -314,7 +346,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 		}
 
 		// Second call immediately: last_used_at must not change.
-		if _, _, err = s.GetUserByToken(token); err != nil {
+		if _, _, err = s.GetUserByToken(token, "", "", ""); err != nil {
 			t.Fatalf("second call: %v", err)
 		}
 		var second time.Time
@@ -345,7 +377,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 		// Insert an already-expired session directly.
 		expiredAt := time.Now().Add(-1 * time.Hour)
 		_, err = s.db.Exec(
-			`INSERT INTO user_tokens (user_id, org_id, kind, token, expires_at) VALUES ($1, $2, 'session', $3, $4)`,
+			`INSERT INTO user_tokens (user_id, org_id, kind, token, expires_at, initial_ip_masked, initial_browser, initial_os) VALUES ($1, $2, 'session', $3, $4, '', '', '')`,
 			user.ID, orgID, "expiredtokenhash", expiredAt,
 		)
 		if err != nil {

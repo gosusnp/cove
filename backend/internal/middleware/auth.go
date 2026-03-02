@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gosusnp/cove/backend/internal/httputil"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
@@ -37,7 +38,8 @@ func OAuth(us *store.UserStore, next http.Handler) http.Handler {
 			_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
 			return
 		}
-		user, org, err := us.GetUserByToken(token)
+		ip, browser, os := httputil.FromRequest(r)
+		user, org, err := us.GetUserByToken(token, ip, browser, os)
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)

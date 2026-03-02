@@ -40,7 +40,7 @@ func createExpiredSession(t *testing.T, database *sql.DB, userID uuid.UUID) stri
 
 	expiresAt := time.Now().Add(-time.Hour)
 	if _, err := database.Exec(
-		`INSERT INTO user_tokens (user_id, org_id, kind, token, expires_at) VALUES ($1, $2, 'session', $3, $4)`,
+		`INSERT INTO user_tokens (user_id, org_id, kind, token, expires_at, initial_ip_masked, initial_browser, initial_os) VALUES ($1, $2, 'session', $3, $4, '', '', '')`,
 		userID, orgID, hash, expiresAt,
 	); err != nil {
 		t.Fatalf("insert expired session: %v", err)
@@ -111,7 +111,7 @@ func TestOAuth(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
-		token, err := us.CreateSession(user.ID)
+		token, err := us.CreateSession(user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession: %v", err)
 		}
@@ -134,7 +134,7 @@ func TestOAuth(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
-		token, err := us.CreateSession(user.ID)
+		token, err := us.CreateSession(user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession: %v", err)
 		}

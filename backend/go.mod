@@ -7,6 +7,7 @@ require (
 	github.com/google/jsonschema-go v0.4.2
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.1
+	github.com/mileusna/useragent v1.3.5
 	github.com/modelcontextprotocol/go-sdk v1.3.1
 	github.com/peterldowns/pgtestdb v0.1.1
 	github.com/testcontainers/testcontainers-go v0.40.0

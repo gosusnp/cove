@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gosusnp/cove/backend/internal/httputil"
 	"github.com/gosusnp/cove/backend/internal/middleware"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
@@ -110,7 +111,9 @@ func (h *UserHandler) createToken(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	token, pat, err := h.svc.CreatePAT(authUser.ID, authOrg.ID, req.Name)
+
+	ip, browser, os := httputil.FromRequest(r)
+	token, pat, err := h.svc.CreatePAT(authUser.ID, authOrg.ID, req.Name, ip, browser, os)
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
 		jsonError(w, ve.Msg, http.StatusBadRequest)

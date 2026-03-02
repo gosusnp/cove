@@ -36,9 +36,10 @@ func fakeOAuthServer(t *testing.T, email, sub string) (tokenURL, userinfoURL str
 	return srv.URL + "/token", srv.URL + "/userinfo"
 }
 
-func newTestOAuthHandler(t *testing.T, allowed []string, tokenURL, userinfoURL string) (*OAuthHandler, *http.ServeMux) {
+func newTestOAuthHandler(t *testing.T, allowed []string, tokenURL, userinfoURL string) (*OAuthHandler, *http.ServeMux, *store.UserStore) {
 	t.Helper()
-	us := store.NewUserStore(testdb.New(t, containerDSN, db.MigrationsFS))
+	dbConn := testdb.New(t, containerDSN, db.MigrationsFS)
+	us := store.NewUserStore(dbConn)
 	cfg := &oauth2.Config{
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
@@ -52,12 +53,12 @@ func newTestOAuthHandler(t *testing.T, allowed []string, tokenURL, userinfoURL s
 	h.userinfoURL = userinfoURL
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	return h, mux
+	return h, mux, us
 }
 
 func TestOAuthHandler_Login(t *testing.T) {
 	t.Run("redirects to provider", func(t *testing.T) {
-		_, mux := newTestOAuthHandler(t, nil, "http://unused/token", "http://unused/userinfo")
+		_, mux, _ := newTestOAuthHandler(t, nil, "http://unused/token", "http://unused/userinfo")
 
 		r := httptest.NewRequest(http.MethodGet, "/auth/login", nil)
 		w := httptest.NewRecorder()
@@ -72,7 +73,7 @@ func TestOAuthHandler_Login(t *testing.T) {
 	})
 
 	t.Run("sets oauth_state cookie", func(t *testing.T) {
-		_, mux := newTestOAuthHandler(t, nil, "http://unused/token", "http://unused/userinfo")
+		_, mux, _ := newTestOAuthHandler(t, nil, "http://unused/token", "http://unused/userinfo")
 
 		r := httptest.NewRequest(http.MethodGet, "/auth/login", nil)
 		w := httptest.NewRecorder()
@@ -99,7 +100,7 @@ func TestOAuthHandler_Login(t *testing.T) {
 
 func TestOAuthHandler_Callback(t *testing.T) {
 	t.Run("missing state cookie returns 400", func(t *testing.T) {
-		_, mux := newTestOAuthHandler(t, nil, "http://unused/token", "http://unused/userinfo")
+		_, mux, _ := newTestOAuthHandler(t, nil, "http://unused/token", "http://unused/userinfo")
 
 		r := httptest.NewRequest(http.MethodGet, "/auth/callback?state=somestate&code=somecode", nil)
 		w := httptest.NewRecorder()
@@ -111,7 +112,7 @@ func TestOAuthHandler_Callback(t *testing.T) {
 	})
 
 	t.Run("state mismatch returns 400", func(t *testing.T) {
-		_, mux := newTestOAuthHandler(t, nil, "http://unused/token", "http://unused/userinfo")
+		_, mux, _ := newTestOAuthHandler(t, nil, "http://unused/token", "http://unused/userinfo")
 
 		r := httptest.NewRequest(http.MethodGet, "/auth/callback?state=wrong&code=somecode", nil)
 		r.AddCookie(&http.Cookie{Name: "oauth_state", Value: "correct"})
@@ -125,7 +126,7 @@ func TestOAuthHandler_Callback(t *testing.T) {
 
 	t.Run("valid flow redirects with session token", func(t *testing.T) {
 		tokenURL, userinfoURL := fakeOAuthServer(t, "user@example.com", "sub-123")
-		_, mux := newTestOAuthHandler(t, nil, tokenURL, userinfoURL)
+		_, mux, _ := newTestOAuthHandler(t, nil, tokenURL, userinfoURL)
 
 		r := httptest.NewRequest(http.MethodGet, "/auth/callback?state=mystate&code=mycode", nil)
 		r.AddCookie(&http.Cookie{Name: "oauth_state", Value: "mystate"})
@@ -146,7 +147,7 @@ func TestOAuthHandler_Callback(t *testing.T) {
 
 	t.Run("email not in whitelist returns 403", func(t *testing.T) {
 		tokenURL, userinfoURL := fakeOAuthServer(t, "stranger@example.com", "sub-stranger")
-		_, mux := newTestOAuthHandler(t, []string{"allowed@example.com"}, tokenURL, userinfoURL)
+		_, mux, _ := newTestOAuthHandler(t, []string{"allowed@example.com"}, tokenURL, userinfoURL)
 
 		r := httptest.NewRequest(http.MethodGet, "/auth/callback?state=mystate&code=mycode", nil)
 		r.AddCookie(&http.Cookie{Name: "oauth_state", Value: "mystate"})
@@ -160,7 +161,7 @@ func TestOAuthHandler_Callback(t *testing.T) {
 
 	t.Run("whitelisted email redirects with token", func(t *testing.T) {
 		tokenURL, userinfoURL := fakeOAuthServer(t, "allowed@example.com", "sub-allowed")
-		_, mux := newTestOAuthHandler(t, []string{"allowed@example.com"}, tokenURL, userinfoURL)
+		_, mux, _ := newTestOAuthHandler(t, []string{"allowed@example.com"}, tokenURL, userinfoURL)
 
 		r := httptest.NewRequest(http.MethodGet, "/auth/callback?state=mystate&code=mycode", nil)
 		r.AddCookie(&http.Cookie{Name: "oauth_state", Value: "mystate"})
@@ -169,6 +170,43 @@ func TestOAuthHandler_Callback(t *testing.T) {
 
 		if w.Code != http.StatusFound {
 			t.Errorf("got status %d, want %d: %s", w.Code, http.StatusFound, w.Body.String())
+		}
+	})
+
+	t.Run("captures session info", func(t *testing.T) {
+		tokenURL, userinfoURL := fakeOAuthServer(t, "user-info@example.com", "sub-info")
+		_, mux, us := newTestOAuthHandler(t, nil, tokenURL, userinfoURL)
+
+		r := httptest.NewRequest(http.MethodGet, "/auth/callback?state=mystate&code=mycode", nil)
+		r.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+		r.RemoteAddr = "1.2.3.4:1234"
+		r.AddCookie(&http.Cookie{Name: "oauth_state", Value: "mystate"})
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, r)
+
+		if w.Code != http.StatusFound {
+			t.Fatalf("got status %d, want %d", w.Code, http.StatusFound)
+		}
+
+		var ip, browser, os string
+		err := us.DB().QueryRow(`
+			SELECT initial_ip_masked, initial_browser, initial_os
+			FROM user_tokens t
+			JOIN users u ON u.id = t.user_id
+			WHERE u.email = 'user-info@example.com' AND t.kind = 'session'
+		`).Scan(&ip, &browser, &os)
+		if err != nil {
+			t.Fatalf("query session info: %v", err)
+		}
+
+		if ip != "1.2.3.0" {
+			t.Errorf("got ip %q, want %q", ip, "1.2.3.0")
+		}
+		if browser != "Chrome" {
+			t.Errorf("got browser %q, want %q", browser, "Chrome")
+		}
+		if os != "macOS" {
+			t.Errorf("got os %q, want %q", os, "macOS")
 		}
 	})
 }

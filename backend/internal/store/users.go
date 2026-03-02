@@ -34,6 +34,10 @@ func NewUserStore(db *sql.DB) *UserStore {
 	return &UserStore{db: db}
 }
 
+func (s *UserStore) DB() *sql.DB {
+	return s.db
+}
+
 // GetOrCreate upserts a user by google_sub, creating an org+membership on first insert.
 // Returns the user and whether it was newly created.
 func (s *UserStore) GetOrCreate(email, googleSub string) (*User, bool, error) {
@@ -84,7 +88,7 @@ func (s *UserStore) GetOrCreate(email, googleSub string) (*User, bool, error) {
 
 // CreateSession generates a random session token (prefixed with "sess_"), stores its
 // SHA-256 hash in user_tokens, and returns the raw token (only time it is ever plaintext).
-func (s *UserStore) CreateSession(userID uuid.UUID) (string, error) {
+func (s *UserStore) CreateSession(userID uuid.UUID, ipMasked, browser, os string) (string, error) {
 	var orgID uuid.UUID
 	if err := s.db.QueryRow(
 		`SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`, userID,
@@ -100,8 +104,8 @@ func (s *UserStore) CreateSession(userID uuid.UUID) (string, error) {
 
 	expiresAt := time.Now().Add(30 * 24 * time.Hour)
 	_, err = s.db.Exec(
-		`INSERT INTO user_tokens (user_id, org_id, kind, token, expires_at) VALUES ($1, $2, 'session', $3, $4)`,
-		userID, orgID, hash, expiresAt,
+		`INSERT INTO user_tokens (user_id, org_id, kind, token, expires_at, initial_ip_masked, initial_browser, initial_os) VALUES ($1, $2, 'session', $3, $4, $5, $6, $7)`,
+		userID, orgID, hash, expiresAt, ipMasked, browser, os,
 	)
 	if err != nil {
 		return "", fmt.Errorf("create session: %w", err)
@@ -111,7 +115,7 @@ func (s *UserStore) CreateSession(userID uuid.UUID) (string, error) {
 
 // CreatePAT generates a named personal access token (prefixed with "pat_") that never expires.
 // The raw token is returned once; only its SHA-256 hash is stored.
-func (s *UserStore) CreatePAT(userID, orgID uuid.UUID, name string) (string, *PAT, error) {
+func (s *UserStore) CreatePAT(userID, orgID uuid.UUID, name, ipMasked, browser, os string) (string, *PAT, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
 		return "", nil, fmt.Errorf("generate pat id: %w", err)
@@ -124,8 +128,8 @@ func (s *UserStore) CreatePAT(userID, orgID uuid.UUID, name string) (string, *PA
 
 	var pat PAT
 	err = s.db.QueryRow(
-		`INSERT INTO user_tokens (id, user_id, org_id, kind, name, token) VALUES ($1, $2, $3, 'pat', $4, $5) RETURNING id, name, created_at`,
-		id, userID, orgID, name, hash,
+		`INSERT INTO user_tokens (id, user_id, org_id, kind, name, token, initial_ip_masked, initial_browser, initial_os) VALUES ($1, $2, $3, 'pat', $4, $5, $6, $7, $8) RETURNING id, name, created_at`,
+		id, userID, orgID, name, hash, ipMasked, browser, os,
 	).Scan(&pat.ID, &pat.Name, &pat.CreatedAt)
 	if err != nil {
 		return "", nil, fmt.Errorf("create pat: %w", err)
@@ -207,22 +211,33 @@ func (s *UserStore) GetByID(id uuid.UUID) (*User, error) {
 
 // GetUserByToken hashes the provided token and looks up the matching non-expired token.
 // Returns both the user and the org the token is scoped to.
-// As a side effect, updates last_used_at at most once per minute to reduce DB churn.
-func (s *UserStore) GetUserByToken(token string) (*User, *Org, error) {
+// As a side effect, updates last_used_at and last session info when either the throttle
+// window (1 minute) has elapsed or the client info has changed, to minimise dead tuples.
+func (s *UserStore) GetUserByToken(token, ipMasked, browser, os string) (*User, *Org, error) {
 	var user User
 	var org Org
 	err := s.db.QueryRow(`
 		WITH updated AS (
-			UPDATE user_tokens SET last_used_at = NOW()
+			UPDATE user_tokens
+			SET last_used_at   = NOW(),
+			    last_ip_masked = $2,
+			    last_browser   = $3,
+			    last_os        = $4
 			WHERE token = $1
 			  AND (expires_at IS NULL OR expires_at > NOW())
-			  AND (last_used_at IS NULL OR last_used_at < NOW() - INTERVAL '1 minute')
+			  AND (
+			      last_used_at IS NULL
+			   OR last_used_at   < NOW() - INTERVAL '1 minute'
+			   OR last_ip_masked IS DISTINCT FROM $2
+			   OR last_browser   IS DISTINCT FROM $3
+			   OR last_os        IS DISTINCT FROM $4
+			  )
 		)
 		SELECT u.id, u.email, u.google_sub, u.created_at, t.org_id
 		FROM user_tokens t
 		JOIN users u ON u.id = t.user_id
 		WHERE t.token = $1 AND (t.expires_at IS NULL OR t.expires_at > NOW())
-	`, sha256TokenHash(token)).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt, &org.ID)
+	`, sha256TokenHash(token), ipMasked, browser, os).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt, &org.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil, ErrNotFound
 	}
