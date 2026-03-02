@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { useLocation } from "preact-iso";
-import { useAuth } from "../auth.jsx";
+import { useAuth } from "../Auth.jsx";
 import { TopBar } from "./ui/TopBar.jsx";
 import {
 	NavigationMenu,

@@ -4,7 +4,7 @@
 import { render, screen } from "@testing-library/preact";
 import { describe, it, expect, vi } from "vitest";
 import { LocationProvider } from "preact-iso";
-import { AuthContext } from "./auth.jsx";
+import { AuthContext } from "./Auth.jsx";
 import { App } from "./App.jsx";
 import { Login } from "./pages/Login.jsx";
 import { Home } from "./pages/Home.jsx";

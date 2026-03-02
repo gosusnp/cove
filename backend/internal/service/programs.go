@@ -5,6 +5,7 @@ package service
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -45,7 +46,11 @@ func (s *ProgramService) List() ([]store.Program, error) {
 }
 
 func (s *ProgramService) GetDetail(id int64) (*store.ProgramDetail, error) {
-	return s.store.GetDetail(id)
+	p, err := s.store.GetDetail(id)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return p, err
 }
 
 func (s *ProgramService) Create(name string) (*store.Program, error) {
@@ -59,11 +64,21 @@ func (s *ProgramService) Update(id int64, name string) (*store.Program, error) {
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
 	}
-	return s.store.Update(id, name)
+	p, err := s.store.Update(id, name)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return p, err
 }
 
 func (s *ProgramService) Delete(id int64) error {
-	return s.store.Delete(id)
+	if err := s.store.Delete(id); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return ErrNotFound
+		}
+		return err
+	}
+	return nil
 }
 
 func (s *ProgramService) CreateFull(name string, sets []ProgramSetInput) (*store.Program, error) {

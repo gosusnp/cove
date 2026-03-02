@@ -4,6 +4,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -25,6 +26,9 @@ func NewUserService(s *store.UserStore) *UserService {
 // Get returns the user with the given ID.
 func (s *UserService) Get(id uuid.UUID) (*store.User, error) {
 	user, err := s.store.GetByID(id)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
 	if err != nil {
 		return nil, fmt.Errorf("get user: %w", err)
 	}
@@ -65,6 +69,9 @@ func (s *UserService) ListSessions(userID uuid.UUID) ([]store.Session, error) {
 // DeletePAT deletes the PAT with the given id for the user.
 func (s *UserService) DeletePAT(userID uuid.UUID, id uuid.UUID) error {
 	if err := s.store.DeletePAT(userID, id); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return ErrNotFound
+		}
 		return fmt.Errorf("delete pat: %w", err)
 	}
 	return nil
@@ -73,6 +80,9 @@ func (s *UserService) DeletePAT(userID uuid.UUID, id uuid.UUID) error {
 // DeleteSession deletes the session with the given id for the user.
 func (s *UserService) DeleteSession(userID uuid.UUID, id uuid.UUID) error {
 	if err := s.store.DeleteSession(userID, id); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return ErrNotFound
+		}
 		return fmt.Errorf("delete session: %w", err)
 	}
 	return nil

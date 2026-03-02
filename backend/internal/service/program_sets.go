@@ -3,7 +3,11 @@
 
 package service
 
-import "github.com/gosusnp/cove/backend/internal/store"
+import (
+	"errors"
+
+	"github.com/gosusnp/cove/backend/internal/store"
+)
 
 type ProgramSetService struct {
 	store *store.ProgramSetStore
@@ -18,7 +22,11 @@ func (s *ProgramSetService) List(programID int64) ([]store.ProgramSet, error) {
 }
 
 func (s *ProgramSetService) Get(programID, id int64) (*store.ProgramSet, error) {
-	return s.store.Get(programID, id)
+	ps, err := s.store.Get(programID, id)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return ps, err
 }
 
 func (s *ProgramSetService) Create(programID int64, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*store.ProgramSet, error) {
@@ -32,9 +40,19 @@ func (s *ProgramSetService) Update(programID, id int64, name *string, rounds int
 	if rounds < 1 {
 		rounds = 1
 	}
-	return s.store.Update(programID, id, name, rounds, intraSetRestSeconds, sortOrder)
+	ps, err := s.store.Update(programID, id, name, rounds, intraSetRestSeconds, sortOrder)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return ps, err
 }
 
 func (s *ProgramSetService) Delete(programID, id int64) error {
-	return s.store.Delete(programID, id)
+	if err := s.store.Delete(programID, id); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return ErrNotFound
+		}
+		return err
+	}
+	return nil
 }

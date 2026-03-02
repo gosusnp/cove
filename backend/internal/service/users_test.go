@@ -53,7 +53,7 @@ func TestUserService_Get(t *testing.T) {
 		id[0] ^= 0xff
 
 		_, err = svc.Get(id)
-		if !errors.Is(err, store.ErrNotFound) {
+		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
 	})
@@ -172,7 +172,7 @@ func TestUserService_DeletePAT(t *testing.T) {
 		user, _ := setupUserWithOrg(t, us)
 
 		err := svc.DeletePAT(user.ID, uuid.Max)
-		if !errors.Is(err, store.ErrNotFound) {
+		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
 	})

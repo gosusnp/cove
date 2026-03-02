@@ -4,7 +4,7 @@
 import { useEffect } from "preact/hooks";
 import { useSignal } from "@preact/signals";
 import { useLocation } from "preact-iso";
-import { useAuth } from "../auth.jsx";
+import { useAuth } from "../Auth.jsx";
 import { Avatar } from "../components/ui/Avatar.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import {

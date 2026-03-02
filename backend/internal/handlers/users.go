@@ -14,7 +14,6 @@ import (
 	"github.com/gosusnp/cove/backend/internal/httputil"
 	"github.com/gosusnp/cove/backend/internal/middleware"
 	"github.com/gosusnp/cove/backend/internal/service"
-	"github.com/gosusnp/cove/backend/internal/store"
 )
 
 // UserHandler handles user-related HTTP routes.
@@ -50,7 +49,7 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, err := h.svc.Get(authUser.ID)
-	if errors.Is(err, store.ErrNotFound) {
+	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "user not found", http.StatusNotFound)
 		return
 	}
@@ -157,7 +156,7 @@ func (h *UserHandler) deleteToken(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	if err := h.svc.DeletePAT(authUser.ID, id); errors.Is(err, store.ErrNotFound) {
+	if err := h.svc.DeletePAT(authUser.ID, id); errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "token not found", http.StatusNotFound)
 		return
 	} else if err != nil {
@@ -208,7 +207,7 @@ func (h *UserHandler) deleteSession(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	if err := h.svc.DeleteSession(authUser.ID, id); errors.Is(err, store.ErrNotFound) {
+	if err := h.svc.DeleteSession(authUser.ID, id); errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "session not found", http.StatusNotFound)
 		return
 	} else if err != nil {

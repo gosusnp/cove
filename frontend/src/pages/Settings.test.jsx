@@ -10,7 +10,7 @@ import {
 } from "@testing-library/preact";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { LocationProvider } from "preact-iso";
-import { AuthContext } from "../auth.jsx";
+import { AuthContext } from "../Auth.jsx";
 import { Settings } from "./Settings.jsx";
 
 vi.mock("../components/ui/Dialog.jsx", () => ({

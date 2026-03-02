@@ -27,7 +27,11 @@ func (s *ExerciseService) List() ([]store.Exercise, error) {
 }
 
 func (s *ExerciseService) Get(id int64) (*store.ExerciseDetail, error) {
-	return s.store.Get(id)
+	e, err := s.store.Get(id)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return e, err
 }
 
 func (s *ExerciseService) Create(name string, progression *string) (*store.ExerciseDetail, error) {
@@ -48,6 +52,9 @@ func (s *ExerciseService) Update(id int64, name string, progression *string) (*s
 		return nil, &ValidationError{Msg: "name is required"}
 	}
 	e, err := s.store.Update(id, name, progression)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
 	if errors.Is(err, store.ErrDuplicate) {
 		return nil, &ValidationError{Msg: "exercise with this name already exists"}
 	}
@@ -55,5 +62,11 @@ func (s *ExerciseService) Update(id int64, name string, progression *string) (*s
 }
 
 func (s *ExerciseService) Delete(id int64) error {
-	return s.store.Delete(id)
+	if err := s.store.Delete(id); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return ErrNotFound
+		}
+		return err
+	}
+	return nil
 }
