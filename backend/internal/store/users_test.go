@@ -251,12 +251,74 @@ func TestUserStore_CreatePAT(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		got, _, err := s.GetUserByToken(token, "", "", "")
+		got, _, _, err := s.GetUserByToken(token, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if got.ID != user.ID {
 			t.Errorf("got user ID %v, want %v", got.ID, user.ID)
+		}
+	})
+}
+
+func TestUserStore_Sessions(t *testing.T) {
+	t.Run("ListSessions returns all active sessions", func(t *testing.T) {
+		s := newTestUserStore(t)
+		user, _, err := s.GetOrCreate("sess-list@example.com", "sub-sess-list")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Create two sessions.
+		_, err = s.CreateSession(user.ID, "1.1.1.1", "Chrome", "macOS")
+		if err != nil {
+			t.Fatalf("CreateSession 1: %v", err)
+		}
+		_, err = s.CreateSession(user.ID, "2.2.2.2", "Firefox", "Linux")
+		if err != nil {
+			t.Fatalf("CreateSession 2: %v", err)
+		}
+
+		sessions, err := s.ListSessions(user.ID)
+		if err != nil {
+			t.Fatalf("ListSessions: %v", err)
+		}
+		if len(sessions) != 2 {
+			t.Errorf("expected 2 sessions, got %d", len(sessions))
+		}
+
+		// Order is by last_used_at DESC, then created_at DESC.
+		// Since we haven't used them, it's by created_at DESC.
+		if *sessions[0].InitialIPMasked != "2.2.2.2" {
+			t.Errorf("expected latest session first, got %s", *sessions[0].InitialIPMasked)
+		}
+	})
+
+	t.Run("DeleteSession removes session", func(t *testing.T) {
+		s := newTestUserStore(t)
+		user, _, err := s.GetOrCreate("sess-del@example.com", "sub-sess-del")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		_, err = s.CreateSession(user.ID, "", "", "")
+		if err != nil {
+			t.Fatalf("CreateSession: %v", err)
+		}
+
+		sessions, _ := s.ListSessions(user.ID)
+		if len(sessions) != 1 {
+			t.Fatalf("expected 1 session, got %d", len(sessions))
+		}
+
+		err = s.DeleteSession(user.ID, sessions[0].ID)
+		if err != nil {
+			t.Fatalf("DeleteSession: %v", err)
+		}
+
+		sessions, _ = s.ListSessions(user.ID)
+		if len(sessions) != 0 {
+			t.Errorf("expected 0 sessions after delete, got %d", len(sessions))
 		}
 	})
 }
@@ -273,7 +335,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		got, org, err := s.GetUserByToken(token, "", "", "")
+		got, org, _, err := s.GetUserByToken(token, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -291,7 +353,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 	t.Run("invalid token returns ErrNotFound", func(t *testing.T) {
 		s := newTestUserStore(t)
 
-		_, _, err := s.GetUserByToken("notavalidtoken", "", "", "")
+		_, _, _, err := s.GetUserByToken("notavalidtoken", "", "", "")
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -308,7 +370,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if _, _, err = s.GetUserByToken(token, "", "", ""); err != nil {
+		if _, _, _, err = s.GetUserByToken(token, "", "", ""); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -335,7 +397,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 		}
 
 		// First call: sets last_used_at.
-		if _, _, err = s.GetUserByToken(token, "", "", ""); err != nil {
+		if _, _, _, err = s.GetUserByToken(token, "", "", ""); err != nil {
 			t.Fatalf("first call: %v", err)
 		}
 		var first time.Time
@@ -346,7 +408,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 		}
 
 		// Second call immediately: last_used_at must not change.
-		if _, _, err = s.GetUserByToken(token, "", "", ""); err != nil {
+		if _, _, _, err = s.GetUserByToken(token, "", "", ""); err != nil {
 			t.Fatalf("second call: %v", err)
 		}
 		var second time.Time

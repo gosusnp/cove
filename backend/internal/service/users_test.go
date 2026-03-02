@@ -70,7 +70,7 @@ func setupUserWithOrg(t *testing.T, us *store.UserStore) (*store.User, uuid.UUID
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
-	_, org, err := us.GetUserByToken(token, "", "", "")
+	_, org, _, err := us.GetUserByToken(token, "", "", "")
 	if err != nil {
 		t.Fatalf("GetUserByToken: %v", err)
 	}
@@ -174,6 +174,37 @@ func TestUserService_DeletePAT(t *testing.T) {
 		err := svc.DeletePAT(user.ID, uuid.Max)
 		if !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func TestUserService_Sessions(t *testing.T) {
+	t.Run("lists sessions", func(t *testing.T) {
+		svc, us := newTestUserService(t)
+		user, _ := setupUserWithOrg(t, us)
+
+		sessions, err := svc.ListSessions(user.ID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// setupUserWithOrg creates 1 session via CreateSession.
+		if len(sessions) != 1 {
+			t.Errorf("expected 1 session, got %d", len(sessions))
+		}
+	})
+
+	t.Run("deletes session", func(t *testing.T) {
+		svc, us := newTestUserService(t)
+		user, _ := setupUserWithOrg(t, us)
+
+		sessions, _ := svc.ListSessions(user.ID)
+		if err := svc.DeleteSession(user.ID, sessions[0].ID); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		sessions, _ = svc.ListSessions(user.ID)
+		if len(sessions) != 0 {
+			t.Errorf("expected 0 sessions after delete, got %d", len(sessions))
 		}
 	})
 }

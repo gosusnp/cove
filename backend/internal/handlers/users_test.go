@@ -89,6 +89,155 @@ func TestUserHandler_Me(t *testing.T) {
 	})
 }
 
+func TestUserHandler_Sessions(t *testing.T) {
+	setup := func(t *testing.T) (http.Handler, *store.UserStore, string) {
+		t.Helper()
+		handler, us := newUsersServer(t)
+		user, _, err := us.GetOrCreate("sess-h@example.com", "sub-sess-h")
+		if err != nil {
+			t.Fatalf("GetOrCreate: %v", err)
+		}
+		session, err := us.CreateSession(user.ID, "1.2.3.4", "Chrome", "macOS")
+		if err != nil {
+			t.Fatalf("CreateSession: %v", err)
+		}
+		return handler, us, session
+	}
+
+	t.Run("list returns active sessions with is_current", func(t *testing.T) {
+		handler, _, session := setup(t)
+
+		r := httptest.NewRequest(http.MethodGet, "/users/sessions", nil)
+		r.Header.Set("Authorization", "Bearer "+session)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("got status %d, want %d", w.Code, http.StatusOK)
+		}
+		var got []map[string]any
+		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if len(got) != 1 {
+			t.Fatalf("expected 1 session, got %d", len(got))
+		}
+		if got[0]["is_current"] != true {
+			t.Errorf("expected is_current=true")
+		}
+		if got[0]["initial_ip_masked"] != "1.2.3.4" {
+			t.Errorf("got ip %v, want %q", got[0]["initial_ip_masked"], "1.2.3.4")
+		}
+	})
+
+	t.Run("delete removes session", func(t *testing.T) {
+		handler, _, session := setup(t)
+
+		// List to get session ID.
+		r := httptest.NewRequest(http.MethodGet, "/users/sessions", nil)
+		r.Header.Set("Authorization", "Bearer "+session)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		var sessions []map[string]any
+		if err := json.NewDecoder(w.Body).Decode(&sessions); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		id := sessions[0]["id"].(string)
+
+		// Delete.
+		r = httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/users/sessions/%s", id), nil)
+		r.Header.Set("Authorization", "Bearer "+session)
+		w = httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+
+		if w.Code != http.StatusNoContent {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusNoContent)
+		}
+	})
+
+	t.Run("cannot list another user's sessions", func(t *testing.T) {
+		handler, us := newUsersServer(t)
+
+		// User A has a session.
+		userA, _, err := us.GetOrCreate("a-sess@example.com", "sub-a-sess")
+		if err != nil {
+			t.Fatalf("GetOrCreate A: %v", err)
+		}
+		if _, err := us.CreateSession(userA.ID, "1.1.1.1", "", ""); err != nil {
+			t.Fatalf("CreateSession A: %v", err)
+		}
+
+		// User B lists sessions — should only see their own.
+		userB, _, err := us.GetOrCreate("b-sess@example.com", "sub-b-sess")
+		if err != nil {
+			t.Fatalf("GetOrCreate B: %v", err)
+		}
+		sessionB, err := us.CreateSession(userB.ID, "2.2.2.2", "", "")
+		if err != nil {
+			t.Fatalf("CreateSession B: %v", err)
+		}
+
+		r := httptest.NewRequest(http.MethodGet, "/users/sessions", nil)
+		r.Header.Set("Authorization", "Bearer "+sessionB)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+
+		var got []map[string]any
+		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if len(got) != 1 {
+			t.Errorf("expected user B to see 1 session (theirs), got %d", len(got))
+		}
+		if got[0]["initial_ip_masked"] != "2.2.2.2" {
+			t.Errorf("expected user B to see their own session")
+		}
+	})
+
+	t.Run("cannot delete another user's session", func(t *testing.T) {
+		handler, us := newUsersServer(t)
+
+		// User A has a session.
+		userA, _, err := us.GetOrCreate("a-sess-del@example.com", "sub-a-sess-del")
+		if err != nil {
+			t.Fatalf("GetOrCreate A: %v", err)
+		}
+		if _, err := us.CreateSession(userA.ID, "1.1.1.1", "", ""); err != nil {
+			t.Fatalf("CreateSession A: %v", err)
+		}
+		sessionsA, err := us.ListSessions(userA.ID)
+		if err != nil {
+			t.Fatalf("ListSessions A: %v", err)
+		}
+		idA := sessionsA[0].ID
+
+		// User B attempts to delete User A's session.
+		userB, _, err := us.GetOrCreate("b-sess-del@example.com", "sub-b-sess-del")
+		if err != nil {
+			t.Fatalf("GetOrCreate B: %v", err)
+		}
+		sessionB, err := us.CreateSession(userB.ID, "2.2.2.2", "", "")
+		if err != nil {
+			t.Fatalf("CreateSession B: %v", err)
+		}
+
+		r := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/users/sessions/%s", idA), nil)
+		r.Header.Set("Authorization", "Bearer "+sessionB)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+
+		// Verify User A still has their session.
+		sessionsA, _ = us.ListSessions(userA.ID)
+		if len(sessionsA) != 1 {
+			t.Errorf("user A session was deleted by user B")
+		}
+	})
+}
+
 func TestUserHandler_Tokens(t *testing.T) {
 	setup := func(t *testing.T) (http.Handler, *store.UserStore, string) {
 		t.Helper()

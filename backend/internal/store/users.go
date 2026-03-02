@@ -161,6 +161,30 @@ func (s *UserStore) ListPATs(userID uuid.UUID) ([]PAT, error) {
 	return pats, rows.Err()
 }
 
+// ListSessions returns all active sessions for the given user, ordered by last used time.
+func (s *UserStore) ListSessions(userID uuid.UUID) ([]Session, error) {
+	rows, err := s.db.Query(`
+		SELECT id, created_at, last_used_at, initial_ip_masked, initial_browser, initial_os, last_ip_masked, last_browser, last_os
+		FROM user_tokens
+		WHERE user_id = $1 AND kind = 'session' AND (expires_at IS NULL OR expires_at > NOW())
+		ORDER BY COALESCE(last_used_at, created_at) DESC
+	`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list sessions: %w", err)
+	}
+	defer rows.Close()
+
+	sessions := []Session{}
+	for rows.Next() {
+		var sess Session
+		if err := rows.Scan(&sess.ID, &sess.CreatedAt, &sess.LastUsedAt, &sess.InitialIPMasked, &sess.InitialBrowser, &sess.InitialOS, &sess.LastIPMasked, &sess.LastBrowser, &sess.LastOS); err != nil {
+			return nil, fmt.Errorf("scan session: %w", err)
+		}
+		sessions = append(sessions, sess)
+	}
+	return sessions, rows.Err()
+}
+
 // DeletePAT deletes the PAT with the given id scoped to the user. Returns ErrNotFound if no row was deleted.
 func (s *UserStore) DeletePAT(userID uuid.UUID, id uuid.UUID) error {
 	res, err := s.db.Exec(
@@ -169,6 +193,25 @@ func (s *UserStore) DeletePAT(userID uuid.UUID, id uuid.UUID) error {
 	)
 	if err != nil {
 		return fmt.Errorf("delete pat: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// DeleteSession deletes the session with the given id scoped to the user. Returns ErrNotFound if no row was deleted.
+func (s *UserStore) DeleteSession(userID uuid.UUID, id uuid.UUID) error {
+	res, err := s.db.Exec(
+		`DELETE FROM user_tokens WHERE id = $1 AND user_id = $2 AND kind = 'session'`,
+		id, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("delete session: %w", err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
@@ -213,9 +256,10 @@ func (s *UserStore) GetByID(id uuid.UUID) (*User, error) {
 // Returns both the user and the org the token is scoped to.
 // As a side effect, updates last_used_at and last session info when either the throttle
 // window (1 minute) has elapsed or the client info has changed, to minimise dead tuples.
-func (s *UserStore) GetUserByToken(token, ipMasked, browser, os string) (*User, *Org, error) {
+func (s *UserStore) GetUserByToken(token, ipMasked, browser, os string) (*User, *Org, uuid.UUID, error) {
 	var user User
 	var org Org
+	var tokenID uuid.UUID
 	err := s.db.QueryRow(`
 		WITH updated AS (
 			UPDATE user_tokens
@@ -233,16 +277,16 @@ func (s *UserStore) GetUserByToken(token, ipMasked, browser, os string) (*User, 
 			   OR last_os        IS DISTINCT FROM $4
 			  )
 		)
-		SELECT u.id, u.email, u.google_sub, u.created_at, t.org_id
+		SELECT u.id, u.email, u.google_sub, u.created_at, t.org_id, t.id
 		FROM user_tokens t
 		JOIN users u ON u.id = t.user_id
 		WHERE t.token = $1 AND (t.expires_at IS NULL OR t.expires_at > NOW())
-	`, sha256TokenHash(token), ipMasked, browser, os).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt, &org.ID)
+	`, sha256TokenHash(token), ipMasked, browser, os).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt, &org.ID, &tokenID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil, ErrNotFound
+		return nil, nil, uuid.Nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, nil, fmt.Errorf("get user by token: %w", err)
+		return nil, nil, uuid.Nil, fmt.Errorf("get user by token: %w", err)
 	}
-	return &user, &org, nil
+	return &user, &org, tokenID, nil
 }

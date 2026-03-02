@@ -8,12 +8,15 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/gosusnp/cove/backend/internal/httputil"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
 type userCtxKey struct{}
 type orgCtxKey struct{}
+type tokenIDCtxKey struct{}
 
 // UserFromContext returns the authenticated user stored in the request context by OAuth middleware.
 func UserFromContext(ctx context.Context) *store.User {
@@ -25,6 +28,12 @@ func UserFromContext(ctx context.Context) *store.User {
 func OrgFromContext(ctx context.Context) *store.Org {
 	o, _ := ctx.Value(orgCtxKey{}).(*store.Org)
 	return o
+}
+
+// TokenIDFromContext returns the ID of the token used for authentication.
+func TokenIDFromContext(ctx context.Context) uuid.UUID {
+	id, _ := ctx.Value(tokenIDCtxKey{}).(uuid.UUID)
+	return id
 }
 
 // OAuth guards routes by validating a session token via UserStore.
@@ -39,7 +48,7 @@ func OAuth(us *store.UserStore, next http.Handler) http.Handler {
 			return
 		}
 		ip, browser, os := httputil.FromRequest(r)
-		user, org, err := us.GetUserByToken(token, ip, browser, os)
+		user, org, tokenID, err := us.GetUserByToken(token, ip, browser, os)
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
@@ -48,6 +57,7 @@ func OAuth(us *store.UserStore, next http.Handler) http.Handler {
 		}
 		ctx := context.WithValue(r.Context(), userCtxKey{}, user)
 		ctx = context.WithValue(ctx, orgCtxKey{}, org)
+		ctx = context.WithValue(ctx, tokenIDCtxKey{}, tokenID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

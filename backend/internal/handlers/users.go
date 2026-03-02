@@ -33,6 +33,8 @@ func (h *UserHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /users/tokens", h.listTokens)
 	mux.HandleFunc("POST /users/tokens", h.createToken)
 	mux.HandleFunc("DELETE /users/tokens/{id}", h.deleteToken)
+	mux.HandleFunc("GET /users/sessions", h.listSessions)
+	mux.HandleFunc("DELETE /users/sessions/{id}", h.deleteSession)
 }
 
 type userResponse struct {
@@ -79,6 +81,19 @@ type tokenResponse struct {
 	Name       string     `json:"name"`
 	CreatedAt  time.Time  `json:"created_at"`
 	LastUsedAt *time.Time `json:"last_used_at"`
+}
+
+type sessionResponse struct {
+	ID              uuid.UUID  `json:"id"`
+	CreatedAt       time.Time  `json:"created_at"`
+	LastUsedAt      *time.Time `json:"last_used_at"`
+	InitialIPMasked *string    `json:"initial_ip_masked,omitempty"`
+	InitialBrowser  *string    `json:"initial_browser,omitempty"`
+	InitialOS       *string    `json:"initial_os,omitempty"`
+	LastIPMasked    *string    `json:"last_ip_masked,omitempty"`
+	LastBrowser     *string    `json:"last_browser,omitempty"`
+	LastOS          *string    `json:"last_os,omitempty"`
+	IsCurrent       bool       `json:"is_current"`
 }
 
 func (h *UserHandler) listTokens(w http.ResponseWriter, r *http.Request) {
@@ -144,6 +159,57 @@ func (h *UserHandler) deleteToken(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.svc.DeletePAT(authUser.ID, id); errors.Is(err, store.ErrNotFound) {
 		jsonError(w, "token not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		jsonError(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *UserHandler) listSessions(w http.ResponseWriter, r *http.Request) {
+	authUser := middleware.UserFromContext(r.Context())
+	if authUser == nil {
+		jsonError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	tokenID := middleware.TokenIDFromContext(r.Context())
+	sessions, err := h.svc.ListSessions(authUser.ID)
+	if err != nil {
+		jsonError(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	resp := make([]sessionResponse, len(sessions))
+	for i, s := range sessions {
+		resp[i] = sessionResponse{
+			ID:              s.ID,
+			CreatedAt:       s.CreatedAt,
+			LastUsedAt:      s.LastUsedAt,
+			InitialIPMasked: s.InitialIPMasked,
+			InitialBrowser:  s.InitialBrowser,
+			InitialOS:       s.InitialOS,
+			LastIPMasked:    s.LastIPMasked,
+			LastBrowser:     s.LastBrowser,
+			LastOS:          s.LastOS,
+			IsCurrent:       s.ID == tokenID,
+		}
+	}
+	jsonOK(w, resp)
+}
+
+func (h *UserHandler) deleteSession(w http.ResponseWriter, r *http.Request) {
+	authUser := middleware.UserFromContext(r.Context())
+	if authUser == nil {
+		jsonError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		jsonError(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	if err := h.svc.DeleteSession(authUser.ID, id); errors.Is(err, store.ErrNotFound) {
+		jsonError(w, "session not found", http.StatusNotFound)
 		return
 	} else if err != nil {
 		jsonError(w, "internal error", http.StatusInternalServerError)

@@ -53,10 +53,27 @@ func (s *UserService) ListPATs(userID uuid.UUID) ([]store.PAT, error) {
 	return pats, nil
 }
 
+// ListSessions returns all active sessions for the user.
+func (s *UserService) ListSessions(userID uuid.UUID) ([]store.Session, error) {
+	sessions, err := s.store.ListSessions(userID)
+	if err != nil {
+		return nil, fmt.Errorf("list sessions: %w", err)
+	}
+	return sessions, nil
+}
+
 // DeletePAT deletes the PAT with the given id for the user.
 func (s *UserService) DeletePAT(userID uuid.UUID, id uuid.UUID) error {
 	if err := s.store.DeletePAT(userID, id); err != nil {
 		return fmt.Errorf("delete pat: %w", err)
+	}
+	return nil
+}
+
+// DeleteSession deletes the session with the given id for the user.
+func (s *UserService) DeleteSession(userID uuid.UUID, id uuid.UUID) error {
+	if err := s.store.DeleteSession(userID, id); err != nil {
+		return fmt.Errorf("delete session: %w", err)
 	}
 	return nil
 }
