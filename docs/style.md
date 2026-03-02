@@ -115,6 +115,9 @@ Every source file begins with a copyright and license header.
 
 - **DON'T** use `camelCase.jsx` for component files: ~~`workoutTracker.jsx`~~, ~~`exerciseCard.jsx`~~
 - **DON'T** use `PascalCase` for hooks or utils: ~~`UseExercises.js`~~, ~~`FormatDuration.js`~~
+- **DO** use `PascalCase.jsx` whenever a file exports a component, even if it also exports a hook (e.g. `AuthProvider` + `useAuth` → `Auth.jsx`).
+- **DO** match test file casing to the file under test: `PascalCase.test.jsx` for components, `camelCase.test.js` for hooks and utils.
+- **DON'T** place tests in a separate directory — co-locate them alongside the source file.
 
 ### JSX Attributes
 

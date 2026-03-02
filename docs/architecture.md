@@ -151,8 +151,10 @@ func (s *ExerciseService) Create(name string, progression *string) (*store.Exerc
 
 - **DO** normalize inputs (trim whitespace, lowercase) before validating.
 - **DO** return `*ValidationError` for user-caused failures so handlers can map them to `400`.
-- **DO** translate store sentinel errors (`store.ErrDuplicate`, `store.ErrNotFound`) into domain-appropriate errors at the service boundary.
-- **DON'T** let raw store errors propagate to handlers — translate them.
+- **DO** translate store sentinel errors at the service boundary so handlers never import the `store` package for error checks. Two acceptable forms:
+  - Wrap into a typed error (e.g. `*ValidationError`) when the error maps to a user-facing message.
+  - Alias the sentinel (`var ErrNotFound = store.ErrNotFound`) when no additional context is needed — `errors.Is` resolves through aliases correctly.
+- **DON'T** let raw `store.ErrNotFound` or `store.ErrDuplicate` propagate to handlers without going through a service-level symbol first.
 - **DON'T** write SQL in a service. Delegate to the store.
 
 ### Transactions
@@ -260,7 +262,8 @@ type ExerciseDetail struct {
 
 - **DO** define list types (e.g., `Exercise`) and detail types (e.g., `ExerciseDetail`) separately when the detail includes optional or nested fields.
 - **DO** use `*T` pointer fields with `omitempty` for nullable columns.
-- **DO** use `int64` for all primary and foreign keys.
+- **DO** use `int64` for primary and foreign keys on data/entity tables (exercises, programs, workouts, etc.).
+- **DO** use `uuid.UUID` for primary keys on identity tables (users, sessions, API keys) — these follow the `UUID PRIMARY KEY` SQL convention.
 - **DON'T** add computed or presentation fields to store types — those belong in a service or handler response struct.
 - **DON'T** define domain types inside handler or service files.
 
