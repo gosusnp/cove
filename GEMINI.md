@@ -1,6 +1,6 @@
 # Cove — Gemini Instructions
 
-Read AGENTS.md first. It contains all project instructions applicable to any agent.
+Read @AGENTS.md first. It contains all project instructions applicable to any agent.
 
 ## 🚦 MANDATORY GUARDRAILS
 - **Approval Required:** You MUST ask for user approval before performing any refactoring or code "cleanup."

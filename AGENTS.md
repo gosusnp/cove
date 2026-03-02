@@ -6,8 +6,8 @@ Personal fitness tracking app with an MCP interface for AI-assisted workout plan
 
 Read before writing any code:
 
-- `docs/architecture.md` — project layout, layer hierarchy, handler/service/store rules, error handling, MCP integration
-- `docs/style.md` — file naming, identifiers, JSON tags, SQL conventions, file headers, frontend conventions
+- @docs/architecture.md — project layout, layer hierarchy, handler/service/store rules, error handling, MCP integration
+- @docs/style.md — file naming, identifiers, JSON tags, SQL conventions, file headers, frontend conventions
 
 ## Commands
 
