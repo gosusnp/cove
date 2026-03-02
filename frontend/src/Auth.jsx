@@ -36,6 +36,13 @@ export function AuthProvider({ children }) {
 	}
 
 	function logout() {
+		const token = session?.token;
+		if (token) {
+			fetch("/api/users/logout", {
+				method: "POST",
+				headers: { Authorization: `Bearer ${token}` },
+			}).catch(() => {});
+		}
 		localStorage.removeItem(STORAGE_KEY);
 		setSession(null);
 	}

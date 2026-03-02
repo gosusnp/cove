@@ -29,11 +29,26 @@ func NewUserHandler(s *service.UserService) *UserHandler {
 // RegisterRoutes registers user routes on mux.
 func (h *UserHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /users/me", h.me)
+	mux.HandleFunc("POST /users/logout", h.logout)
 	mux.HandleFunc("GET /users/tokens", h.listTokens)
 	mux.HandleFunc("POST /users/tokens", h.createToken)
 	mux.HandleFunc("DELETE /users/tokens/{id}", h.deleteToken)
 	mux.HandleFunc("GET /users/sessions", h.listSessions)
 	mux.HandleFunc("DELETE /users/sessions/{id}", h.deleteSession)
+}
+
+func (h *UserHandler) logout(w http.ResponseWriter, r *http.Request) {
+	authUser := middleware.UserFromContext(r.Context())
+	if authUser == nil {
+		jsonError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	tokenID := middleware.TokenIDFromContext(r.Context())
+	if err := h.svc.DeleteSession(authUser.ID, tokenID); err != nil && !errors.Is(err, service.ErrNotFound) {
+		jsonError(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type userResponse struct {

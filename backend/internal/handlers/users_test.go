@@ -29,6 +29,52 @@ func newUsersServer(t *testing.T) (http.Handler, *store.UserStore, *service.User
 	return middleware.OAuth(us, mux), us, svc
 }
 
+func TestUserHandler_Logout(t *testing.T) {
+	t.Run("deletes current session", func(t *testing.T) {
+		handler, us, svc := newUsersServer(t)
+		user, _, err := svc.GetOrCreate("logout@example.com", "sub-logout")
+		if err != nil {
+			t.Fatalf("GetOrCreate: %v", err)
+		}
+		token, err := us.CreateSession(user.ID, "", "", "")
+		if err != nil {
+			t.Fatalf("CreateSession: %v", err)
+		}
+
+		// Verify session exists.
+		sessions, _ := us.ListSessions(user.ID)
+		if len(sessions) != 1 {
+			t.Fatalf("expected 1 session, got %d", len(sessions))
+		}
+
+		// Logout.
+		r := httptest.NewRequest(http.MethodPost, "/users/logout", nil)
+		r.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+
+		if w.Code != http.StatusNoContent {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusNoContent)
+		}
+
+		// Verify session is gone.
+		sessions, _ = us.ListSessions(user.ID)
+		if len(sessions) != 0 {
+			t.Errorf("expected 0 sessions after logout, got %d", len(sessions))
+		}
+	})
+
+	t.Run("returns 401 for missing token", func(t *testing.T) {
+		handler, _, _ := newUsersServer(t)
+		r := httptest.NewRequest(http.MethodPost, "/users/logout", nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusUnauthorized)
+		}
+	})
+}
 func TestUserHandler_Me(t *testing.T) {
 	t.Run("returns current user", func(t *testing.T) {
 		handler, us, svc := newUsersServer(t)
