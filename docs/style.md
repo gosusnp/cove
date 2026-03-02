@@ -192,6 +192,8 @@ Rules:
 - **DO** extend an existing primitive (via props or a wrapper) before creating a new one.
 - **DON'T** write raw `<button>`, `<a>`-as-button, or custom modal markup outside of `ui/`.
 - **DON'T** add a new `ui/` component without a corresponding section in `/design-elements`.
+- **DO** add a `ComponentName.test.jsx` alongside every new `ui/` component covering its core variants and interactions.
+- **DON'T** rely solely on `/design-elements` for verification — visual showcase does not replace automated tests.
 
 The `/design-elements` route (visible when `VITE_COVE_ENV=dev`) is the live showcase for all `ui/` components. Every primitive must be represented there with all meaningful states (variants, sizes, disabled, active, etc.).
 
@@ -214,3 +216,12 @@ test: {
 - **DO** add a mock to `src/__mocks__/` for any new Radix package that breaks tests.
 - **DO** keep mocks minimal — passthrough components that render children are enough.
 - **DON'T** add the alias to the main Vite config — only inside the `test` block.
+
+### Shared Test Utilities
+
+Cross-cutting test helpers live in `src/test-utils.js` and are imported by individual test files.
+
+- **DO** import `withProviders` from `src/test-utils.js` in any test that needs `AuthContext` or `LocationProvider`.
+- **DON'T** redefine `withProviders` inside individual test files.
+- **DO** add new shared helpers to `src/test-utils.js` when the same setup appears in two or more test files.
+- **DO** pass per-test defaults (e.g. `path`, `user`) as options rather than creating variant copies of the helper.
