@@ -1,10 +1,10 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { render, screen } from "@testing-library/preact";
+import { screen } from "@testing-library/preact";
 import { describe, it, expect, vi } from "vitest";
-import { LocationProvider } from "preact-iso";
 import { DesignElements } from "./DesignElements.jsx";
+import { withProviders } from "../test-utils.jsx";
 
 // Mock the UI components to avoid issues with Radix UI in jsdom/vitest.
 // Radix UI components often use APIs not fully implemented in jsdom,
@@ -55,10 +55,6 @@ vi.mock("../components/ui/Section.jsx", () => ({
 	),
 	Divider: () => <hr />,
 }));
-
-function withProviders(ui) {
-	return render(<LocationProvider>{ui}</LocationProvider>);
-}
 
 describe("DesignElements", () => {
 	it("renders when VITE_COVE_ENV is dev", () => {

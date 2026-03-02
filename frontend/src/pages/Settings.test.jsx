@@ -1,17 +1,10 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import {
-	render,
-	screen,
-	fireEvent,
-	waitFor,
-	within,
-} from "@testing-library/preact";
+import { screen, fireEvent, waitFor, within } from "@testing-library/preact";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { LocationProvider } from "preact-iso";
-import { AuthContext } from "../Auth.jsx";
 import { Settings } from "./Settings.jsx";
+import { withProviders } from "../test-utils.jsx";
 
 vi.mock("../components/ui/Dialog.jsx", () => ({
 	Dialog: ({ children }) => <div data-testid="mock-dialog">{children}</div>,
@@ -29,24 +22,8 @@ vi.mock("../components/ui/Dialog.jsx", () => ({
 
 const MOCK_USER = { email: "jane@example.com", name: "Jane Smith" };
 
-function withProviders(ui, { path = "/settings", user = MOCK_USER } = {}) {
-	window.history.pushState({}, "", path);
-	const auth = {
-		user,
-		token: user ? "tok" : null,
-		login: vi.fn(),
-		logout: vi.fn(),
-		updateUser: vi.fn(),
-	};
-	return {
-		...render(
-			<LocationProvider>
-				<AuthContext.Provider value={auth}>{ui}</AuthContext.Provider>
-			</LocationProvider>,
-		),
-		auth,
-	};
-}
+const renderSettings = (opts = {}) =>
+	withProviders(<Settings />, { path: "/settings", user: MOCK_USER, ...opts });
 
 function mockFetch({ tokens = [], sessions = [], meUser = MOCK_USER } = {}) {
 	return vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
@@ -85,7 +62,7 @@ describe("Settings", () => {
 	describe("profile", () => {
 		it("renders the page heading", () => {
 			mockFetch();
-			withProviders(<Settings />);
+			renderSettings();
 			expect(
 				screen.getByRole("heading", { name: "Settings" }),
 			).toBeInTheDocument();
@@ -93,13 +70,13 @@ describe("Settings", () => {
 
 		it("shows the signed-in user email", () => {
 			mockFetch();
-			withProviders(<Settings />);
+			renderSettings();
 			expect(screen.getByText(MOCK_USER.email)).toBeInTheDocument();
 		});
 
 		it("shows the signed-in user name", () => {
 			mockFetch();
-			withProviders(<Settings />);
+			renderSettings();
 			expect(screen.getAllByText(MOCK_USER.name).length).toBeGreaterThan(0);
 		});
 	});
@@ -107,7 +84,7 @@ describe("Settings", () => {
 	describe("fetch /api/users/me", () => {
 		it("sends bearer token", async () => {
 			const fetchSpy = mockFetch();
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
 			expect(fetchSpy).toHaveBeenCalledWith("/api/users/me", {
 				headers: { Authorization: "Bearer tok" },
@@ -128,7 +105,7 @@ describe("Settings", () => {
 				}
 				return Promise.resolve({ json: () => Promise.resolve(apiUser) });
 			});
-			const { auth } = withProviders(<Settings />);
+			const { auth } = renderSettings();
 			await waitFor(() =>
 				expect(auth.updateUser).toHaveBeenCalledWith(apiUser),
 			);
@@ -136,7 +113,7 @@ describe("Settings", () => {
 
 		it("shows auth context user when fetch fails", async () => {
 			vi.spyOn(global, "fetch").mockRejectedValue(new Error("network error"));
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() =>
 				expect(screen.getByText(MOCK_USER.email)).toBeInTheDocument(),
 			);
@@ -144,7 +121,7 @@ describe("Settings", () => {
 
 		it("logs out when /me returns 401", async () => {
 			vi.spyOn(global, "fetch").mockResolvedValue({ status: 401 });
-			const { auth } = withProviders(<Settings />);
+			const { auth } = renderSettings();
 			await waitFor(() => expect(auth.logout).toHaveBeenCalled());
 		});
 	});
@@ -152,7 +129,7 @@ describe("Settings", () => {
 	describe("sign out", () => {
 		it("calls logout on sign out", () => {
 			mockFetch();
-			const { auth } = withProviders(<Settings />);
+			const { auth } = renderSettings();
 			fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
 			expect(auth.logout).toHaveBeenCalled();
 		});
@@ -161,7 +138,7 @@ describe("Settings", () => {
 	describe("API tokens", () => {
 		it("shows empty state when there are no tokens", async () => {
 			mockFetch({ tokens: [] });
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() =>
 				expect(screen.getByText("No tokens yet")).toBeInTheDocument(),
 			);
@@ -178,7 +155,7 @@ describe("Settings", () => {
 					},
 				],
 			});
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() =>
 				expect(screen.getByText("CI pipeline")).toBeInTheDocument(),
 			);
@@ -195,7 +172,7 @@ describe("Settings", () => {
 					},
 				],
 			});
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() =>
 				expect(screen.getByText(/Last used never/)).toBeInTheDocument(),
 			);
@@ -212,7 +189,7 @@ describe("Settings", () => {
 					},
 				],
 			});
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() =>
 				expect(screen.getByText(/Last used .+ ago/)).toBeInTheDocument(),
 			);
@@ -229,7 +206,7 @@ describe("Settings", () => {
 					},
 				],
 			});
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() =>
 				expect(screen.getByText("My token")).toBeInTheDocument(),
 			);
@@ -251,7 +228,7 @@ describe("Settings", () => {
 					},
 				],
 			});
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() =>
 				expect(screen.getByText("My token")).toBeInTheDocument(),
 			);
@@ -263,7 +240,7 @@ describe("Settings", () => {
 
 		it("creates a token and reveals the raw value", async () => {
 			mockFetch({ tokens: [] });
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() =>
 				expect(
 					screen.getByRole("button", { name: "Create" }),
@@ -288,7 +265,7 @@ describe("Settings", () => {
 			});
 
 			mockFetch({ tokens: [] });
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() =>
 				expect(
 					screen.getByRole("button", { name: "Create" }),
@@ -323,7 +300,7 @@ describe("Settings", () => {
 				}
 				return Promise.resolve({ json: () => Promise.resolve(MOCK_USER) });
 			});
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() =>
 				expect(
 					screen.getByRole("button", { name: "Create" }),
@@ -344,7 +321,7 @@ describe("Settings", () => {
 
 		it("shows a validation error when submitting with no name", async () => {
 			mockFetch({ tokens: [] });
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() =>
 				expect(
 					screen.getByRole("button", { name: "Create" }),
@@ -371,7 +348,7 @@ describe("Settings", () => {
 					},
 				],
 			});
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() =>
 				expect(
 					screen.getByText(/Chrome on macOS · Current/),
@@ -392,7 +369,7 @@ describe("Settings", () => {
 					},
 				],
 			});
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() =>
 				expect(screen.getByText(/Active .+ ago/)).toBeInTheDocument(),
 			);
@@ -411,7 +388,7 @@ describe("Settings", () => {
 					},
 				],
 			});
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() =>
 				expect(screen.getByText(/Active .+ ago/)).toBeInTheDocument(),
 			);
@@ -428,7 +405,7 @@ describe("Settings", () => {
 					},
 				],
 			});
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() =>
 				expect(screen.getByText(/Firefox on Linux/)).toBeInTheDocument(),
 			);
@@ -450,7 +427,7 @@ describe("Settings", () => {
 					},
 				],
 			});
-			const { auth } = withProviders(<Settings />);
+			const { auth } = renderSettings();
 			await waitFor(() =>
 				expect(
 					screen.getByText(/Chrome on macOS · Current/),
@@ -477,7 +454,7 @@ describe("Settings", () => {
 				}
 				return Promise.resolve({ json: () => Promise.resolve(MOCK_USER) });
 			});
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() =>
 				expect(
 					screen.getByText("Could not load sessions."),
@@ -512,7 +489,7 @@ describe("Settings", () => {
 				}
 				return Promise.resolve({ json: () => Promise.resolve(MOCK_USER) });
 			});
-			withProviders(<Settings />);
+			renderSettings();
 			await waitFor(() =>
 				expect(screen.getByText(/Firefox on Linux/)).toBeInTheDocument(),
 			);

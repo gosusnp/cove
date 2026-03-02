@@ -2,34 +2,14 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { render, screen } from "@testing-library/preact";
-import { describe, it, expect, vi } from "vitest";
-import { LocationProvider } from "preact-iso";
-import { AuthContext } from "./Auth.jsx";
+import { describe, it, expect } from "vitest";
 import { App } from "./App.jsx";
 import { Login } from "./pages/Login.jsx";
 import { Home } from "./pages/Home.jsx";
 import { Nav } from "./components/Nav.jsx";
+import { withProviders } from "./test-utils.jsx";
 
 const MOCK_USER = { email: "jane@example.com", name: "Jane Smith" };
-
-function withProviders(ui, { path = "/", user = null } = {}) {
-	window.history.pushState({}, "", path);
-	const auth = {
-		user,
-		token: user ? "tok" : null,
-		login: vi.fn(),
-		logout: vi.fn(),
-		updateUser: vi.fn(),
-	};
-	return {
-		...render(
-			<LocationProvider>
-				<AuthContext.Provider value={auth}>{ui}</AuthContext.Provider>
-			</LocationProvider>,
-		),
-		auth,
-	};
-}
 
 describe("App", () => {
 	it("renders the nav on the login page", () => {

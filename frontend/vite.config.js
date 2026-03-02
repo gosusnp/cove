@@ -33,6 +33,14 @@ export default defineConfig({
 				import.meta.dirname,
 				"src/__mocks__/radix-tooltip.jsx",
 			),
+			"@radix-ui/react-switch": resolve(
+				import.meta.dirname,
+				"src/__mocks__/radix-switch.jsx",
+			),
+			"@radix-ui/react-dialog": resolve(
+				import.meta.dirname,
+				"src/__mocks__/radix-dialog.jsx",
+			),
 		},
 		coverage: {
 			provider: "v8",
