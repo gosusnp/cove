@@ -348,22 +348,29 @@ export function Settings() {
 							<DialogDescription>
 								Copy this token now — it won't be shown again.
 							</DialogDescription>
-							<div class="mt-4 flex gap-2 items-end">
-								<TextField
-									id="created-token"
-									label="Your new token"
-									value={createdToken.value}
-									readOnly
-									class="font-mono text-xs"
-								/>
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={handleCopy}
-									class="shrink-0"
+							<div class="mt-4 flex flex-col gap-1.5">
+								<label
+									for="created-token"
+									class="text-sm font-medium"
+									style={{ color: "var(--color-text)" }}
 								>
-									{copied.value ? "Copied!" : "Copy"}
-								</Button>
+									Your new token
+								</label>
+								<div class="flex gap-2">
+									<TextField
+										id="created-token"
+										value={createdToken.value}
+										readOnly
+										class="font-mono text-xs"
+									/>
+									<Button
+										variant="outline"
+										onClick={handleCopy}
+										class="shrink-0"
+									>
+										{copied.value ? "Copied!" : "Copy"}
+									</Button>
+								</div>
 							</div>
 							<div class="mt-6 flex justify-end">
 								<DialogClose>

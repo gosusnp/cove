@@ -280,6 +280,68 @@ describe("Settings", () => {
 			);
 		});
 
+		it("copies token to clipboard and shows Copied! feedback", async () => {
+			const writeText = vi.fn().mockResolvedValue(undefined);
+			Object.defineProperty(navigator, "clipboard", {
+				value: { writeText },
+				configurable: true,
+			});
+
+			mockFetch({ tokens: [] });
+			withProviders(<Settings />);
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: "Create" }),
+				).not.toBeDisabled(),
+			);
+
+			fireEvent.input(screen.getByLabelText("Token name"), {
+				target: { value: "Deploy key" },
+			});
+			fireEvent.submit(screen.getByLabelText("Token name").closest("form"));
+			await waitFor(() =>
+				expect(screen.getByDisplayValue("pat_raw_secret")).toBeInTheDocument(),
+			);
+
+			fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+			expect(writeText).toHaveBeenCalledWith("pat_raw_secret");
+			expect(
+				screen.getByRole("button", { name: "Copied!" }),
+			).toBeInTheDocument();
+		});
+
+		it("shows error when token creation API fails", async () => {
+			vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+				if (url === "/api/users/tokens" && opts?.method === "POST") {
+					return Promise.resolve({ ok: false });
+				}
+				if (url.startsWith("/api/users/tokens")) {
+					return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+				}
+				if (url.startsWith("/api/users/sessions")) {
+					return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+				}
+				return Promise.resolve({ json: () => Promise.resolve(MOCK_USER) });
+			});
+			withProviders(<Settings />);
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: "Create" }),
+				).not.toBeDisabled(),
+			);
+
+			fireEvent.input(screen.getByLabelText("Token name"), {
+				target: { value: "Deploy key" },
+			});
+			fireEvent.submit(screen.getByLabelText("Token name").closest("form"));
+
+			await waitFor(() =>
+				expect(
+					screen.getByText("Failed to create token. Try again."),
+				).toBeInTheDocument(),
+			);
+		});
+
 		it("shows a validation error when submitting with no name", async () => {
 			mockFetch({ tokens: [] });
 			withProviders(<Settings />);
