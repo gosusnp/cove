@@ -92,18 +92,23 @@ func (s *UserStore) GetByID(
 // CreateSession generates a random session token (prefixed with "sess_"), stores its
 // SHA-256 hash in user_tokens, and returns the raw token (only time it is ever plaintext).
 func (s *UserStore) CreateSession(
+	ctx context.Context,
+	q Querier,
 	userID domain.UserID,
-	ipMasked string,
+	ipMasked domain.MaskedIP,
 	browser string,
 	os string,
 ) (string, error) {
 	var orgID domain.OrgID
-	if err := s.db.QueryRow(
-		`SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`, userID,
+	if err := q.QueryRowContext(
+		ctx,
+		`SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`,
+		userID,
 	).Scan(&orgID); err != nil {
 		return "", fmt.Errorf("get org for session: %w", err)
 	}
 
+	sessionID := domain.NewSessionID()
 	token, err := generateToken("sess_")
 	if err != nil {
 		return "", err
@@ -112,8 +117,9 @@ func (s *UserStore) CreateSession(
 
 	expiresAt := time.Now().Add(30 * 24 * time.Hour)
 	_, err = s.db.Exec(
-		`INSERT INTO user_tokens (user_id, org_id, kind, token, expires_at, initial_ip_masked, initial_browser, initial_os) VALUES ($1, $2, 'session', $3, $4, $5, $6, $7)`,
-		userID, orgID, hash, expiresAt, ipMasked, browser, os,
+		`INSERT INTO user_tokens (id, user_id, org_id, kind, token, expires_at, initial_ip_masked, initial_browser, initial_os)
+		 VALUES ($1, $2, $3, 'session', $4, $5, $6, $7, $8)`,
+		sessionID, userID, orgID, hash, expiresAt, ipMasked, browser, os,
 	)
 	if err != nil {
 		return "", fmt.Errorf("create session: %w", err)
@@ -124,10 +130,12 @@ func (s *UserStore) CreateSession(
 // CreatePAT generates a named personal access token (prefixed with "pat_") that never expires.
 // The raw token is returned once; only its SHA-256 hash is stored.
 func (s *UserStore) CreatePAT(
+	ctx context.Context,
+	q Querier,
 	userID domain.UserID,
 	orgID domain.OrgID,
 	name string,
-	ipMasked string,
+	ipMasked domain.MaskedIP,
 	browser string, os string,
 ) (string, *domain.PAT, error) {
 	id, err := uuid.NewV7()
@@ -141,8 +149,10 @@ func (s *UserStore) CreatePAT(
 	hash := sha256TokenHash(token)
 
 	var pat domain.PAT
-	err = s.db.QueryRow(
-		`INSERT INTO user_tokens (id, user_id, org_id, kind, name, token, initial_ip_masked, initial_browser, initial_os) VALUES ($1, $2, $3, 'pat', $4, $5, $6, $7, $8) RETURNING id, name, created_at`,
+	err = q.QueryRowContext(
+		ctx,
+		`INSERT INTO user_tokens (id, user_id, org_id, kind, name, token, initial_ip_masked, initial_browser, initial_os)
+		 VALUES ($1, $2, $3, 'pat', $4, $5, $6, $7, $8) RETURNING id, name, created_at`,
 		id, userID, orgID, name, hash, ipMasked, browser, os,
 	).Scan(&pat.ID, &pat.Name, &pat.CreatedAt)
 	if err != nil {
@@ -176,13 +186,14 @@ func (s *UserStore) ListPATs(userID domain.UserID) ([]domain.PAT, error) {
 }
 
 // ListSessions returns all active sessions for the given user, ordered by last used time.
-func (s *UserStore) ListSessions(userID domain.UserID) ([]domain.Session, error) {
-	rows, err := s.db.Query(`
-		SELECT id, created_at, last_used_at, initial_ip_masked, initial_browser, initial_os, last_ip_masked, last_browser, last_os
-		FROM user_tokens
-		WHERE user_id = $1 AND kind = 'session' AND (expires_at IS NULL OR expires_at > NOW())
-		ORDER BY COALESCE(last_used_at, created_at) DESC
-	`, userID)
+func (s *UserStore) ListSessions(ctx context.Context, q Querier, userID domain.UserID) ([]domain.Session, error) {
+	rows, err := q.QueryContext(
+		ctx,
+		`SELECT id, created_at, last_used_at, initial_ip_masked, initial_browser, initial_os, last_ip_masked, last_browser, last_os
+		 FROM user_tokens
+		 WHERE user_id = $1 AND kind = 'session' AND (expires_at IS NULL OR expires_at > NOW())
+		 ORDER BY COALESCE(last_used_at, created_at) DESC`,
+		userID)
 	if err != nil {
 		return nil, fmt.Errorf("list sessions: %w", err)
 	}
@@ -219,10 +230,12 @@ func (s *UserStore) DeletePAT(userID domain.UserID, tokenID domain.TokenID) erro
 }
 
 // DeleteSession deletes the session with the given id scoped to the user. Returns ErrNotFound if no row was deleted.
-func (s *UserStore) DeleteSession(userID domain.UserID, sessionID domain.SessionID) error {
-	res, err := s.db.Exec(
+func (s *UserStore) DeleteSession(ctx context.Context, q Querier, userID domain.UserID, sessionID domain.SessionID) error {
+	res, err := q.ExecContext(
+		ctx,
 		`DELETE FROM user_tokens WHERE id = $1 AND user_id = $2 AND kind = 'session'`,
-		sessionID, userID,
+		sessionID,
+		userID,
 	)
 	if err != nil {
 		return fmt.Errorf("delete session: %w", err)
@@ -254,12 +267,20 @@ func sha256TokenHash(token string) string {
 // Returns both the user and the org the token is scoped to.
 // As a side effect, updates last_used_at and last session info when either the throttle
 // window (1 minute) has elapsed or the client info has changed, to minimise dead tuples.
-func (s *UserStore) GetUserByToken(token, ipMasked, browser, os string) (*domain.User, *domain.Org, uuid.UUID, error) {
+func (s *UserStore) GetUserByToken(
+	ctx context.Context,
+	q Querier,
+	token string,
+	ipMasked domain.MaskedIP,
+	browser string,
+	os string,
+) (*domain.User, *domain.Org, uuid.UUID, error) {
 	var user domain.User
 	var org domain.Org
 	var tokenID uuid.UUID
-	err := s.db.QueryRow(`
-		WITH updated AS (
+	err := q.QueryRowContext(
+		ctx,
+		`WITH updated AS (
 			UPDATE user_tokens
 			SET last_used_at   = NOW(),
 			    last_ip_masked = $2,
@@ -274,12 +295,16 @@ func (s *UserStore) GetUserByToken(token, ipMasked, browser, os string) (*domain
 			   OR last_browser   IS DISTINCT FROM $3
 			   OR last_os        IS DISTINCT FROM $4
 			  )
-		)
-		SELECT u.id, u.email, u.google_sub, u.created_at, t.org_id, t.id
-		FROM user_tokens t
-		JOIN users u ON u.id = t.user_id
-		WHERE t.token = $1 AND (t.expires_at IS NULL OR t.expires_at > NOW())
-	`, sha256TokenHash(token), ipMasked, browser, os).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt, &org.ID, &tokenID)
+		 )
+		 SELECT u.id, u.email, u.google_sub, u.created_at, t.org_id, t.id
+		 FROM user_tokens t
+		 JOIN users u ON u.id = t.user_id
+		 WHERE t.token = $1 AND (t.expires_at IS NULL OR t.expires_at > NOW())`,
+		sha256TokenHash(token),
+		ipMasked,
+		browser,
+		os,
+	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt, &org.ID, &tokenID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil, uuid.Nil, ErrNotFound
 	}

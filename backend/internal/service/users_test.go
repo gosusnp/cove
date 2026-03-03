@@ -168,16 +168,17 @@ func TestUserService_Get(t *testing.T) {
 
 func setupUserWithOrg(t *testing.T, svc *UserService, us *store.UserStore) (*domain.User, domain.OrgID) {
 	t.Helper()
-	user, _, err := svc.GetOrCreate(t.Context(), "pat@example.com", "sub-pat-svc")
+	ctx := t.Context()
+	user, _, err := svc.GetOrCreate(ctx, "pat@example.com", "sub-pat-svc")
 	if err != nil {
 		t.Fatalf("GetOrCreate: %v", err)
 	}
 	// Use CreateSession + GetUserByToken to discover the org without DB access.
-	token, err := us.CreateSession(user.ID, "", "", "")
+	token, err := us.CreateSession(ctx, us.DB(), user.ID, "", "", "")
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
-	_, org, _, err := us.GetUserByToken(token, "", "", "")
+	_, org, _, err := svc.GetUserByToken(ctx, token, "", "", "")
 	if err != nil {
 		t.Fatalf("GetUserByToken: %v", err)
 	}
@@ -186,10 +187,10 @@ func setupUserWithOrg(t *testing.T, svc *UserService, us *store.UserStore) (*dom
 
 func TestUserService_CreatePAT(t *testing.T) {
 	t.Run("returns token with pat_ prefix", func(t *testing.T) {
-		_, svc, us := newTestUserService(t)
+		ctx, svc, us := newTestUserService(t)
 		user, orgID := setupUserWithOrg(t, svc, us)
 
-		token, pat, err := svc.CreatePAT(user.ID, orgID, "my-key", "", "", "")
+		token, pat, err := svc.CreatePAT(ctx, user.ID, orgID, "my-key", "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -202,10 +203,10 @@ func TestUserService_CreatePAT(t *testing.T) {
 	})
 
 	t.Run("empty name returns ValidationError", func(t *testing.T) {
-		_, svc, us := newTestUserService(t)
+		ctx, svc, us := newTestUserService(t)
 		user, orgID := setupUserWithOrg(t, svc, us)
 
-		_, _, err := svc.CreatePAT(user.ID, orgID, "  ", "", "", "")
+		_, _, err := svc.CreatePAT(ctx, user.ID, orgID, "  ", "", "", "")
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Errorf("got %v, want ValidationError", err)
@@ -228,13 +229,13 @@ func TestUserService_ListPATs(t *testing.T) {
 	})
 
 	t.Run("returns created PATs", func(t *testing.T) {
-		_, svc, us := newTestUserService(t)
+		ctx, svc, us := newTestUserService(t)
 		user, orgID := setupUserWithOrg(t, svc, us)
 
-		if _, _, err := svc.CreatePAT(user.ID, orgID, "key-a", "", "", ""); err != nil {
+		if _, _, err := svc.CreatePAT(ctx, user.ID, orgID, "key-a", "", "", ""); err != nil {
 			t.Fatalf("CreatePAT: %v", err)
 		}
-		if _, _, err := svc.CreatePAT(user.ID, orgID, "key-b", "", "", ""); err != nil {
+		if _, _, err := svc.CreatePAT(ctx, user.ID, orgID, "key-b", "", "", ""); err != nil {
 			t.Fatalf("CreatePAT: %v", err)
 		}
 
@@ -253,10 +254,10 @@ func TestUserService_ListPATs(t *testing.T) {
 
 func TestUserService_DeletePAT(t *testing.T) {
 	t.Run("deletes existing PAT", func(t *testing.T) {
-		_, svc, us := newTestUserService(t)
+		ctx, svc, us := newTestUserService(t)
 		user, orgID := setupUserWithOrg(t, svc, us)
 
-		_, pat, err := svc.CreatePAT(user.ID, orgID, "to-delete", "", "", "")
+		_, pat, err := svc.CreatePAT(ctx, user.ID, orgID, "to-delete", "", "", "")
 		if err != nil {
 			t.Fatalf("CreatePAT: %v", err)
 		}
@@ -287,10 +288,10 @@ func TestUserService_DeletePAT(t *testing.T) {
 
 func TestUserService_Sessions(t *testing.T) {
 	t.Run("lists sessions", func(t *testing.T) {
-		_, svc, us := newTestUserService(t)
+		ctx, svc, us := newTestUserService(t)
 		user, _ := setupUserWithOrg(t, svc, us)
 
-		sessions, err := svc.ListSessions(user.ID)
+		sessions, err := svc.ListSessions(ctx, user.ID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -301,15 +302,15 @@ func TestUserService_Sessions(t *testing.T) {
 	})
 
 	t.Run("deletes session", func(t *testing.T) {
-		_, svc, us := newTestUserService(t)
+		ctx, svc, us := newTestUserService(t)
 		user, _ := setupUserWithOrg(t, svc, us)
 
-		sessions, _ := svc.ListSessions(user.ID)
-		if err := svc.DeleteSession(user.ID, sessions[0].ID); err != nil {
+		sessions, _ := svc.ListSessions(ctx, user.ID)
+		if err := svc.DeleteSession(ctx, user.ID, sessions[0].ID); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		sessions, _ = svc.ListSessions(user.ID)
+		sessions, _ = svc.ListSessions(ctx, user.ID)
 		if len(sessions) != 0 {
 			t.Errorf("expected 0 sessions after delete, got %d", len(sessions))
 		}

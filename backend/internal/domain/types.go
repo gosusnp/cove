@@ -71,8 +71,8 @@ type PAT struct {
 
 type SessionID ID[struct{ session struct{} }]
 
-func NewSessionID(u uuid.UUID) SessionID {
-	return SessionID{UUID: u}
+func NewSessionID() SessionID {
+	return SessionID{UUID: uuid.Must(uuid.NewV7())}
 }
 
 type MaskedIP string

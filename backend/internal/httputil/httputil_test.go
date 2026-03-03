@@ -4,6 +4,7 @@
 package httputil
 
 import (
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"net/http/httptest"
 	"testing"
 )
@@ -22,7 +23,7 @@ func TestMaskIP(t *testing.T) {
 
 	for _, tt := range tests {
 		got := maskIP(tt.ip)
-		if got != tt.want {
+		if got != domain.MaskedIP(tt.want) {
 			t.Errorf("maskIP(%q) = %q, want %q", tt.ip, got, tt.want)
 		}
 	}

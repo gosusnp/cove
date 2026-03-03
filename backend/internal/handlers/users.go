@@ -45,7 +45,7 @@ func (h *UserHandler) logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tokenID := middleware.TokenIDFromContext(r.Context())
-	if err := h.svc.DeleteSession(authUser.ID, domain.NewSessionID(tokenID)); err != nil && !errors.Is(err, service.ErrNotFound) {
+	if err := h.svc.DeleteSession(r.Context(), authUser.ID, domain.SessionID{UUID: tokenID}); err != nil && !errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -143,7 +143,7 @@ func (h *UserHandler) createToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ip, browser, os := httputil.FromRequest(r)
-	token, pat, err := h.svc.CreatePAT(authUser.ID, authOrg.ID, req.Name, ip, browser, os)
+	token, pat, err := h.svc.CreatePAT(r.Context(), authUser.ID, authOrg.ID, req.Name, ip, browser, os)
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
 		jsonError(w, ve.Msg, http.StatusBadRequest)
@@ -190,7 +190,7 @@ func (h *UserHandler) listSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tokenID := middleware.TokenIDFromContext(r.Context())
-	sessions, err := h.svc.ListSessions(authUser.ID)
+	sessions, err := h.svc.ListSessions(r.Context(), authUser.ID)
 	if err != nil {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
@@ -224,8 +224,8 @@ func (h *UserHandler) deleteSession(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	sessionID := domain.NewSessionID(id)
-	if err := h.svc.DeleteSession(authUser.ID, sessionID); errors.Is(err, service.ErrNotFound) {
+	sessionID := domain.SessionID{UUID: id}
+	if err := h.svc.DeleteSession(r.Context(), authUser.ID, sessionID); errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "session not found", http.StatusNotFound)
 		return
 	} else if err != nil {

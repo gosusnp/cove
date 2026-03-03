@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
@@ -71,9 +72,25 @@ func (s *UserService) Get(ctx context.Context, id domain.UserID) (*domain.User, 
 	return user, nil
 }
 
+func (s *UserService) GetUserByToken(
+	ctx context.Context,
+	token string,
+	ipMasked domain.MaskedIP,
+	browser string,
+	os string,
+) (*domain.User, *domain.Org, uuid.UUID, error) {
+	return s.users.GetUserByToken(ctx, s.db, token, ipMasked, browser, os)
+}
+
 // CreateSession generates a session token for the user.
-func (s *UserService) CreateSession(userID domain.UserID, ip, browser, os string) (string, error) {
-	token, err := s.users.CreateSession(userID, ip, browser, os)
+func (s *UserService) CreateSession(
+	ctx context.Context,
+	userID domain.UserID,
+	ip domain.MaskedIP,
+	browser string,
+	os string,
+) (string, error) {
+	token, err := s.users.CreateSession(ctx, s.db, userID, ip, browser, os)
 	if err != nil {
 		return "", fmt.Errorf("create session: %w", err)
 	}
@@ -81,12 +98,20 @@ func (s *UserService) CreateSession(userID domain.UserID, ip, browser, os string
 }
 
 // CreatePAT creates a named PAT for the user. Returns the raw token (shown once) and the PAT metadata.
-func (s *UserService) CreatePAT(userID domain.UserID, orgID domain.OrgID, name, ipMasked, browser, os string) (string, *domain.PAT, error) {
+func (s *UserService) CreatePAT(
+	ctx context.Context,
+	userID domain.UserID,
+	orgID domain.OrgID,
+	name string,
+	ipMasked domain.MaskedIP,
+	browser string,
+	os string,
+) (string, *domain.PAT, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", nil, &ValidationError{Msg: "name is required"}
 	}
-	token, pat, err := s.users.CreatePAT(userID, orgID, name, ipMasked, browser, os)
+	token, pat, err := s.users.CreatePAT(ctx, s.db, userID, orgID, name, ipMasked, browser, os)
 	if err != nil {
 		return "", nil, fmt.Errorf("create pat: %w", err)
 	}
@@ -103,8 +128,8 @@ func (s *UserService) ListPATs(userID domain.UserID) ([]domain.PAT, error) {
 }
 
 // ListSessions returns all active sessions for the user.
-func (s *UserService) ListSessions(userID domain.UserID) ([]domain.Session, error) {
-	sessions, err := s.users.ListSessions(userID)
+func (s *UserService) ListSessions(ctx context.Context, userID domain.UserID) ([]domain.Session, error) {
+	sessions, err := s.users.ListSessions(ctx, s.db, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list sessions: %w", err)
 	}
@@ -123,8 +148,8 @@ func (s *UserService) DeletePAT(userID domain.UserID, id domain.TokenID) error {
 }
 
 // DeleteSession deletes the session with the given id for the user.
-func (s *UserService) DeleteSession(userID domain.UserID, sessionID domain.SessionID) error {
-	if err := s.users.DeleteSession(userID, sessionID); err != nil {
+func (s *UserService) DeleteSession(ctx context.Context, userID domain.UserID, sessionID domain.SessionID) error {
+	if err := s.users.DeleteSession(ctx, s.db, userID, sessionID); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return ErrNotFound
 		}

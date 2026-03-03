@@ -12,7 +12,7 @@ import (
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/httputil"
-	"github.com/gosusnp/cove/backend/internal/store"
+	"github.com/gosusnp/cove/backend/internal/service"
 )
 
 type userCtxKey struct{}
@@ -39,7 +39,7 @@ func TokenIDFromContext(ctx context.Context) uuid.UUID {
 
 // OAuth guards routes by validating a session token via UserStore.
 // On success, it stores the authenticated user and org in the request context.
-func OAuth(us *store.UserStore, next http.Handler) http.Handler {
+func OAuth(uSvc *service.UserService, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if !ok || token == "" {
@@ -49,7 +49,7 @@ func OAuth(us *store.UserStore, next http.Handler) http.Handler {
 			return
 		}
 		ip, browser, os := httputil.FromRequest(r)
-		user, org, tokenID, err := us.GetUserByToken(token, ip, browser, os)
+		user, org, tokenID, err := uSvc.GetUserByToken(r.Context(), token, ip, browser, os)
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)

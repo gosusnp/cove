@@ -72,7 +72,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", NewAPIHandler(userStore, userSvc, svcs))
-	mux.Handle("/mcp/", middleware.OAuth(userStore, covemcp.NewHTTPHandler(svcs)))
+	mux.Handle("/mcp/", middleware.OAuth(userSvc, covemcp.NewHTTPHandler(svcs)))
 
 	var staticFS fs.FS
 	if os.Getenv("COVE_DEV") != "" {

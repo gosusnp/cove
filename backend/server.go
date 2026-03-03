@@ -23,5 +23,5 @@ func NewAPIHandler(userStore *store.UserStore, userSvc *service.UserService, svc
 	handlers.NewProgramSetHandler(svcs.ProgramSets).RegisterRoutes(apiMux)
 	handlers.NewProgramExerciseHandler(svcs.ProgramExercises).RegisterRoutes(apiMux)
 	handlers.NewUserHandler(userSvc).RegisterRoutes(apiMux)
-	return http.StripPrefix("/api", middleware.OAuth(userStore, apiMux))
+	return http.StripPrefix("/api", middleware.OAuth(userSvc, apiMux))
 }

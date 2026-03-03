@@ -55,17 +55,25 @@ func newTestDB(t *testing.T) *sql.DB {
 	return testdb.New(t, containerDSN, db.MigrationsFS)
 }
 
+func newOAuth(t *testing.T, next http.Handler) http.Handler {
+	db := newTestDB(t)
+	us := store.NewUserStore(db)
+	orgs := store.NewOrgStore()
+	svc := service.NewUserService(db, us, orgs)
+	return OAuth(svc, next)
+}
+
 func TestOAuth(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
 	t.Run("missing header returns 401", func(t *testing.T) {
-		us := store.NewUserStore(newTestDB(t))
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
+		oauth := newOAuth(t, next)
 
-		OAuth(us, next).ServeHTTP(w, r)
+		oauth.ServeHTTP(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusUnauthorized)
@@ -73,12 +81,12 @@ func TestOAuth(t *testing.T) {
 	})
 
 	t.Run("invalid token returns 401", func(t *testing.T) {
-		us := store.NewUserStore(newTestDB(t))
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.Header.Set("Authorization", "Bearer notavalidtoken")
 		w := httptest.NewRecorder()
+		oauth := newOAuth(t, next)
 
-		OAuth(us, next).ServeHTTP(w, r)
+		oauth.ServeHTTP(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusUnauthorized)
@@ -102,7 +110,7 @@ func TestOAuth(t *testing.T) {
 		r.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
 
-		OAuth(us, next).ServeHTTP(w, r)
+		OAuth(svc, next).ServeHTTP(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusUnauthorized)
@@ -120,7 +128,7 @@ func TestOAuth(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
-		token, err := us.CreateSession(user.ID, "", "", "")
+		token, err := svc.CreateSession(ctx, user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession: %v", err)
 		}
@@ -129,7 +137,7 @@ func TestOAuth(t *testing.T) {
 		r.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
 
-		OAuth(us, next).ServeHTTP(w, r)
+		OAuth(svc, next).ServeHTTP(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
@@ -147,7 +155,7 @@ func TestOAuth(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
-		token, err := us.CreateSession(user.ID, "", "", "")
+		token, err := svc.CreateSession(ctx, user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession: %v", err)
 		}
@@ -162,7 +170,7 @@ func TestOAuth(t *testing.T) {
 		r.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
 
-		OAuth(us, capture).ServeHTTP(w, r)
+		OAuth(svc, capture).ServeHTTP(w, r)
 
 		if gotUser == nil {
 			t.Fatal("expected user in context, got nil")

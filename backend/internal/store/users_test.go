@@ -120,10 +120,10 @@ func TestUserStore_UpsertUser(t *testing.T) {
 
 func TestUserStore_CreateSession(t *testing.T) {
 	t.Run("returns non-empty token with sess_ prefix", func(t *testing.T) {
-		_, _, s, orgs := newTestUserStore(t)
+		ctx, db, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "eve@example.com", "sub-eve")
 
-		token, err := s.CreateSession(user.ID, "", "", "")
+		token, err := s.CreateSession(ctx, db, user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -136,10 +136,10 @@ func TestUserStore_CreateSession(t *testing.T) {
 	})
 
 	t.Run("stores hash not plaintext", func(t *testing.T) {
-		_, _, s, orgs := newTestUserStore(t)
+		ctx, db, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "frank@example.com", "sub-frank")
 
-		token, err := s.CreateSession(user.ID, "", "", "")
+		token, err := s.CreateSession(ctx, db, user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -161,10 +161,10 @@ func TestUserStore_CreateSession(t *testing.T) {
 	})
 
 	t.Run("stores initial session info", func(t *testing.T) {
-		_, _, s, orgs := newTestUserStore(t)
+		ctx, db, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "session-info@example.com", "sub-session-info")
 
-		_, err := s.CreateSession(user.ID, "1.2.3.0", "Chrome", "macOS")
+		_, err := s.CreateSession(ctx, db, user.ID, "1.2.3.0", "Chrome", "macOS")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -204,11 +204,11 @@ func TestUserStore_CreatePAT(t *testing.T) {
 	}
 
 	t.Run("returns token with pat_ prefix", func(t *testing.T) {
-		_, _, s, orgs := newTestUserStore(t)
+		ctx, db, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "pat@example.com", "sub-pat")
 		orgID := lookupOrgID(t, s, user.ID)
 
-		token, pat, err := s.CreatePAT(user.ID, orgID, "my-token", "", "", "")
+		token, pat, err := s.CreatePAT(ctx, db, user.ID, orgID, "my-token", "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -224,16 +224,16 @@ func TestUserStore_CreatePAT(t *testing.T) {
 	})
 
 	t.Run("PAT is valid for GetUserByToken", func(t *testing.T) {
-		_, _, s, orgs := newTestUserStore(t)
+		ctx, db, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "pat2@example.com", "sub-pat2")
 		orgID := lookupOrgID(t, s, user.ID)
 
-		token, _, err := s.CreatePAT(user.ID, orgID, "ci-token", "", "", "")
+		token, _, err := s.CreatePAT(ctx, db, user.ID, orgID, "ci-token", "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		got, _, _, err := s.GetUserByToken(token, "", "", "")
+		got, _, _, err := s.GetUserByToken(ctx, db, token, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -245,20 +245,20 @@ func TestUserStore_CreatePAT(t *testing.T) {
 
 func TestUserStore_Sessions(t *testing.T) {
 	t.Run("ListSessions returns all active sessions", func(t *testing.T) {
-		_, _, s, orgs := newTestUserStore(t)
+		ctx, db, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "sess-list@example.com", "sub-sess-list")
 
 		// Create two sessions.
-		_, err := s.CreateSession(user.ID, "1.1.1.1", "Chrome", "macOS")
+		_, err := s.CreateSession(ctx, db, user.ID, "1.1.1.1", "Chrome", "macOS")
 		if err != nil {
 			t.Fatalf("CreateSession 1: %v", err)
 		}
-		_, err = s.CreateSession(user.ID, "2.2.2.2", "Firefox", "Linux")
+		_, err = s.CreateSession(ctx, db, user.ID, "2.2.2.2", "Firefox", "Linux")
 		if err != nil {
 			t.Fatalf("CreateSession 2: %v", err)
 		}
 
-		sessions, err := s.ListSessions(user.ID)
+		sessions, err := s.ListSessions(ctx, db, user.ID)
 		if err != nil {
 			t.Fatalf("ListSessions: %v", err)
 		}
@@ -274,25 +274,25 @@ func TestUserStore_Sessions(t *testing.T) {
 	})
 
 	t.Run("DeleteSession removes session", func(t *testing.T) {
-		_, _, s, orgs := newTestUserStore(t)
+		ctx, db, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "sess-del@example.com", "sub-sess-del")
 
-		_, err := s.CreateSession(user.ID, "", "", "")
+		_, err := s.CreateSession(ctx, db, user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession: %v", err)
 		}
 
-		sessions, _ := s.ListSessions(user.ID)
+		sessions, _ := s.ListSessions(ctx, db, user.ID)
 		if len(sessions) != 1 {
 			t.Fatalf("expected 1 session, got %d", len(sessions))
 		}
 
-		err = s.DeleteSession(user.ID, sessions[0].ID)
+		err = s.DeleteSession(ctx, db, user.ID, sessions[0].ID)
 		if err != nil {
 			t.Fatalf("DeleteSession: %v", err)
 		}
 
-		sessions, _ = s.ListSessions(user.ID)
+		sessions, _ = s.ListSessions(ctx, db, user.ID)
 		if len(sessions) != 0 {
 			t.Errorf("expected 0 sessions after delete, got %d", len(sessions))
 		}
@@ -301,14 +301,14 @@ func TestUserStore_Sessions(t *testing.T) {
 
 func TestUserStore_GetUserByToken(t *testing.T) {
 	t.Run("valid token returns user", func(t *testing.T) {
-		_, _, s, orgs := newTestUserStore(t)
+		ctx, db, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "grace@example.com", "sub-grace")
-		token, err := s.CreateSession(user.ID, "", "", "")
+		token, err := s.CreateSession(ctx, db, user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		got, org, _, err := s.GetUserByToken(token, "", "", "")
+		got, org, _, err := s.GetUserByToken(ctx, db, token, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -324,23 +324,23 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 	})
 
 	t.Run("invalid token returns ErrNotFound", func(t *testing.T) {
-		_, _, s, _ := newTestUserStore(t)
+		ctx, db, s, _ := newTestUserStore(t)
 
-		_, _, _, err := s.GetUserByToken("notavalidtoken", "", "", "")
+		_, _, _, err := s.GetUserByToken(ctx, db, "notavalidtoken", "", "", "")
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
 	})
 
 	t.Run("sets last_used_at on first use", func(t *testing.T) {
-		_, _, s, orgs := newTestUserStore(t)
+		ctx, db, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "ida@example.com", "sub-ida")
-		token, err := s.CreateSession(user.ID, "", "", "")
+		token, err := s.CreateSession(ctx, db, user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if _, _, _, err = s.GetUserByToken(token, "", "", ""); err != nil {
+		if _, _, _, err = s.GetUserByToken(ctx, db, token, "", "", ""); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -356,15 +356,15 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 	})
 
 	t.Run("does not update last_used_at within throttle window", func(t *testing.T) {
-		_, _, s, orgs := newTestUserStore(t)
+		ctx, db, s, orgs := newTestUserStore(t)
 		user := createTestUser(t, s, orgs, "jack@example.com", "sub-jack")
-		token, err := s.CreateSession(user.ID, "", "", "")
+		token, err := s.CreateSession(ctx, db, user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
 		// First call: sets last_used_at.
-		if _, _, _, err = s.GetUserByToken(token, "", "", ""); err != nil {
+		if _, _, _, err = s.GetUserByToken(ctx, db, token, "", "", ""); err != nil {
 			t.Fatalf("first call: %v", err)
 		}
 		var first time.Time
@@ -375,7 +375,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 		}
 
 		// Second call immediately: last_used_at must not change.
-		if _, _, _, err = s.GetUserByToken(token, "", "", ""); err != nil {
+		if _, _, _, err = s.GetUserByToken(ctx, db, token, "", "", ""); err != nil {
 			t.Fatalf("second call: %v", err)
 		}
 		var second time.Time

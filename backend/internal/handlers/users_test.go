@@ -26,23 +26,23 @@ func newUsersServer(t *testing.T) (context.Context, http.Handler, *store.UserSto
 	svc := service.NewUserService(db, us, orgs)
 	mux := http.NewServeMux()
 	NewUserHandler(svc).RegisterRoutes(mux)
-	return t.Context(), middleware.OAuth(us, mux), us, svc
+	return t.Context(), middleware.OAuth(svc, mux), us, svc
 }
 
 func TestUserHandler_Logout(t *testing.T) {
 	t.Run("deletes current session", func(t *testing.T) {
-		ctx, handler, us, svc := newUsersServer(t)
+		ctx, handler, _, svc := newUsersServer(t)
 		user, _, err := svc.GetOrCreate(ctx, "logout@example.com", "sub-logout")
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
-		token, err := us.CreateSession(user.ID, "", "", "")
+		token, err := svc.CreateSession(ctx, user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession: %v", err)
 		}
 
 		// Verify session exists.
-		sessions, _ := us.ListSessions(user.ID)
+		sessions, _ := svc.ListSessions(ctx, user.ID)
 		if len(sessions) != 1 {
 			t.Fatalf("expected 1 session, got %d", len(sessions))
 		}
@@ -58,7 +58,7 @@ func TestUserHandler_Logout(t *testing.T) {
 		}
 
 		// Verify session is gone.
-		sessions, _ = us.ListSessions(user.ID)
+		sessions, _ = svc.ListSessions(ctx, user.ID)
 		if len(sessions) != 0 {
 			t.Errorf("expected 0 sessions after logout, got %d", len(sessions))
 		}
@@ -77,13 +77,13 @@ func TestUserHandler_Logout(t *testing.T) {
 }
 func TestUserHandler_Me(t *testing.T) {
 	t.Run("returns current user", func(t *testing.T) {
-		ctx, handler, us, svc := newUsersServer(t)
+		ctx, handler, _, svc := newUsersServer(t)
 
 		user, _, err := svc.GetOrCreate(ctx, "me@example.com", "sub-me")
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
-		token, err := us.CreateSession(user.ID, "", "", "")
+		token, err := svc.CreateSession(ctx, user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession: %v", err)
 		}
@@ -146,7 +146,7 @@ func TestUserHandler_Sessions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
-		session, err := us.CreateSession(user.ID, "1.2.3.4", "Chrome", "macOS")
+		session, err := svc.CreateSession(ctx, user.ID, "1.2.3.4", "Chrome", "macOS")
 		if err != nil {
 			t.Fatalf("CreateSession: %v", err)
 		}
@@ -205,14 +205,14 @@ func TestUserHandler_Sessions(t *testing.T) {
 	})
 
 	t.Run("cannot list another user's sessions", func(t *testing.T) {
-		ctx, handler, us, svc := newUsersServer(t)
+		ctx, handler, _, svc := newUsersServer(t)
 
 		// User A has a session.
 		userA, _, err := svc.GetOrCreate(ctx, "a-sess@example.com", "sub-a-sess")
 		if err != nil {
 			t.Fatalf("GetOrCreate A: %v", err)
 		}
-		if _, err := us.CreateSession(userA.ID, "1.1.1.1", "", ""); err != nil {
+		if _, err := svc.CreateSession(ctx, userA.ID, "1.1.1.1", "", ""); err != nil {
 			t.Fatalf("CreateSession A: %v", err)
 		}
 
@@ -221,7 +221,7 @@ func TestUserHandler_Sessions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetOrCreate B: %v", err)
 		}
-		sessionB, err := us.CreateSession(userB.ID, "2.2.2.2", "", "")
+		sessionB, err := svc.CreateSession(ctx, userB.ID, "2.2.2.2", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession B: %v", err)
 		}
@@ -244,17 +244,17 @@ func TestUserHandler_Sessions(t *testing.T) {
 	})
 
 	t.Run("cannot delete another user's session", func(t *testing.T) {
-		ctx, handler, us, svc := newUsersServer(t)
+		ctx, handler, _, svc := newUsersServer(t)
 
 		// User A has a session.
 		userA, _, err := svc.GetOrCreate(ctx, "a-sess-del@example.com", "sub-a-sess-del")
 		if err != nil {
 			t.Fatalf("GetOrCreate A: %v", err)
 		}
-		if _, err := us.CreateSession(userA.ID, "1.1.1.1", "", ""); err != nil {
+		if _, err := svc.CreateSession(ctx, userA.ID, "1.1.1.1", "", ""); err != nil {
 			t.Fatalf("CreateSession A: %v", err)
 		}
-		sessionsA, err := us.ListSessions(userA.ID)
+		sessionsA, err := svc.ListSessions(ctx, userA.ID)
 		if err != nil {
 			t.Fatalf("ListSessions A: %v", err)
 		}
@@ -265,7 +265,7 @@ func TestUserHandler_Sessions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetOrCreate B: %v", err)
 		}
-		sessionB, err := us.CreateSession(userB.ID, "2.2.2.2", "", "")
+		sessionB, err := svc.CreateSession(ctx, userB.ID, "2.2.2.2", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession B: %v", err)
 		}
@@ -280,7 +280,7 @@ func TestUserHandler_Sessions(t *testing.T) {
 		}
 
 		// Verify User A still has their session.
-		sessionsA, _ = us.ListSessions(userA.ID)
+		sessionsA, _ = svc.ListSessions(ctx, userA.ID)
 		if len(sessionsA) != 1 {
 			t.Errorf("user A session was deleted by user B")
 		}
@@ -295,7 +295,7 @@ func TestUserHandler_Tokens(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
-		session, err := us.CreateSession(user.ID, "", "", "")
+		session, err := svc.CreateSession(ctx, user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession: %v", err)
 		}
@@ -444,14 +444,14 @@ func TestUserHandler_Tokens(t *testing.T) {
 	})
 
 	t.Run("cannot list another user's tokens", func(t *testing.T) {
-		ctx, handler, us, svc := newUsersServer(t)
+		ctx, handler, _, svc := newUsersServer(t)
 
 		// User A creates a token.
 		userA, _, err := svc.GetOrCreate(ctx, "a@example.com", "sub-a")
 		if err != nil {
 			t.Fatalf("GetOrCreate A: %v", err)
 		}
-		sessionA, err := us.CreateSession(userA.ID, "", "", "")
+		sessionA, err := svc.CreateSession(ctx, userA.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession A: %v", err)
 		}
@@ -466,7 +466,7 @@ func TestUserHandler_Tokens(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetOrCreate B: %v", err)
 		}
-		sessionB, err := us.CreateSession(userB.ID, "", "", "")
+		sessionB, err := svc.CreateSession(ctx, userB.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession B: %v", err)
 		}
@@ -485,14 +485,14 @@ func TestUserHandler_Tokens(t *testing.T) {
 	})
 
 	t.Run("cannot delete another user's token", func(t *testing.T) {
-		ctx, handler, us, svc := newUsersServer(t)
+		ctx, handler, _, svc := newUsersServer(t)
 
 		// User A creates a token.
 		userA, _, err := svc.GetOrCreate(ctx, "a2@example.com", "sub-a2")
 		if err != nil {
 			t.Fatalf("GetOrCreate A: %v", err)
 		}
-		sessionA, err := us.CreateSession(userA.ID, "", "", "")
+		sessionA, err := svc.CreateSession(ctx, userA.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession A: %v", err)
 		}
@@ -513,7 +513,7 @@ func TestUserHandler_Tokens(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetOrCreate B: %v", err)
 		}
-		sessionB, err := us.CreateSession(userB.ID, "", "", "")
+		sessionB, err := svc.CreateSession(ctx, userB.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("CreateSession B: %v", err)
 		}
