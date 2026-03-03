@@ -57,10 +57,36 @@ func (s *UserStore) UpsertUser(
 		email,
 		googleSub,
 	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt, &created)
+
 	if err != nil {
 		return nil, false, fmt.Errorf("upsert user: %w", err)
 	}
 	return &user, created, nil
+}
+
+// GetByID returns the user with the given ID.
+func (s *UserStore) GetByID(
+	ctx context.Context,
+	q Querier,
+	id domain.UserID,
+) (*domain.User, error) {
+	var user domain.User
+	err := q.QueryRowContext(
+		ctx,
+		`SELECT id, email, google_sub, created_at
+		 FROM users WHERE id = $1`,
+		id,
+	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("get user by id: %w", err)
+	}
+
+	return &user, nil
 }
 
 // CreateSession generates a random session token (prefixed with "sess_"), stores its
@@ -222,23 +248,6 @@ func generateToken(prefix string) (string, error) {
 func sha256TokenHash(token string) string {
 	h := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(h[:])
-}
-
-// GetByID returns the user with the given ID.
-func (s *UserStore) GetByID(id domain.UserID) (*domain.User, error) {
-	var user domain.User
-	err := s.db.QueryRow(
-		`SELECT id, email, google_sub, created_at
-		 FROM users WHERE id = $1`,
-		id,
-	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
-	}
-	if err != nil {
-		return nil, fmt.Errorf("get user by id: %w", err)
-	}
-	return &user, nil
 }
 
 // GetUserByToken hashes the provided token and looks up the matching non-expired token.

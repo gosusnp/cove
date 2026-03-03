@@ -64,7 +64,7 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	user, err := h.svc.Get(authUser.ID)
+	user, err := h.svc.Get(r.Context(), authUser.ID)
 	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "user not found", http.StatusNotFound)
 		return

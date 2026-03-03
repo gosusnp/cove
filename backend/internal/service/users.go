@@ -59,18 +59,9 @@ func (s *UserService) GetOrCreate(ctx context.Context, email domain.Email, googl
 	return user, created, nil
 }
 
-// CreateSession generates a session token for the user.
-func (s *UserService) CreateSession(userID domain.UserID, ip, browser, os string) (string, error) {
-	token, err := s.users.CreateSession(userID, ip, browser, os)
-	if err != nil {
-		return "", fmt.Errorf("create session: %w", err)
-	}
-	return token, nil
-}
-
 // Get returns the user with the given ID.
-func (s *UserService) Get(id domain.UserID) (*domain.User, error) {
-	user, err := s.users.GetByID(id)
+func (s *UserService) Get(ctx context.Context, id domain.UserID) (*domain.User, error) {
+	user, err := s.users.GetByID(ctx, s.db, id)
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, ErrNotFound
 	}
@@ -78,6 +69,15 @@ func (s *UserService) Get(id domain.UserID) (*domain.User, error) {
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 	return user, nil
+}
+
+// CreateSession generates a session token for the user.
+func (s *UserService) CreateSession(userID domain.UserID, ip, browser, os string) (string, error) {
+	token, err := s.users.CreateSession(userID, ip, browser, os)
+	if err != nil {
+		return "", fmt.Errorf("create session: %w", err)
+	}
+	return token, nil
 }
 
 // CreatePAT creates a named PAT for the user. Returns the raw token (shown once) and the PAT metadata.

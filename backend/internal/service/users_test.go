@@ -134,7 +134,7 @@ func TestUserService_Get(t *testing.T) {
 			t.Fatalf("GetOrCreate: %v", err)
 		}
 
-		got, err := svc.Get(created.ID)
+		got, err := svc.Get(ctx, created.ID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -159,7 +159,7 @@ func TestUserService_Get(t *testing.T) {
 		id := user.ID
 		id.UUID[0] ^= 0xff
 
-		_, err = svc.Get(id)
+		_, err = svc.Get(ctx, id)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
