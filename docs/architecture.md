@@ -13,7 +13,8 @@ backend/          — Go module (github.com/gosusnp/cove/backend)
     db/           — database connection and migrations/
     handlers/     — HTTP layer; helpers.go provides jsonOK, jsonError, jsonResponse, pathID
     service/      — business logic and ValidationError
-    store/        — SQL queries, sentinel errors (ErrNotFound, ErrDuplicate), domain types in types.go
+    domain/       — domain entities, logic, and hardened types
+    store/        — SQL queries and database error translation
     middleware/   — APIKey and OAuth auth, request logging
     mcp/          — MCP tool registration grouped by resource
     testdb/       — shared test infrastructure (testcontainers + pgtestdb)
@@ -53,15 +54,15 @@ Every layer is wired via constructors. No globals, no `init()` wiring.
 ```go
 // Correct wiring order in main:
 database := db.Open(dsn)
-exStore   := store.NewExerciseStore(database)
-exSvc     := service.NewExerciseService(exStore)
+exStore   := store.NewExerciseStore() // Stateless
+exSvc     := service.NewExerciseService(database, exStore)
 exHandler := handlers.NewExerciseHandler(exSvc)
 ```
 
 - **DO** write a `New[Type](deps)` constructor for every handler, service, and store.
 - **DO** store injected dependencies as unexported struct fields: `svc`, `db`, `store`.
 - **DON'T** use package-level variables to share dependencies.
-- **DON'T** pass `*sql.DB` to a handler — only to stores (and services that manage transactions).
+- **DON'T** pass `*sql.DB` to a handler — only to services.
 
 ---
 
@@ -129,19 +130,20 @@ Services own business logic: validation, normalization, orchestration, and trans
 
 ```go
 type ExerciseService struct {
+    db    *sql.DB
     store *store.ExerciseStore
 }
 
-func NewExerciseService(s *store.ExerciseStore) *ExerciseService {
-    return &ExerciseService{store: s}
+func NewExerciseService(db *sql.DB, s *store.ExerciseStore) *ExerciseService {
+    return &ExerciseService{db: db, store: s}
 }
 
-func (s *ExerciseService) Create(name string, progression *string) (*store.ExerciseDetail, error) {
+func (s *ExerciseService) Create(ctx context.Context, name string, progression *string) (*store.ExerciseDetail, error) {
     name = normalizeName(name)
     if name == "" {
         return nil, &ValidationError{Msg: "name is required"}
     }
-    e, err := s.store.Create(name, progression)
+    e, err := s.store.Create(ctx, s.db, name, progression)
     if errors.Is(err, store.ErrDuplicate) {
         return nil, &ValidationError{Msg: "exercise with this name already exists"}
     }
@@ -159,7 +161,7 @@ func (s *ExerciseService) Create(name string, progression *string) (*store.Exerc
 
 ### Transactions
 
-When a service operation spans multiple stores, the service owns the transaction lifecycle and passes it down via `WithTx`:
+When a service operation spans multiple stores, the service owns the transaction lifecycle and passes it down via the `q store.Querier` argument:
 
 ```go
 type UserService struct {
@@ -168,22 +170,19 @@ type UserService struct {
     orgs  *store.OrgStore
 }
 
-func (s *UserService) GetOrCreate(email, googleSub string) (*store.User, bool, error) {
+func (s *UserService) GetOrCreate(ctx context.Context, email, googleSub string) (*store.User, bool, error) {
     tx, err := s.db.Begin()
     if err != nil {
         return nil, false, fmt.Errorf("begin tx: %w", err)
     }
     defer func() { _ = tx.Rollback() }()
 
-    txUsers := s.users.WithTx(tx)
-    txOrgs := s.orgs.WithTx(tx)
-
-    user, created, err := txUsers.UpsertUser(id, email, googleSub)
+    user, created, err := s.users.UpsertUser(ctx, tx, id, email, googleSub)
     if err != nil {
         return nil, false, err
     }
     if created {
-        if err := txOrgs.CreateOrg(orgID, email); err != nil {
+        if err := s.orgs.CreateOrg(ctx, tx, orgID, email); err != nil {
             return nil, false, err
         }
     }
@@ -194,7 +193,6 @@ func (s *UserService) GetOrCreate(email, googleSub string) (*store.User, bool, e
 
 - **DO** hold `*sql.DB` on the service when it manages transactions.
 - **DO** call `defer func() { _ = tx.Rollback() }()` immediately after `tx.Begin()` — it is a no-op after `Commit`.
-- **DO** create transaction-scoped store copies with `WithTx` and use those for all operations within the transaction.
 - **DON'T** manage transactions inside a store method — transaction lifecycle belongs to the service.
 
 ---
@@ -203,45 +201,29 @@ func (s *UserService) GetOrCreate(email, googleSub string) (*store.User, bool, e
 
 Stores own data access: raw SQL, scanning rows, and database error translation.
 
-All stores embed `baseStore` (defined in `store/base.go`) instead of holding a `*sql.DB` directly. This allows any store to be scoped to a transaction via `WithTx` without changing its method signatures.
+Stores are **stateless**. They do not hold a database connection or transaction. Instead, every method accepts a `context.Context` and a `Querier`.
 
 ```go
 // store/base.go — shared by all stores
 type Querier interface {
-    Query(query string, args ...any) (*sql.Rows, error)
-    Exec(query string, args ...any) (sql.Result, error)
-    QueryRow(query string, args ...any) *sql.Row
-}
-
-type baseStore struct {
-    db Querier // *sql.DB or *sql.Tx
-}
-
-func (b baseStore) withTx(tx *sql.Tx) baseStore {
-    return baseStore{db: tx}
+    QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+    ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+    QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 ```
 
-Each concrete store embeds `baseStore` and exposes `WithTx`:
+Concrete stores are empty structs:
 
 ```go
-type ExerciseStore struct {
-    baseStore
-}
+type ExerciseStore struct{}
 
-func NewExerciseStore(db *sql.DB) *ExerciseStore {
-    return &ExerciseStore{baseStore{db: db}}
-}
-
-// WithTx returns an ExerciseStore that executes queries within tx.
-func (s *ExerciseStore) WithTx(tx *sql.Tx) *ExerciseStore {
-    return &ExerciseStore{s.withTx(tx)}
+func NewExerciseStore() *ExerciseStore {
+    return &ExerciseStore{}
 }
 ```
 
-- **DO** embed `baseStore` in every store — never hold a bare `*sql.DB` field.
-- **DO** expose `WithTx(tx *sql.Tx) *ConcreteStore` on every store that participates in cross-table transactions.
-- **DON'T** accept or store a `*sql.Tx` in the constructor — use `WithTx` at call time.
+- **DO** make stores stateless — they must not hold any internal state or connections.
+- **DO** accept `ctx context.Context` and `q Querier` as the first two arguments for every store method.
 
 ### Sentinel Errors
 
@@ -258,8 +240,8 @@ var ErrDuplicate = errors.New("duplicate")
 ### Query Pattern
 
 ```go
-func (s *ExerciseStore) List() ([]Exercise, error) {
-    rows, err := s.db.Query(`SELECT id, name FROM exercises ORDER BY name`)
+func (s *ExerciseStore) List(ctx context.Context, q Querier) ([]Exercise, error) {
+    rows, err := q.QueryContext(ctx, `SELECT id, name FROM exercises ORDER BY name`)
     if err != nil {
         return nil, fmt.Errorf("list exercises: %w", err)
     }
@@ -286,28 +268,44 @@ func (s *ExerciseStore) List() ([]Exercise, error) {
 
 ---
 
-## Domain Types
+## Domain Types & Hardened IDs
 
-All domain structs live in `backend/internal/store/types.go`.
+All domain entities and identifiers live in `backend/internal/domain/`.
+
+### Type-Safe Identifiers
+
+To prevent logic errors (e.g., passing a `ProgramID` where an `ExerciseID` is required), we use a generic `ID[T]` wrapper with phantom types.
 
 ```go
-type Exercise struct {
-    ID   int64  `json:"id"`
-    Name string `json:"name"`
+// internal/domain/types.go
+
+type ID[T any] struct {
+    uuid.UUID
 }
 
-type ExerciseDetail struct {
-    ID          int64   `json:"id"`
-    Name        string  `json:"name"`
-    Progression *string `json:"progression,omitempty"`
+type UserID ID[struct{ userID struct{} }]
+type OrgID  ID[struct{ orgID struct{} }]
+```
+
+- **DO** use hardened IDs for all new entities.
+- **DO** define the phantom type using an unexported field in a struct: `struct{ name struct{} }`.
+- **DO** use the `ID[T]` helper for `Scan`, `Value`, and `MarshalJSON` support.
+
+### Entities
+
+```go
+type User struct {
+    ID        UserID    `json:"id"`
+    Email     Email     `json:"email"`
+    CreatedAt time.Time `json:"created_at"`
 }
 ```
 
 - **DO** define list types (e.g., `Exercise`) and detail types (e.g., `ExerciseDetail`) separately when the detail includes optional or nested fields.
 - **DO** use `*T` pointer fields with `omitempty` for nullable columns.
-- **DO** use `int64` for primary and foreign keys on data/entity tables (exercises, programs, workouts, etc.).
-- **DO** use `uuid.UUID` for primary keys on identity tables (users, sessions, API keys) — these follow the `UUID PRIMARY KEY` SQL convention.
-- **DON'T** add computed or presentation fields to store types — those belong in a service or handler response struct.
+- **DO** use hardened `ID[T]` (wrapping `uuid.UUID`) for primary keys on all new tables.
+- **DO** pay specific attention to identity tables (users, sessions, API keys) which **must** use these hardened UUIDs to follow the `UUID PRIMARY KEY` SQL convention.
+- **DON'T** add computed or presentation fields to domain types — those belong in a service or handler response struct.
 - **DON'T** define domain types inside handler or service files.
 
 ---
