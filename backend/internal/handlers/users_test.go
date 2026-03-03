@@ -21,7 +21,7 @@ import (
 func newUsersServer(t *testing.T) (context.Context, http.Handler, *store.UserStore, *service.UserService) {
 	t.Helper()
 	db := newTestDB(t)
-	us := store.NewUserStore(db)
+	us := store.NewUserStore()
 	orgs := store.NewOrgStore()
 	svc := service.NewUserService(db, us, orgs)
 	mux := http.NewServeMux()

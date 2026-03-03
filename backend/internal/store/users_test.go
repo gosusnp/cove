@@ -20,18 +20,18 @@ import (
 func newTestUserStore(t *testing.T) (context.Context, *sql.DB, *UserStore, *OrgStore) {
 	t.Helper()
 	db := newTestDB(t)
-	return t.Context(), db, NewUserStore(db), NewOrgStore()
+	return t.Context(), db, NewUserStore(), NewOrgStore()
 }
 
 // createTestUser seeds a user with an org and owner membership, mirroring the
 // full setup that UserService.GetOrCreate performs in production.
-func createTestUser(t *testing.T, s *UserStore, os *OrgStore, email string, googleSub string) *domain.User {
+func createTestUser(t *testing.T, db *sql.DB, s *UserStore, os *OrgStore, email string, googleSub string) *domain.User {
 	t.Helper()
 
 	ctx := t.Context()
 
 	userID := domain.NewUserID()
-	user, created, err := s.UpsertUser(ctx, s.db, userID, domain.Email(email), domain.GoogleSub(googleSub))
+	user, created, err := s.UpsertUser(ctx, db, userID, domain.Email(email), domain.GoogleSub(googleSub))
 	if err != nil {
 		t.Fatalf("UpsertUser: %v", err)
 	}
@@ -40,11 +40,11 @@ func createTestUser(t *testing.T, s *UserStore, os *OrgStore, email string, goog
 		if err != nil {
 			t.Fatalf("generate org id: %v", err)
 		}
-		if err := os.CreateOrg(ctx, s.db, orgID, email); err != nil {
+		if err := os.CreateOrg(ctx, db, orgID, email); err != nil {
 			t.Fatalf("CreateOrg: %v", err)
 		}
 		// TODO remove userID wrapping
-		if err := os.CreateOrgMember(ctx, s.db, orgID, domain.UserID(user.ID), "owner"); err != nil {
+		if err := os.CreateOrgMember(ctx, db, orgID, domain.UserID(user.ID), "owner"); err != nil {
 			t.Fatalf("CreateOrgMember: %v", err)
 		}
 	}
@@ -121,7 +121,7 @@ func TestUserStore_UpsertUser(t *testing.T) {
 func TestUserStore_CreateSession(t *testing.T) {
 	t.Run("returns non-empty token with sess_ prefix", func(t *testing.T) {
 		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, s, orgs, "eve@example.com", "sub-eve")
+		user := createTestUser(t, db, s, orgs, "eve@example.com", "sub-eve")
 
 		token, err := s.CreateSession(ctx, db, user.ID, "", "", "")
 		if err != nil {
@@ -137,7 +137,7 @@ func TestUserStore_CreateSession(t *testing.T) {
 
 	t.Run("stores hash not plaintext", func(t *testing.T) {
 		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, s, orgs, "frank@example.com", "sub-frank")
+		user := createTestUser(t, db, s, orgs, "frank@example.com", "sub-frank")
 
 		token, err := s.CreateSession(ctx, db, user.ID, "", "", "")
 		if err != nil {
@@ -148,7 +148,7 @@ func TestUserStore_CreateSession(t *testing.T) {
 		wantHash := hex.EncodeToString(h[:])
 
 		var storedToken string
-		err = s.db.QueryRow(`SELECT token FROM user_tokens WHERE user_id = $1 AND kind = 'session'`, user.ID).Scan(&storedToken)
+		err = db.QueryRowContext(ctx, `SELECT token FROM user_tokens WHERE user_id = $1 AND kind = 'session'`, user.ID).Scan(&storedToken)
 		if err != nil {
 			t.Fatalf("query session: %v", err)
 		}
@@ -162,7 +162,7 @@ func TestUserStore_CreateSession(t *testing.T) {
 
 	t.Run("stores initial session info", func(t *testing.T) {
 		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, s, orgs, "session-info@example.com", "sub-session-info")
+		user := createTestUser(t, db, s, orgs, "session-info@example.com", "sub-session-info")
 
 		_, err := s.CreateSession(ctx, db, user.ID, "1.2.3.0", "Chrome", "macOS")
 		if err != nil {
@@ -170,7 +170,8 @@ func TestUserStore_CreateSession(t *testing.T) {
 		}
 
 		var ip, browser, os string
-		err = s.db.QueryRow(
+		err = db.QueryRowContext(
+			ctx,
 			`SELECT initial_ip_masked, initial_browser, initial_os FROM user_tokens WHERE user_id = $1 AND kind = 'session'`,
 			user.ID,
 		).Scan(&ip, &browser, &os)
@@ -192,10 +193,10 @@ func TestUserStore_CreateSession(t *testing.T) {
 
 func TestUserStore_CreatePAT(t *testing.T) {
 	// lookupOrgID fetches the user's org from org_members.
-	lookupOrgID := func(t *testing.T, s *UserStore, userID domain.UserID) domain.OrgID {
+	lookupOrgID := func(t *testing.T, db *sql.DB, s *UserStore, userID domain.UserID) domain.OrgID {
 		t.Helper()
 		var orgID domain.OrgID
-		if err := s.db.QueryRow(
+		if err := db.QueryRow(
 			`SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`, userID,
 		).Scan(&orgID); err != nil {
 			t.Fatalf("lookup org: %v", err)
@@ -205,8 +206,8 @@ func TestUserStore_CreatePAT(t *testing.T) {
 
 	t.Run("returns token with pat_ prefix", func(t *testing.T) {
 		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, s, orgs, "pat@example.com", "sub-pat")
-		orgID := lookupOrgID(t, s, user.ID)
+		user := createTestUser(t, db, s, orgs, "pat@example.com", "sub-pat")
+		orgID := lookupOrgID(t, db, s, user.ID)
 
 		token, pat, err := s.CreatePAT(ctx, db, user.ID, orgID, "my-token", "", "", "")
 		if err != nil {
@@ -225,8 +226,8 @@ func TestUserStore_CreatePAT(t *testing.T) {
 
 	t.Run("PAT is valid for GetUserByToken", func(t *testing.T) {
 		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, s, orgs, "pat2@example.com", "sub-pat2")
-		orgID := lookupOrgID(t, s, user.ID)
+		user := createTestUser(t, db, s, orgs, "pat2@example.com", "sub-pat2")
+		orgID := lookupOrgID(t, db, s, user.ID)
 
 		token, _, err := s.CreatePAT(ctx, db, user.ID, orgID, "ci-token", "", "", "")
 		if err != nil {
@@ -246,7 +247,7 @@ func TestUserStore_CreatePAT(t *testing.T) {
 func TestUserStore_Sessions(t *testing.T) {
 	t.Run("ListSessions returns all active sessions", func(t *testing.T) {
 		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, s, orgs, "sess-list@example.com", "sub-sess-list")
+		user := createTestUser(t, db, s, orgs, "sess-list@example.com", "sub-sess-list")
 
 		// Create two sessions.
 		_, err := s.CreateSession(ctx, db, user.ID, "1.1.1.1", "Chrome", "macOS")
@@ -275,7 +276,7 @@ func TestUserStore_Sessions(t *testing.T) {
 
 	t.Run("DeleteSession removes session", func(t *testing.T) {
 		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, s, orgs, "sess-del@example.com", "sub-sess-del")
+		user := createTestUser(t, db, s, orgs, "sess-del@example.com", "sub-sess-del")
 
 		_, err := s.CreateSession(ctx, db, user.ID, "", "", "")
 		if err != nil {
@@ -302,7 +303,7 @@ func TestUserStore_Sessions(t *testing.T) {
 func TestUserStore_GetUserByToken(t *testing.T) {
 	t.Run("valid token returns user", func(t *testing.T) {
 		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, s, orgs, "grace@example.com", "sub-grace")
+		user := createTestUser(t, db, s, orgs, "grace@example.com", "sub-grace")
 		token, err := s.CreateSession(ctx, db, user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -334,7 +335,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 
 	t.Run("sets last_used_at on first use", func(t *testing.T) {
 		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, s, orgs, "ida@example.com", "sub-ida")
+		user := createTestUser(t, db, s, orgs, "ida@example.com", "sub-ida")
 		token, err := s.CreateSession(ctx, db, user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -345,8 +346,10 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 		}
 
 		var lastUsedAt *time.Time
-		if err = s.db.QueryRow(
-			`SELECT last_used_at FROM user_tokens WHERE user_id = $1 AND kind = 'session'`, user.ID,
+		if err = db.QueryRowContext(
+			ctx,
+			`SELECT last_used_at FROM user_tokens WHERE user_id = $1 AND kind = 'session'`,
+			user.ID,
 		).Scan(&lastUsedAt); err != nil {
 			t.Fatalf("query last_used_at: %v", err)
 		}
@@ -357,7 +360,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 
 	t.Run("does not update last_used_at within throttle window", func(t *testing.T) {
 		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, s, orgs, "jack@example.com", "sub-jack")
+		user := createTestUser(t, db, s, orgs, "jack@example.com", "sub-jack")
 		token, err := s.CreateSession(ctx, db, user.ID, "", "", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -368,8 +371,10 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 			t.Fatalf("first call: %v", err)
 		}
 		var first time.Time
-		if err = s.db.QueryRow(
-			`SELECT last_used_at FROM user_tokens WHERE user_id = $1 AND kind = 'session'`, user.ID,
+		if err = db.QueryRowContext(
+			ctx,
+			`SELECT last_used_at FROM user_tokens WHERE user_id = $1 AND kind = 'session'`,
+			user.ID,
 		).Scan(&first); err != nil {
 			t.Fatalf("query first last_used_at: %v", err)
 		}
@@ -379,8 +384,10 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 			t.Fatalf("second call: %v", err)
 		}
 		var second time.Time
-		if err = s.db.QueryRow(
-			`SELECT last_used_at FROM user_tokens WHERE user_id = $1 AND kind = 'session'`, user.ID,
+		if err = db.QueryRowContext(
+			ctx,
+			`SELECT last_used_at FROM user_tokens WHERE user_id = $1 AND kind = 'session'`,
+			user.ID,
 		).Scan(&second); err != nil {
 			t.Fatalf("query second last_used_at: %v", err)
 		}
@@ -390,21 +397,25 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 	})
 
 	t.Run("expired token returns ErrNotFound", func(t *testing.T) {
-		_, _, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, s, orgs, "henry@example.com", "sub-henry")
+		ctx, db, s, orgs := newTestUserStore(t)
+		user := createTestUser(t, db, s, orgs, "henry@example.com", "sub-henry")
 
 		var orgID uuid.UUID
-		if err := s.db.QueryRow(
-			`SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`, user.ID,
+		if err := db.QueryRowContext(
+			ctx, `SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`, user.ID,
 		).Scan(&orgID); err != nil {
 			t.Fatalf("lookup org: %v", err)
 		}
 
 		// Insert an already-expired session directly.
 		expiredAt := time.Now().Add(-1 * time.Hour)
-		_, err := s.db.Exec(
+		_, err := db.ExecContext(
+			ctx,
 			`INSERT INTO user_tokens (user_id, org_id, kind, token, expires_at, initial_ip_masked, initial_browser, initial_os) VALUES ($1, $2, 'session', $3, $4, '', '', '')`,
-			user.ID, orgID, "expiredtokenhash", expiredAt,
+			user.ID,
+			orgID,
+			"expiredtokenhash",
+			expiredAt,
 		)
 		if err != nil {
 			t.Fatalf("insert expired session: %v", err)
@@ -414,7 +425,8 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 		// but we can verify the expired row isn't returned by querying directly
 		// with the stored hash value (simulating a lookup by hash).
 		var count int
-		err = s.db.QueryRow(
+		err = db.QueryRowContext(
+			ctx,
 			`SELECT count(*) FROM user_tokens WHERE token = $1 AND expires_at > NOW()`,
 			"expiredtokenhash",
 		).Scan(&count)

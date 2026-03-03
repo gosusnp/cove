@@ -34,7 +34,7 @@ func TestMain(m *testing.M) {
 func newTestAPIHandler(t *testing.T) http.Handler {
 	t.Helper()
 	database := testdb.New(t, containerDSN, db.MigrationsFS)
-	userStore := store.NewUserStore(database)
+	userStore := store.NewUserStore()
 	orgStore := store.NewOrgStore()
 	userSvc := service.NewUserService(database, userStore, orgStore)
 	svcs := covemcp.Services{

@@ -4,6 +4,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -37,10 +38,10 @@ func fakeOAuthServer(t *testing.T, email, sub string) (tokenURL, userinfoURL str
 	return srv.URL + "/token", srv.URL + "/userinfo"
 }
 
-func newTestOAuthHandler(t *testing.T, allowed []string, tokenURL, userinfoURL string) (*OAuthHandler, *http.ServeMux, *store.UserStore) {
+func newTestOAuthHandler(t *testing.T, allowed []string, tokenURL, userinfoURL string) (*OAuthHandler, *http.ServeMux, *sql.DB) {
 	t.Helper()
 	dbConn := testdb.New(t, containerDSN, db.MigrationsFS)
-	us := store.NewUserStore(dbConn)
+	us := store.NewUserStore()
 	orgs := store.NewOrgStore()
 	svc := service.NewUserService(dbConn, us, orgs)
 	cfg := &oauth2.Config{
@@ -56,7 +57,7 @@ func newTestOAuthHandler(t *testing.T, allowed []string, tokenURL, userinfoURL s
 	h.userinfoURL = userinfoURL
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	return h, mux, us
+	return h, mux, dbConn
 }
 
 func TestOAuthHandler_Login(t *testing.T) {
@@ -178,7 +179,7 @@ func TestOAuthHandler_Callback(t *testing.T) {
 
 	t.Run("captures session info", func(t *testing.T) {
 		tokenURL, userinfoURL := fakeOAuthServer(t, "user-info@example.com", "sub-info")
-		_, mux, us := newTestOAuthHandler(t, nil, tokenURL, userinfoURL)
+		_, mux, db := newTestOAuthHandler(t, nil, tokenURL, userinfoURL)
 
 		r := httptest.NewRequest(http.MethodGet, "/auth/callback?state=mystate&code=mycode", nil)
 		r.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
@@ -192,12 +193,13 @@ func TestOAuthHandler_Callback(t *testing.T) {
 		}
 
 		var ip, browser, os string
-		err := us.DB().QueryRow(`
-			SELECT initial_ip_masked, initial_browser, initial_os
-			FROM user_tokens t
-			JOIN users u ON u.id = t.user_id
-			WHERE u.email = 'user-info@example.com' AND t.kind = 'session'
-		`).Scan(&ip, &browser, &os)
+		err := db.QueryRowContext(
+			t.Context(),
+			`SELECT initial_ip_masked, initial_browser, initial_os
+			 FROM user_tokens t
+			 JOIN users u ON u.id = t.user_id
+			 WHERE u.email = 'user-info@example.com' AND t.kind = 'session'`,
+		).Scan(&ip, &browser, &os)
 		if err != nil {
 			t.Fatalf("query session info: %v", err)
 		}

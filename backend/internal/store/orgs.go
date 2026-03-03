@@ -37,7 +37,13 @@ func (s *OrgStore) CreateOrgMember(
 	userID domain.UserID,
 	role string,
 ) error {
-	if _, err := q.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, $3)`, orgID, userID, role); err != nil {
+	if _, err := q.ExecContext(
+		ctx,
+		`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, $3)`,
+		orgID,
+		userID,
+		role,
+	); err != nil {
 		return fmt.Errorf("create org member: %w", err)
 	}
 	return nil

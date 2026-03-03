@@ -117,7 +117,7 @@ func (h *UserHandler) listTokens(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	pats, err := h.svc.ListPATs(authUser.ID)
+	pats, err := h.svc.ListPATs(r.Context(), authUser.ID)
 	if err != nil {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
@@ -173,7 +173,7 @@ func (h *UserHandler) deleteToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tokenID := domain.NewTokenID(id)
-	if err := h.svc.DeletePAT(authUser.ID, tokenID); errors.Is(err, service.ErrNotFound) {
+	if err := h.svc.DeletePAT(r.Context(), authUser.ID, tokenID); errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "token not found", http.StatusNotFound)
 		return
 	} else if err != nil {

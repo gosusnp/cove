@@ -39,7 +39,7 @@ func TestOrgStore_CreateOrg(t *testing.T) {
 func TestOrgStore_CreateOrgMember(t *testing.T) {
 	t.Run("creates membership successfully", func(t *testing.T) {
 		ctx, db, os := setupTestOrgStore(t)
-		us := NewUserStore(db)
+		us := NewUserStore()
 
 		userID := domain.NewUserID()
 		user, _, err := us.UpsertUser(ctx, db, userID, "member@example.com", "sub-member")

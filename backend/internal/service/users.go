@@ -119,8 +119,8 @@ func (s *UserService) CreatePAT(
 }
 
 // ListPATs returns all PATs for the user.
-func (s *UserService) ListPATs(userID domain.UserID) ([]domain.PAT, error) {
-	pats, err := s.users.ListPATs(userID)
+func (s *UserService) ListPATs(ctx context.Context, userID domain.UserID) ([]domain.PAT, error) {
+	pats, err := s.users.ListPATs(ctx, s.db, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list pats: %w", err)
 	}
@@ -137,8 +137,8 @@ func (s *UserService) ListSessions(ctx context.Context, userID domain.UserID) ([
 }
 
 // DeletePAT deletes the PAT with the given id for the user.
-func (s *UserService) DeletePAT(userID domain.UserID, id domain.TokenID) error {
-	if err := s.users.DeletePAT(userID, id); err != nil {
+func (s *UserService) DeletePAT(ctx context.Context, userID domain.UserID, id domain.TokenID) error {
+	if err := s.users.DeletePAT(ctx, s.db, userID, id); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return ErrNotFound
 		}

@@ -52,7 +52,7 @@ func main() {
 	database := db.Open(dbURL)
 	defer database.Close()
 
-	userStore := store.NewUserStore(database)
+	userStore := store.NewUserStore()
 	orgStore := store.NewOrgStore()
 	userSvc := service.NewUserService(database, userStore, orgStore)
 	oauthCfg := &oauth2.Config{

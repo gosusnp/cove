@@ -18,22 +18,10 @@ import (
 	"github.com/gosusnp/cove/backend/internal/domain"
 )
 
-type UserStore struct {
-	baseStore
-}
+type UserStore struct{}
 
-func NewUserStore(db *sql.DB) *UserStore {
-	return &UserStore{baseStore{db: db}}
-}
-
-// DB returns the underlying query executor, used for direct database access in tests.
-func (s *UserStore) DB() Querier {
-	return s.db
-}
-
-// WithTx returns a UserStore that executes queries within tx.
-func (s *UserStore) WithTx(tx *sql.Tx) *UserStore {
-	return &UserStore{s.withTx(tx)}
+func NewUserStore() *UserStore {
+	return &UserStore{}
 }
 
 // UpsertUser inserts or updates a user by google_sub.
@@ -116,7 +104,8 @@ func (s *UserStore) CreateSession(
 	hash := sha256TokenHash(token)
 
 	expiresAt := time.Now().Add(30 * 24 * time.Hour)
-	_, err = s.db.Exec(
+	_, err = q.ExecContext(
+		ctx,
 		`INSERT INTO user_tokens (id, user_id, org_id, kind, token, expires_at, initial_ip_masked, initial_browser, initial_os)
 		 VALUES ($1, $2, $3, 'session', $4, $5, $6, $7, $8)`,
 		sessionID, userID, orgID, hash, expiresAt, ipMasked, browser, os,
@@ -162,13 +151,15 @@ func (s *UserStore) CreatePAT(
 }
 
 // ListPATs returns all PATs for the given user, ordered by creation time.
-func (s *UserStore) ListPATs(userID domain.UserID) ([]domain.PAT, error) {
-	rows, err := s.db.Query(`
-		SELECT id, name, created_at, last_used_at
-		FROM user_tokens
-		WHERE user_id = $1 AND kind = 'pat'
-		ORDER BY created_at
-	`, userID)
+func (s *UserStore) ListPATs(ctx context.Context, q Querier, userID domain.UserID) ([]domain.PAT, error) {
+	rows, err := q.QueryContext(
+		ctx,
+		`SELECT id, name, created_at, last_used_at
+		 FROM user_tokens
+		 WHERE user_id = $1 AND kind = 'pat'
+		 ORDER BY created_at`,
+		userID,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("list pats: %w", err)
 	}
@@ -211,10 +202,12 @@ func (s *UserStore) ListSessions(ctx context.Context, q Querier, userID domain.U
 }
 
 // DeletePAT deletes the PAT with the given id scoped to the user. Returns ErrNotFound if no row was deleted.
-func (s *UserStore) DeletePAT(userID domain.UserID, tokenID domain.TokenID) error {
-	res, err := s.db.Exec(
+func (s *UserStore) DeletePAT(ctx context.Context, q Querier, userID domain.UserID, tokenID domain.TokenID) error {
+	res, err := q.ExecContext(
+		ctx,
 		`DELETE FROM user_tokens WHERE id = $1 AND user_id = $2 AND kind = 'pat'`,
-		tokenID, userID,
+		tokenID,
+		userID,
 	)
 	if err != nil {
 		return fmt.Errorf("delete pat: %w", err)

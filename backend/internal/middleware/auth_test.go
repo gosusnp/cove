@@ -57,7 +57,7 @@ func newTestDB(t *testing.T) *sql.DB {
 
 func newOAuth(t *testing.T, next http.Handler) http.Handler {
 	db := newTestDB(t)
-	us := store.NewUserStore(db)
+	us := store.NewUserStore()
 	orgs := store.NewOrgStore()
 	svc := service.NewUserService(db, us, orgs)
 	return OAuth(svc, next)
@@ -96,7 +96,7 @@ func TestOAuth(t *testing.T) {
 	t.Run("expired token returns 401", func(t *testing.T) {
 		ctx := t.Context()
 		database := newTestDB(t)
-		us := store.NewUserStore(database)
+		us := store.NewUserStore()
 		orgs := store.NewOrgStore()
 		svc := service.NewUserService(database, us, orgs)
 
@@ -120,7 +120,7 @@ func TestOAuth(t *testing.T) {
 	t.Run("valid token calls next", func(t *testing.T) {
 		ctx := t.Context()
 		database := newTestDB(t)
-		us := store.NewUserStore(database)
+		us := store.NewUserStore()
 		orgs := store.NewOrgStore()
 		svc := service.NewUserService(database, us, orgs)
 
@@ -147,7 +147,7 @@ func TestOAuth(t *testing.T) {
 	t.Run("valid token stores user in context", func(t *testing.T) {
 		ctx := t.Context()
 		database := newTestDB(t)
-		us := store.NewUserStore(database)
+		us := store.NewUserStore()
 		orgs := store.NewOrgStore()
 		svc := service.NewUserService(database, us, orgs)
 
