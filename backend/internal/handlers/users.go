@@ -39,13 +39,13 @@ func (h *UserHandler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 func (h *UserHandler) logout(w http.ResponseWriter, r *http.Request) {
-	authUser := middleware.UserFromContext(r.Context())
-	if authUser == nil {
+	userID := middleware.UserIDFromContext(r.Context())
+	if userID.UUID == uuid.Nil {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	tokenID := middleware.TokenIDFromContext(r.Context())
-	if err := h.svc.DeleteSession(r.Context(), authUser.ID, domain.SessionID{UUID: tokenID}); err != nil && !errors.Is(err, service.ErrNotFound) {
+	if err := h.svc.DeleteSession(r.Context(), userID, domain.SessionID{UUID: tokenID}); err != nil && !errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -59,12 +59,12 @@ type userResponse struct {
 }
 
 func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
-	authUser := middleware.UserFromContext(r.Context())
-	if authUser == nil {
+	userID := middleware.UserIDFromContext(r.Context())
+	if userID.UUID == uuid.Nil {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	user, err := h.svc.Get(r.Context(), authUser.ID)
+	user, err := h.svc.Get(r.Context(), userID)
 	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "user not found", http.StatusNotFound)
 		return
@@ -112,12 +112,12 @@ type sessionResponse struct {
 }
 
 func (h *UserHandler) listTokens(w http.ResponseWriter, r *http.Request) {
-	authUser := middleware.UserFromContext(r.Context())
-	if authUser == nil {
+	userID := middleware.UserIDFromContext(r.Context())
+	if userID.UUID == uuid.Nil {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	pats, err := h.svc.ListPATs(r.Context(), authUser.ID)
+	pats, err := h.svc.ListPATs(r.Context(), userID)
 	if err != nil {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
@@ -130,9 +130,9 @@ func (h *UserHandler) listTokens(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) createToken(w http.ResponseWriter, r *http.Request) {
-	authUser := middleware.UserFromContext(r.Context())
-	authOrg := middleware.OrgFromContext(r.Context())
-	if authUser == nil || authOrg == nil {
+	userID := middleware.UserIDFromContext(r.Context())
+	orgID := middleware.OrgIDFromContext(r.Context())
+	if userID.UUID == uuid.Nil || orgID.UUID == uuid.Nil {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -143,7 +143,7 @@ func (h *UserHandler) createToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ip, browser, os := httputil.FromRequest(r)
-	token, pat, err := h.svc.CreatePAT(r.Context(), authUser.ID, authOrg.ID, req.Name, ip, browser, os)
+	token, pat, err := h.svc.CreatePAT(r.Context(), userID, orgID, req.Name, ip, browser, os)
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
 		jsonError(w, ve.Msg, http.StatusBadRequest)
@@ -162,8 +162,8 @@ func (h *UserHandler) createToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) deleteToken(w http.ResponseWriter, r *http.Request) {
-	authUser := middleware.UserFromContext(r.Context())
-	if authUser == nil {
+	userID := middleware.UserIDFromContext(r.Context())
+	if userID.UUID == uuid.Nil {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -173,7 +173,7 @@ func (h *UserHandler) deleteToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tokenID := domain.NewTokenID(id)
-	if err := h.svc.DeletePAT(r.Context(), authUser.ID, tokenID); errors.Is(err, service.ErrNotFound) {
+	if err := h.svc.DeletePAT(r.Context(), userID, tokenID); errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "token not found", http.StatusNotFound)
 		return
 	} else if err != nil {
@@ -184,13 +184,13 @@ func (h *UserHandler) deleteToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) listSessions(w http.ResponseWriter, r *http.Request) {
-	authUser := middleware.UserFromContext(r.Context())
-	if authUser == nil {
+	userID := middleware.UserIDFromContext(r.Context())
+	if userID.UUID == uuid.Nil {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	tokenID := middleware.TokenIDFromContext(r.Context())
-	sessions, err := h.svc.ListSessions(r.Context(), authUser.ID)
+	sessions, err := h.svc.ListSessions(r.Context(), userID)
 	if err != nil {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
@@ -214,8 +214,8 @@ func (h *UserHandler) listSessions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) deleteSession(w http.ResponseWriter, r *http.Request) {
-	authUser := middleware.UserFromContext(r.Context())
-	if authUser == nil {
+	userID := middleware.UserIDFromContext(r.Context())
+	if userID.UUID == uuid.Nil {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -225,7 +225,7 @@ func (h *UserHandler) deleteSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sessionID := domain.SessionID{UUID: id}
-	if err := h.svc.DeleteSession(r.Context(), authUser.ID, sessionID); errors.Is(err, service.ErrNotFound) {
+	if err := h.svc.DeleteSession(r.Context(), userID, sessionID); errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "session not found", http.StatusNotFound)
 		return
 	} else if err != nil {

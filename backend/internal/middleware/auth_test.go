@@ -144,7 +144,7 @@ func TestOAuth(t *testing.T) {
 		}
 	})
 
-	t.Run("valid token stores user in context", func(t *testing.T) {
+	t.Run("valid token stores userID in context", func(t *testing.T) {
 		ctx := t.Context()
 		database := newTestDB(t)
 		us := store.NewUserStore()
@@ -160,9 +160,9 @@ func TestOAuth(t *testing.T) {
 			t.Fatalf("CreateSession: %v", err)
 		}
 
-		var gotUser *domain.User
+		var gotUserID domain.UserID
 		capture := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			gotUser = UserFromContext(r.Context())
+			gotUserID = UserIDFromContext(r.Context())
 			w.WriteHeader(http.StatusOK)
 		})
 
@@ -172,11 +172,11 @@ func TestOAuth(t *testing.T) {
 
 		OAuth(svc, capture).ServeHTTP(w, r)
 
-		if gotUser == nil {
-			t.Fatal("expected user in context, got nil")
+		if gotUserID.UUID == uuid.Nil {
+			t.Fatal("expected userID in context, got nil")
 		}
-		if gotUser.Email != "ctx@example.com" {
-			t.Errorf("got email %q, want %q", gotUser.Email, "ctx@example.com")
+		if gotUserID != user.ID {
+			t.Errorf("got userID %v, want %v", gotUserID, user.ID)
 		}
 	})
 }
