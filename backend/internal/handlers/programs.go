@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
 )
 
@@ -41,7 +42,7 @@ func (h *ProgramHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProgramHandler) get(w http.ResponseWriter, r *http.Request) {
-	id, err := pathID(r, "id")
+	id, err := pathID[domain.ProgramID](r, "id")
 	if err != nil {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
@@ -78,7 +79,7 @@ func (h *ProgramHandler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProgramHandler) update(w http.ResponseWriter, r *http.Request) {
-	id, err := pathID(r, "id")
+	id, err := pathID[domain.ProgramID](r, "id")
 	if err != nil {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
@@ -106,7 +107,7 @@ func (h *ProgramHandler) update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProgramHandler) delete(w http.ResponseWriter, r *http.Request) {
-	id, err := pathID(r, "id")
+	id, err := pathID[domain.ProgramID](r, "id")
 	if err != nil {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return

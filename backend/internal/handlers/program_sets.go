@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
 )
 
@@ -35,7 +36,7 @@ type programSetRequest struct {
 }
 
 func (h *ProgramSetHandler) list(w http.ResponseWriter, r *http.Request) {
-	programID, err := pathID(r, "program_id")
+	programID, err := pathID[domain.ProgramID](r, "program_id")
 	if err != nil {
 		jsonError(w, "invalid program id", http.StatusBadRequest)
 		return
@@ -49,12 +50,12 @@ func (h *ProgramSetHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProgramSetHandler) get(w http.ResponseWriter, r *http.Request) {
-	programID, err := pathID(r, "program_id")
+	programID, err := pathID[domain.ProgramID](r, "program_id")
 	if err != nil {
 		jsonError(w, "invalid program id", http.StatusBadRequest)
 		return
 	}
-	id, err := pathID(r, "id")
+	id, err := pathID[int64](r, "id")
 	if err != nil {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
@@ -72,7 +73,7 @@ func (h *ProgramSetHandler) get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProgramSetHandler) create(w http.ResponseWriter, r *http.Request) {
-	programID, err := pathID(r, "program_id")
+	programID, err := pathID[domain.ProgramID](r, "program_id")
 	if err != nil {
 		jsonError(w, "invalid program id", http.StatusBadRequest)
 		return
@@ -91,12 +92,12 @@ func (h *ProgramSetHandler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProgramSetHandler) update(w http.ResponseWriter, r *http.Request) {
-	programID, err := pathID(r, "program_id")
+	programID, err := pathID[domain.ProgramID](r, "program_id")
 	if err != nil {
 		jsonError(w, "invalid program id", http.StatusBadRequest)
 		return
 	}
-	id, err := pathID(r, "id")
+	id, err := pathID[int64](r, "id")
 	if err != nil {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
@@ -119,12 +120,12 @@ func (h *ProgramSetHandler) update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProgramSetHandler) delete(w http.ResponseWriter, r *http.Request) {
-	programID, err := pathID(r, "program_id")
+	programID, err := pathID[domain.ProgramID](r, "program_id")
 	if err != nil {
 		jsonError(w, "invalid program id", http.StatusBadRequest)
 		return
 	}
-	id, err := pathID(r, "id")
+	id, err := pathID[int64](r, "id")
 	if err != nil {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return

@@ -150,7 +150,7 @@ func (a *TestApp) SeedExercise(name string, progression *string) *store.Exercise
 }
 
 // SeedProgram creates a program and returns it.
-func (a *TestApp) SeedProgram(name string) *store.Program {
+func (a *TestApp) SeedProgram(name string) *domain.ProgramLite {
 	a.T.Helper()
 	p, err := a.Programs.Create(name)
 	if err != nil {
@@ -160,7 +160,7 @@ func (a *TestApp) SeedProgram(name string) *store.Program {
 }
 
 // SeedProgramSet creates a set for a program.
-func (a *TestApp) SeedProgramSet(programID int64, rounds int) *store.ProgramSet {
+func (a *TestApp) SeedProgramSet(programID domain.ProgramID, rounds int) *store.ProgramSet {
 	a.T.Helper()
 	ps, err := a.ProgramSets.Create(programID, nil, rounds, nil, nil)
 	if err != nil {

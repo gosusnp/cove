@@ -37,7 +37,7 @@ type programExerciseRequest struct {
 }
 
 func (h *ProgramExerciseHandler) list(w http.ResponseWriter, r *http.Request) {
-	setID, err := pathID(r, "set_id")
+	setID, err := pathID[int64](r, "set_id")
 	if err != nil {
 		jsonError(w, "invalid set id", http.StatusBadRequest)
 		return
@@ -51,12 +51,12 @@ func (h *ProgramExerciseHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProgramExerciseHandler) get(w http.ResponseWriter, r *http.Request) {
-	setID, err := pathID(r, "set_id")
+	setID, err := pathID[int64](r, "set_id")
 	if err != nil {
 		jsonError(w, "invalid set id", http.StatusBadRequest)
 		return
 	}
-	id, err := pathID(r, "id")
+	id, err := pathID[int64](r, "id")
 	if err != nil {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
@@ -74,7 +74,7 @@ func (h *ProgramExerciseHandler) get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProgramExerciseHandler) create(w http.ResponseWriter, r *http.Request) {
-	setID, err := pathID(r, "set_id")
+	setID, err := pathID[int64](r, "set_id")
 	if err != nil {
 		jsonError(w, "invalid set id", http.StatusBadRequest)
 		return
@@ -98,12 +98,12 @@ func (h *ProgramExerciseHandler) create(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *ProgramExerciseHandler) update(w http.ResponseWriter, r *http.Request) {
-	setID, err := pathID(r, "set_id")
+	setID, err := pathID[int64](r, "set_id")
 	if err != nil {
 		jsonError(w, "invalid set id", http.StatusBadRequest)
 		return
 	}
-	id, err := pathID(r, "id")
+	id, err := pathID[int64](r, "id")
 	if err != nil {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
@@ -131,12 +131,12 @@ func (h *ProgramExerciseHandler) update(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *ProgramExerciseHandler) delete(w http.ResponseWriter, r *http.Request) {
-	setID, err := pathID(r, "set_id")
+	setID, err := pathID[int64](r, "set_id")
 	if err != nil {
 		jsonError(w, "invalid set id", http.StatusBadRequest)
 		return
 	}
-	id, err := pathID(r, "id")
+	id, err := pathID[int64](r, "id")
 	if err != nil {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return

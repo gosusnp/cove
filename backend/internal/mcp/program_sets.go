@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -22,7 +23,7 @@ func registerProgramSetTools(server *mcp.Server, sets *service.ProgramSetService
 		IntraSetRestSeconds *int    `json:"rest_s,omitempty"`
 		SortOrder           *int    `json:"sort_order,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		ps, err := sets.Create(params.ProgramID, params.Name, params.Rounds, params.IntraSetRestSeconds, params.SortOrder)
+		ps, err := sets.Create(domain.ProgramID(params.ProgramID), params.Name, params.Rounds, params.IntraSetRestSeconds, params.SortOrder)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -44,7 +45,7 @@ func registerProgramSetTools(server *mcp.Server, sets *service.ProgramSetService
 		IntraSetRestSeconds *int    `json:"rest_s,omitempty"`
 		SortOrder           *int    `json:"sort_order,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		ps, err := sets.Update(params.ProgramID, params.ID, params.Name, params.Rounds, params.IntraSetRestSeconds, params.SortOrder)
+		ps, err := sets.Update(domain.ProgramID(params.ProgramID), params.ID, params.Name, params.Rounds, params.IntraSetRestSeconds, params.SortOrder)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -62,7 +63,7 @@ func registerProgramSetTools(server *mcp.Server, sets *service.ProgramSetService
 		ProgramID int64 `json:"program_id"`
 		ID        int64 `json:"id"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		if err := sets.Delete(params.ProgramID, params.ID); err != nil {
+		if err := sets.Delete(domain.ProgramID(params.ProgramID), params.ID); err != nil {
 			return nil, struct{}{}, err
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "deleted"}}}, struct{}{}, nil

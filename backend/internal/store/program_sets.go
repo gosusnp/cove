@@ -7,6 +7,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+
+	"github.com/gosusnp/cove/backend/internal/domain"
 )
 
 type ProgramSetStore struct {
@@ -27,7 +29,7 @@ func scanProgramSet(row interface{ Scan(...any) error }) (*ProgramSet, error) {
 	return &ps, nil
 }
 
-func (s *ProgramSetStore) List(programID int64) ([]ProgramSet, error) {
+func (s *ProgramSetStore) List(programID domain.ProgramID) ([]ProgramSet, error) {
 	rows, err := s.db.Query(
 		`SELECT `+programSetColumns+` FROM program_sets WHERE program_id = $1 ORDER BY sort_order, id`,
 		programID,
@@ -48,7 +50,7 @@ func (s *ProgramSetStore) List(programID int64) ([]ProgramSet, error) {
 	return sets, rows.Err()
 }
 
-func (s *ProgramSetStore) Get(programID, id int64) (*ProgramSet, error) {
+func (s *ProgramSetStore) Get(programID domain.ProgramID, id int64) (*ProgramSet, error) {
 	row := s.db.QueryRow(
 		`SELECT `+programSetColumns+` FROM program_sets WHERE id = $1 AND program_id = $2`,
 		id, programID,
@@ -63,7 +65,7 @@ func (s *ProgramSetStore) Get(programID, id int64) (*ProgramSet, error) {
 	return ps, nil
 }
 
-func (s *ProgramSetStore) Create(programID int64, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*ProgramSet, error) {
+func (s *ProgramSetStore) Create(programID domain.ProgramID, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*ProgramSet, error) {
 	var id int64
 	err := s.db.QueryRow(
 		`INSERT INTO program_sets (program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
@@ -75,7 +77,7 @@ func (s *ProgramSetStore) Create(programID int64, name *string, rounds int, intr
 	return s.Get(programID, id)
 }
 
-func (s *ProgramSetStore) Update(programID, id int64, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*ProgramSet, error) {
+func (s *ProgramSetStore) Update(programID domain.ProgramID, id int64, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*ProgramSet, error) {
 	res, err := s.db.Exec(
 		`UPDATE program_sets SET name = $1, rounds = $2, intra_set_rest_seconds = $3, sort_order = $4 WHERE id = $5 AND program_id = $6`,
 		name, rounds, intraSetRestSeconds, sortOrder, id, programID,
@@ -93,7 +95,7 @@ func (s *ProgramSetStore) Update(programID, id int64, name *string, rounds int, 
 	return s.Get(programID, id)
 }
 
-func (s *ProgramSetStore) Delete(programID, id int64) error {
+func (s *ProgramSetStore) Delete(programID domain.ProgramID, id int64) error {
 	res, err := s.db.Exec(
 		`DELETE FROM program_sets WHERE id = $1 AND program_id = $2`,
 		id, programID,

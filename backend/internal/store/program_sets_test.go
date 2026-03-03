@@ -6,9 +6,11 @@ package store
 import (
 	"errors"
 	"testing"
+
+	"github.com/gosusnp/cove/backend/internal/domain"
 )
 
-func newTestProgramSetStore(t *testing.T) (*ProgramSetStore, int64) {
+func newTestProgramSetStore(t *testing.T) (*ProgramSetStore, domain.ProgramID) {
 	t.Helper()
 	db := newTestDB(t)
 	ps := NewProgramSetStore(db)

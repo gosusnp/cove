@@ -6,10 +6,11 @@ package service
 import (
 	"testing"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
-func newTestProgramSetService(t *testing.T) (*ProgramSetService, int64) {
+func newTestProgramSetService(t *testing.T) (*ProgramSetService, domain.ProgramID) {
 	t.Helper()
 	db := newTestDB(t)
 	p, err := store.NewProgramStore(db).Create("Test Program")

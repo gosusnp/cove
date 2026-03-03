@@ -6,6 +6,8 @@ package store
 import (
 	"errors"
 	"testing"
+
+	"github.com/gosusnp/cove/backend/internal/domain"
 )
 
 func newTestProgramStore(t *testing.T) *ProgramStore {
@@ -72,7 +74,7 @@ func TestProgramStore_Get(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		s := newTestProgramStore(t)
 
-		_, err := s.Get(999)
+		_, err := s.Get(domain.ProgramID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -90,7 +92,7 @@ func TestProgramStore_Create(t *testing.T) {
 		if p.Name != "Strength" {
 			t.Errorf("got name %q, want %q", p.Name, "Strength")
 		}
-		if p.ID == 0 {
+		if p.ID == domain.ProgramID(0) {
 			t.Error("expected non-zero ID")
 		}
 	})
@@ -128,7 +130,7 @@ func TestProgramStore_Update(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		s := newTestProgramStore(t)
 
-		_, err := s.Update(999, "Strength")
+		_, err := s.Update(domain.ProgramID(999), "Strength")
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -139,7 +141,7 @@ func TestProgramStore_GetDetail(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		s := newTestProgramStore(t)
 
-		_, err := s.GetDetail(999)
+		_, err := s.GetDetail(domain.ProgramID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -219,7 +221,7 @@ func TestProgramStore_Delete(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		s := newTestProgramStore(t)
 
-		err := s.Delete(999)
+		err := s.Delete(domain.ProgramID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}

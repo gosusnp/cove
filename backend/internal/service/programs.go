@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
@@ -41,11 +42,11 @@ func NewProgramService(db *sql.DB) *ProgramService {
 	return &ProgramService{db: db, store: store.NewProgramStore(db)}
 }
 
-func (s *ProgramService) List() ([]store.Program, error) {
+func (s *ProgramService) List() ([]domain.ProgramLite, error) {
 	return s.store.List()
 }
 
-func (s *ProgramService) GetDetail(id int64) (*store.ProgramDetail, error) {
+func (s *ProgramService) GetDetail(id domain.ProgramID) (*domain.Program, error) {
 	p, err := s.store.GetDetail(id)
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, ErrNotFound
@@ -53,14 +54,14 @@ func (s *ProgramService) GetDetail(id int64) (*store.ProgramDetail, error) {
 	return p, err
 }
 
-func (s *ProgramService) Create(name string) (*store.Program, error) {
+func (s *ProgramService) Create(name string) (*domain.ProgramLite, error) {
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
 	}
 	return s.store.Create(name)
 }
 
-func (s *ProgramService) Update(id int64, name string) (*store.Program, error) {
+func (s *ProgramService) Update(id domain.ProgramID, name string) (*domain.ProgramLite, error) {
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
 	}
@@ -71,7 +72,7 @@ func (s *ProgramService) Update(id int64, name string) (*store.Program, error) {
 	return p, err
 }
 
-func (s *ProgramService) Delete(id int64) error {
+func (s *ProgramService) Delete(id domain.ProgramID) error {
 	if err := s.store.Delete(id); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return ErrNotFound
@@ -81,7 +82,7 @@ func (s *ProgramService) Delete(id int64) error {
 	return nil
 }
 
-func (s *ProgramService) CreateFull(name string, sets []ProgramSetInput) (*store.Program, error) {
+func (s *ProgramService) CreateFull(name string, sets []ProgramSetInput) (*domain.ProgramLite, error) {
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
 	}
@@ -96,7 +97,7 @@ func (s *ProgramService) CreateFull(name string, sets []ProgramSetInput) (*store
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	var programID int64
+	var programID domain.ProgramID
 	if err := tx.QueryRow(`INSERT INTO programs (name) VALUES ($1) RETURNING id`, name).Scan(&programID); err != nil {
 		return nil, fmt.Errorf("create program: %w", err)
 	}
@@ -128,7 +129,7 @@ func (s *ProgramService) CreateFull(name string, sets []ProgramSetInput) (*store
 		return nil, fmt.Errorf("commit: %w", err)
 	}
 
-	return &store.Program{ID: programID, Name: name}, nil
+	return &domain.ProgramLite{ID: programID, Name: name}, nil
 }
 
 func (s *ProgramService) validateExerciseIDs(sets []ProgramSetInput) error {

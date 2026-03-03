@@ -6,11 +6,13 @@ package store
 import (
 	"errors"
 	"testing"
+
+	"github.com/gosusnp/cove/backend/internal/domain"
 )
 
 type programExerciseFixture struct {
 	store      *ProgramExerciseStore
-	programID  int64
+	programID  domain.ProgramID
 	setID      int64
 	exerciseID int64
 }

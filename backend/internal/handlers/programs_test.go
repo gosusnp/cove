@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gosusnp/cove/backend/internal/store"
+	"github.com/gosusnp/cove/backend/internal/domain"
 )
 
 func TestProgramHandler_List(t *testing.T) {
@@ -24,7 +24,7 @@ func TestProgramHandler_List(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
 		}
-		var got []store.Program
+		var got []domain.ProgramLite
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
@@ -44,7 +44,7 @@ func TestProgramHandler_List(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
 		}
-		var got []store.Program
+		var got []domain.ProgramLite
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
@@ -68,7 +68,7 @@ func TestProgramHandler_Get(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
 		}
-		var got store.ProgramDetail
+		var got domain.Program
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
@@ -111,7 +111,7 @@ func TestProgramHandler_Create(t *testing.T) {
 		if w.Code != http.StatusCreated {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusCreated)
 		}
-		var got store.Program
+		var got domain.ProgramLite
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}

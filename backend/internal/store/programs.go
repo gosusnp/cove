@@ -7,6 +7,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+
+	"github.com/gosusnp/cove/backend/internal/domain"
 )
 
 type ProgramStore struct {
@@ -17,16 +19,16 @@ func NewProgramStore(db *sql.DB) *ProgramStore {
 	return &ProgramStore{db: db}
 }
 
-func (s *ProgramStore) List() ([]Program, error) {
+func (s *ProgramStore) List() ([]domain.ProgramLite, error) {
 	rows, err := s.db.Query(`SELECT id, name FROM programs ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("list programs: %w", err)
 	}
 	defer rows.Close()
 
-	programs := []Program{}
+	programs := []domain.ProgramLite{}
 	for rows.Next() {
-		var p Program
+		var p domain.ProgramLite
 		if err := rows.Scan(&p.ID, &p.Name); err != nil {
 			return nil, fmt.Errorf("scan program: %w", err)
 		}
@@ -35,8 +37,8 @@ func (s *ProgramStore) List() ([]Program, error) {
 	return programs, rows.Err()
 }
 
-func (s *ProgramStore) Get(id int64) (*Program, error) {
-	var p Program
+func (s *ProgramStore) Get(id domain.ProgramID) (*domain.ProgramLite, error) {
+	var p domain.ProgramLite
 	err := s.db.QueryRow(`SELECT id, name FROM programs WHERE id = $1`, id).
 		Scan(&p.ID, &p.Name)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -48,8 +50,8 @@ func (s *ProgramStore) Get(id int64) (*Program, error) {
 	return &p, nil
 }
 
-func (s *ProgramStore) Create(name string) (*Program, error) {
-	var id int64
+func (s *ProgramStore) Create(name string) (*domain.ProgramLite, error) {
+	var id domain.ProgramID
 	err := s.db.QueryRow(
 		`INSERT INTO programs (name) VALUES ($1) RETURNING id`, name,
 	).Scan(&id)
@@ -59,7 +61,7 @@ func (s *ProgramStore) Create(name string) (*Program, error) {
 	return s.Get(id)
 }
 
-func (s *ProgramStore) Update(id int64, name string) (*Program, error) {
+func (s *ProgramStore) Update(id domain.ProgramID, name string) (*domain.ProgramLite, error) {
 	res, err := s.db.Exec(`UPDATE programs SET name = $1 WHERE id = $2`, name, id)
 	if err != nil {
 		return nil, fmt.Errorf("update program: %w", err)
@@ -76,13 +78,13 @@ func (s *ProgramStore) Update(id int64, name string) (*Program, error) {
 
 // GetDetail returns the full program hierarchy: sets with their exercises.
 // Uses 3 queries: program, sets, and all exercises for those sets.
-func (s *ProgramStore) GetDetail(id int64) (*ProgramDetail, error) {
+func (s *ProgramStore) GetDetail(id domain.ProgramID) (*domain.Program, error) {
 	p, err := s.Get(id)
 	if err != nil {
 		return nil, err
 	}
 
-	detail := &ProgramDetail{ID: p.ID, Name: p.Name, Sets: []ProgramSetDetail{}}
+	detail := &domain.Program{ID: p.ID, Name: p.Name, Sets: []domain.ProgramSet{}}
 
 	setRows, err := s.db.Query(
 		`SELECT id, name, rounds, intra_set_rest_seconds, sort_order FROM program_sets WHERE program_id = $1 ORDER BY sort_order, id`,
@@ -95,8 +97,8 @@ func (s *ProgramStore) GetDetail(id int64) (*ProgramDetail, error) {
 
 	setIndex := map[int64]int{}
 	for setRows.Next() {
-		var sd ProgramSetDetail
-		sd.Exercises = []ProgramExerciseDetail{}
+		var sd domain.ProgramSet
+		sd.Exercises = []domain.ProgramExercise{}
 		if err := setRows.Scan(&sd.ID, &sd.Name, &sd.Rounds, &sd.IntraSetRestSeconds, &sd.SortOrder); err != nil {
 			return nil, fmt.Errorf("scan program set: %w", err)
 		}
@@ -126,7 +128,7 @@ func (s *ProgramStore) GetDetail(id int64) (*ProgramDetail, error) {
 	defer exRows.Close()
 
 	for exRows.Next() {
-		var ped ProgramExerciseDetail
+		var ped domain.ProgramExercise
 		var setID int64
 		if err := exRows.Scan(&ped.ID, &setID, &ped.ExerciseID, &ped.Name, &ped.Laterality, &ped.TargetReps, &ped.TargetDurationSeconds, &ped.TargetWeightKg, &ped.SortOrder); err != nil {
 			return nil, fmt.Errorf("scan program exercise: %w", err)
@@ -141,7 +143,7 @@ func (s *ProgramStore) GetDetail(id int64) (*ProgramDetail, error) {
 	return detail, nil
 }
 
-func (s *ProgramStore) Delete(id int64) error {
+func (s *ProgramStore) Delete(id domain.ProgramID) error {
 	res, err := s.db.Exec(`DELETE FROM programs WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("delete program: %w", err)

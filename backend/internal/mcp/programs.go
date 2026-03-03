@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -121,7 +122,7 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 	}, func(_ context.Context, _ *mcp.CallToolRequest, params struct {
 		ID int64 `json:"id"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		program, err := programs.GetDetail(params.ID)
+		program, err := programs.GetDetail(domain.ProgramID(params.ID))
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -156,7 +157,7 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 		ID   int64  `json:"id"`
 		Name string `json:"name"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		program, err := programs.Update(params.ID, params.Name)
+		program, err := programs.Update(domain.ProgramID(params.ID), params.Name)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -173,7 +174,7 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 	}, func(_ context.Context, _ *mcp.CallToolRequest, params struct {
 		ID int64 `json:"id"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		if err := programs.Delete(params.ID); err != nil {
+		if err := programs.Delete(domain.ProgramID(params.ID)); err != nil {
 			return nil, struct{}{}, err
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "deleted"}}}, struct{}{}, nil

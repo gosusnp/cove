@@ -10,8 +10,9 @@ import (
 	"strconv"
 )
 
-func pathID(r *http.Request, key string) (int64, error) {
-	return strconv.ParseInt(r.PathValue(key), 10, 64)
+func pathID[T ~int64](r *http.Request, key string) (T, error) {
+	id, err := strconv.ParseInt(r.PathValue(key), 10, 64)
+	return T(id), err
 }
 
 func jsonOK(w http.ResponseWriter, v any) {

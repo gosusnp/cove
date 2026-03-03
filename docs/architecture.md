@@ -91,7 +91,7 @@ func (h *ExerciseHandler) RegisterRoutes(mux *http.ServeMux) {
 - **DO** register all routes in a `RegisterRoutes(*http.ServeMux)` method.
 - **DO** use Go 1.22 method-path syntax in `HandleFunc`: `"GET /exercises"`, `"POST /exercises/{id}"`.
 - **DO** use `jsonOK`, `jsonError`, and `jsonResponse` from `handlers/helpers.go` for all responses.
-- **DO** use `pathID(r, "id")` from `handlers/helpers.go` to parse path parameters.
+- **DO** use `pathID[Type](r, "id")` from `handlers/helpers.go` to parse path parameters.
 - **DON'T** perform business logic or validation in a handler — delegate to the service.
 - **DON'T** write inline `json.Marshal` or `w.Write` calls — use the helpers.
 
