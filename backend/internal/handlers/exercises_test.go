@@ -15,12 +15,12 @@ import (
 	"github.com/gosusnp/cove/backend/internal/db"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
-	"github.com/gosusnp/cove/backend/internal/testdb"
+	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
 func newTestDB(t *testing.T) *sql.DB {
 	t.Helper()
-	return testdb.New(t, containerDSN, db.MigrationsFS)
+	return testutil.NewDB(t, containerDSN, db.MigrationsFS)
 }
 
 func newTestServer(t *testing.T) (http.Handler, *service.ExerciseService) {

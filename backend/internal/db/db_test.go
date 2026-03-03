@@ -4,34 +4,22 @@
 package db
 
 import (
-	"context"
-	"os"
 	"testing"
 
 	"github.com/golang-migrate/migrate/v4"
 	migratepostgres "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"github.com/gosusnp/cove/backend/internal/testdb"
+	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
 var containerDSN string
 
 func TestMain(m *testing.M) {
-	ctx := context.Background()
-
-	dsn, cleanup, err := testdb.StartContainer(ctx)
-	if err != nil {
-		panic(err)
-	}
-	containerDSN = dsn
-
-	code := m.Run()
-	cleanup()
-	os.Exit(code)
+	testutil.RunMain(m, &containerDSN)
 }
 
 func TestMigrations_Roundtrip(t *testing.T) {
-	db := testdb.NewEmpty(t, containerDSN)
+	db := testutil.NewEmptyDB(t, containerDSN)
 
 	driver, err := migratepostgres.WithInstance(db, &migratepostgres.Config{})
 	if err != nil {

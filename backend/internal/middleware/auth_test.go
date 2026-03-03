@@ -19,7 +19,7 @@ import (
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
-	"github.com/gosusnp/cove/backend/internal/testdb"
+	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
 // createExpiredSession inserts a session that is already expired and returns the raw token.
@@ -52,7 +52,7 @@ func createExpiredSession(t *testing.T, database *sql.DB, userID domain.UserID) 
 
 func newTestDB(t *testing.T) *sql.DB {
 	t.Helper()
-	return testdb.New(t, containerDSN, db.MigrationsFS)
+	return testutil.NewDB(t, containerDSN, db.MigrationsFS)
 }
 
 func newOAuth(t *testing.T, next http.Handler) http.Handler {

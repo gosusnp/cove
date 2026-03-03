@@ -4,36 +4,26 @@
 package main
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/gosusnp/cove/backend/internal/db"
 	covemcp "github.com/gosusnp/cove/backend/internal/mcp"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
-	"github.com/gosusnp/cove/backend/internal/testdb"
+	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
 var containerDSN string
 
 func TestMain(m *testing.M) {
-	ctx := context.Background()
-	dsn, cleanup, err := testdb.StartContainer(ctx)
-	if err != nil {
-		panic(err)
-	}
-	containerDSN = dsn
-	code := m.Run()
-	cleanup()
-	os.Exit(code)
+	testutil.RunMain(m, &containerDSN)
 }
 
 func newTestAPIHandler(t *testing.T) http.Handler {
 	t.Helper()
-	database := testdb.New(t, containerDSN, db.MigrationsFS)
+	database := testutil.NewDB(t, containerDSN, db.MigrationsFS)
 	userStore := store.NewUserStore()
 	orgStore := store.NewOrgStore()
 	userSvc := service.NewUserService(database, userStore, orgStore)
