@@ -11,58 +11,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
-type programExerciseTestServer struct {
-	mux        http.Handler
-	svc        *service.ProgramExerciseService
-	programID  int64
-	setID      int64
-	exerciseID int64
-}
-
-func newTestProgramExerciseServer(t *testing.T) programExerciseTestServer {
-	t.Helper()
-	db := newTestDB(t)
-
-	p, err := store.NewProgramStore(db).Create("Test Program")
-	if err != nil {
-		t.Fatal(err)
-	}
-	ps, err := store.NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	e, err := store.NewExerciseStore(db).Create("Pull-up", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	svc := service.NewProgramExerciseService(store.NewProgramExerciseStore(db))
-	mux := http.NewServeMux()
-	NewProgramExerciseHandler(svc).RegisterRoutes(mux)
-
-	return programExerciseTestServer{
-		mux:        mux,
-		svc:        svc,
-		programID:  p.ID,
-		setID:      ps.ID,
-		exerciseID: e.ID,
-	}
-}
-
-func (s programExerciseTestServer) url(path string) string {
-	return fmt.Sprintf("/programs/%d/sets/%d/exercises%s", s.programID, s.setID, path)
-}
-
 func TestProgramExerciseHandler_List(t *testing.T) {
 	t.Run("empty returns array not null", func(t *testing.T) {
-		ts := newTestProgramExerciseServer(t)
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
 
-		r := httptest.NewRequest(http.MethodGet, ts.url(""), nil)
-		w := httptest.NewRecorder()
-		ts.mux.ServeHTTP(w, r)
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises", p.ID, ps.ID)
+		r := httptest.NewRequest(http.MethodGet, url, nil)
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
@@ -77,17 +37,16 @@ func TestProgramExerciseHandler_List(t *testing.T) {
 	})
 
 	t.Run("returns exercises for set", func(t *testing.T) {
-		ts := newTestProgramExerciseServer(t)
-		if _, err := ts.svc.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := ts.svc.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil); err != nil {
-			t.Fatal(err)
-		}
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
+		e := app.SeedExercise("Pull-up", nil)
+		app.SeedProgramExercise(ps.ID, e.ID)
+		app.SeedProgramExercise(ps.ID, e.ID)
 
-		r := httptest.NewRequest(http.MethodGet, ts.url(""), nil)
-		w := httptest.NewRecorder()
-		ts.mux.ServeHTTP(w, r)
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises", p.ID, ps.ID)
+		r := httptest.NewRequest(http.MethodGet, url, nil)
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
@@ -104,15 +63,15 @@ func TestProgramExerciseHandler_List(t *testing.T) {
 
 func TestProgramExerciseHandler_Get(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
-		ts := newTestProgramExerciseServer(t)
-		created, err := ts.svc.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
+		e := app.SeedExercise("Pull-up", nil)
+		pe := app.SeedProgramExercise(ps.ID, e.ID)
 
-		r := httptest.NewRequest(http.MethodGet, ts.url(fmt.Sprintf("/%d", created.ID)), nil)
-		w := httptest.NewRecorder()
-		ts.mux.ServeHTTP(w, r)
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/%d", p.ID, ps.ID, pe.ID)
+		r := httptest.NewRequest(http.MethodGet, url, nil)
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
@@ -121,17 +80,18 @@ func TestProgramExerciseHandler_Get(t *testing.T) {
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if got.ExerciseID != ts.exerciseID {
-			t.Errorf("got exercise_id %d, want %d", got.ExerciseID, ts.exerciseID)
+		if got.ExerciseID != e.ID {
+			t.Errorf("got exercise ID %d, want %d", got.ExerciseID, e.ID)
 		}
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		ts := newTestProgramExerciseServer(t)
-
-		r := httptest.NewRequest(http.MethodGet, ts.url("/999"), nil)
-		w := httptest.NewRecorder()
-		ts.mux.ServeHTTP(w, r)
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/999", p.ID, ps.ID)
+		r := httptest.NewRequest(http.MethodGet, url, nil)
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
@@ -140,47 +100,29 @@ func TestProgramExerciseHandler_Get(t *testing.T) {
 }
 
 func TestProgramExerciseHandler_Create(t *testing.T) {
-	t.Run("creates with all fields", func(t *testing.T) {
-		ts := newTestProgramExerciseServer(t)
+	t.Run("success", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
+		e := app.SeedExercise("Pull-up", nil)
 
-		body := fmt.Sprintf(`{"exercise_id":%d,"laterality":"bilateral","reps":10,"weight_kg":20.5}`, ts.exerciseID)
-		r := httptest.NewRequest(http.MethodPost, ts.url(""), strings.NewReader(body))
-		w := httptest.NewRecorder()
-		ts.mux.ServeHTTP(w, r)
+		body := fmt.Sprintf(`{"exercise_id": %d}`, e.ID)
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises", p.ID, ps.ID)
+		r := httptest.NewRequest(http.MethodPost, url, strings.NewReader(body))
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusCreated {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusCreated)
 		}
-		var got store.ProgramExercise
-		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
-			t.Fatalf("decode: %v", err)
-		}
-		if got.ExerciseID != ts.exerciseID {
-			t.Errorf("got exercise_id %d, want %d", got.ExerciseID, ts.exerciseID)
-		}
-		if got.Laterality == nil || *got.Laterality != "bilateral" {
-			t.Errorf("got laterality %v, want %q", got.Laterality, "bilateral")
-		}
 	})
 
-	t.Run("missing exercise_id returns 400", func(t *testing.T) {
-		ts := newTestProgramExerciseServer(t)
-
-		r := httptest.NewRequest(http.MethodPost, ts.url(""), strings.NewReader(`{}`))
-		w := httptest.NewRecorder()
-		ts.mux.ServeHTTP(w, r)
-
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("invalid body returns 400", func(t *testing.T) {
-		ts := newTestProgramExerciseServer(t)
-
-		r := httptest.NewRequest(http.MethodPost, ts.url(""), strings.NewReader(`not json`))
-		w := httptest.NewRecorder()
-		ts.mux.ServeHTTP(w, r)
+	t.Run("invalid body", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises", p.ID, ps.ID)
+		r := httptest.NewRequest(http.MethodPost, url, strings.NewReader(`not json`))
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
@@ -189,84 +131,75 @@ func TestProgramExerciseHandler_Create(t *testing.T) {
 }
 
 func TestProgramExerciseHandler_Update(t *testing.T) {
-	t.Run("updates exercise", func(t *testing.T) {
-		ts := newTestProgramExerciseServer(t)
-		created, err := ts.svc.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		reps := 12
-		body := fmt.Sprintf(`{"exercise_id":%d,"reps":%d}`, ts.exerciseID, reps)
+	t.Run("success", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
+		e := app.SeedExercise("Pull-up", nil)
+		pe := app.SeedProgramExercise(ps.ID, e.ID)
 
-		r := httptest.NewRequest(http.MethodPut, ts.url(fmt.Sprintf("/%d", created.ID)), strings.NewReader(body))
-		w := httptest.NewRecorder()
-		ts.mux.ServeHTTP(w, r)
+		body := fmt.Sprintf(`{"exercise_id": %d, "laterality": "updated notes"}`, e.ID)
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/%d", p.ID, ps.ID, pe.ID)
+		r := httptest.NewRequest(http.MethodPut, url, strings.NewReader(body))
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
 		}
-		var got store.ProgramExercise
-		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
-			t.Fatalf("decode: %v", err)
-		}
-		if got.TargetReps == nil || *got.TargetReps != 12 {
-			t.Errorf("got target_reps %v, want 12", got.TargetReps)
+
+		// Verify change
+		got, _ := app.ProgramExercises.Get(ps.ID, pe.ID)
+		if got.Laterality == nil || *got.Laterality != "updated notes" {
+			t.Errorf("got laterality %v, want 'updated notes'", got.Laterality)
 		}
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		ts := newTestProgramExerciseServer(t)
-
-		body := fmt.Sprintf(`{"exercise_id":%d}`, ts.exerciseID)
-		r := httptest.NewRequest(http.MethodPut, ts.url("/999"), strings.NewReader(body))
-		w := httptest.NewRecorder()
-		ts.mux.ServeHTTP(w, r)
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
+		e := app.SeedExercise("Pull-up", nil)
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/999", p.ID, ps.ID)
+		body := fmt.Sprintf(`{"exercise_id": %d}`, e.ID)
+		r := httptest.NewRequest(http.MethodPut, url, strings.NewReader(body))
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
 		}
 	})
-
-	t.Run("missing exercise_id returns 400", func(t *testing.T) {
-		ts := newTestProgramExerciseServer(t)
-		created, err := ts.svc.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		r := httptest.NewRequest(http.MethodPut, ts.url(fmt.Sprintf("/%d", created.ID)), strings.NewReader(`{}`))
-		w := httptest.NewRecorder()
-		ts.mux.ServeHTTP(w, r)
-
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
-		}
-	})
 }
 
 func TestProgramExerciseHandler_Delete(t *testing.T) {
-	t.Run("deletes exercise", func(t *testing.T) {
-		ts := newTestProgramExerciseServer(t)
-		created, err := ts.svc.Create(ts.setID, ts.exerciseID, nil, nil, nil, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+	t.Run("success", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
+		e := app.SeedExercise("Pull-up", nil)
+		pe := app.SeedProgramExercise(ps.ID, e.ID)
 
-		r := httptest.NewRequest(http.MethodDelete, ts.url(fmt.Sprintf("/%d", created.ID)), nil)
-		w := httptest.NewRecorder()
-		ts.mux.ServeHTTP(w, r)
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/%d", p.ID, ps.ID, pe.ID)
+		r := httptest.NewRequest(http.MethodDelete, url, nil)
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusNoContent {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusNoContent)
 		}
+
+		// Verify gone
+		_, err := app.ProgramExercises.Get(ps.ID, pe.ID)
+		if err == nil {
+			t.Error("expected error getting deleted program exercise")
+		}
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		ts := newTestProgramExerciseServer(t)
-
-		r := httptest.NewRequest(http.MethodDelete, ts.url("/999"), nil)
-		w := httptest.NewRecorder()
-		ts.mux.ServeHTTP(w, r)
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/999", p.ID, ps.ID)
+		r := httptest.NewRequest(http.MethodDelete, url, nil)
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)

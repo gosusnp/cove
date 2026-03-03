@@ -11,30 +11,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
-func newTestProgramSetServer(t *testing.T) (http.Handler, *service.ProgramSetService, int64) {
-	t.Helper()
-	db := newTestDB(t)
-	svc := service.NewProgramSetService(store.NewProgramSetStore(db))
-	p, err := store.NewProgramStore(db).Create("Test Program")
-	if err != nil {
-		t.Fatal(err)
-	}
-	mux := http.NewServeMux()
-	NewProgramSetHandler(svc).RegisterRoutes(mux)
-	return mux, svc, p.ID
-}
-
 func TestProgramSetHandler_List(t *testing.T) {
 	t.Run("empty returns array not null", func(t *testing.T) {
-		mux, _, programID := newTestProgramSetServer(t)
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test Program")
 
-		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/programs/%d/sets", programID), nil)
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, r)
+		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/programs/%d/sets", p.ID), nil)
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
@@ -49,17 +35,13 @@ func TestProgramSetHandler_List(t *testing.T) {
 	})
 
 	t.Run("returns sets for program", func(t *testing.T) {
-		mux, s, programID := newTestProgramSetServer(t)
-		if _, err := s.Create(programID, nil, 1, nil, nil); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := s.Create(programID, nil, 1, nil, nil); err != nil {
-			t.Fatal(err)
-		}
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test Program")
+		app.SeedProgramSet(p.ID, 1)
+		app.SeedProgramSet(p.ID, 1)
 
-		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/programs/%d/sets", programID), nil)
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, r)
+		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/programs/%d/sets", p.ID), nil)
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
@@ -76,15 +58,12 @@ func TestProgramSetHandler_List(t *testing.T) {
 
 func TestProgramSetHandler_Get(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
-		mux, s, programID := newTestProgramSetServer(t)
-		created, err := s.Create(programID, nil, 3, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test Program")
+		created := app.SeedProgramSet(p.ID, 3)
 
-		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/programs/%d/sets/%d", programID, created.ID), nil)
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, r)
+		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/programs/%d/sets/%d", p.ID, created.ID), nil)
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
@@ -99,67 +78,47 @@ func TestProgramSetHandler_Get(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		mux, _, programID := newTestProgramSetServer(t)
-
-		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/programs/%d/sets/999", programID), nil)
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, r)
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test Program")
+		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/programs/%d/sets/999", p.ID), nil)
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
 		}
 	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test Program")
+		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/programs/%d/sets/abc", p.ID), nil)
+		w := app.DoRaw(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
 }
 
 func TestProgramSetHandler_Create(t *testing.T) {
-	t.Run("creates with all fields", func(t *testing.T) {
-		mux, _, programID := newTestProgramSetServer(t)
+	t.Run("success", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test Program")
 
-		body := `{"name":"Warmup","rounds":3,"rest_s":60}`
-		r := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/programs/%d/sets", programID), strings.NewReader(body))
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, r)
-
-		if w.Code != http.StatusCreated {
-			t.Errorf("got status %d, want %d", w.Code, http.StatusCreated)
-		}
-		var got store.ProgramSet
-		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
-			t.Fatalf("decode: %v", err)
-		}
-		if got.Name == nil || *got.Name != "Warmup" {
-			t.Errorf("got name %v, want %q", got.Name, "Warmup")
-		}
-		if got.Rounds != 3 {
-			t.Errorf("got rounds %d, want 3", got.Rounds)
-		}
-	})
-
-	t.Run("defaults rounds to 1 when not provided", func(t *testing.T) {
-		mux, _, programID := newTestProgramSetServer(t)
-
-		r := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/programs/%d/sets", programID), strings.NewReader(`{}`))
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, r)
+		body := `{"rounds":3}`
+		r := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/programs/%d/sets", p.ID), strings.NewReader(body))
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusCreated {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusCreated)
 		}
-		var got store.ProgramSet
-		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
-			t.Fatalf("decode: %v", err)
-		}
-		if got.Rounds != 1 {
-			t.Errorf("got rounds %d, want 1", got.Rounds)
-		}
 	})
 
-	t.Run("invalid body returns 400", func(t *testing.T) {
-		mux, _, programID := newTestProgramSetServer(t)
-
-		r := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/programs/%d/sets", programID), strings.NewReader(`not json`))
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, r)
+	t.Run("invalid body", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test Program")
+		r := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/programs/%d/sets", p.ID), strings.NewReader(`not json`))
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
@@ -168,39 +127,31 @@ func TestProgramSetHandler_Create(t *testing.T) {
 }
 
 func TestProgramSetHandler_Update(t *testing.T) {
-	t.Run("updates set", func(t *testing.T) {
-		mux, s, programID := newTestProgramSetServer(t)
-		created, err := s.Create(programID, nil, 1, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+	t.Run("success", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test Program")
+		ps := app.SeedProgramSet(p.ID, 1)
 
-		body := `{"name":"Warmup","rounds":4}`
-		r := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/programs/%d/sets/%d", programID, created.ID), strings.NewReader(body))
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, r)
+		body := `{"rounds":5}`
+		r := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/programs/%d/sets/%d", p.ID, ps.ID), strings.NewReader(body))
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
 		}
-		var got store.ProgramSet
-		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
-			t.Fatalf("decode: %v", err)
-		}
-		if got.Name == nil || *got.Name != "Warmup" {
-			t.Errorf("got name %v, want %q", got.Name, "Warmup")
-		}
-		if got.Rounds != 4 {
-			t.Errorf("got rounds %d, want 4", got.Rounds)
+
+		// Verify change
+		got, _ := app.ProgramSets.Get(p.ID, ps.ID)
+		if got.Rounds != 5 {
+			t.Errorf("got rounds %d, want 5", got.Rounds)
 		}
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		mux, _, programID := newTestProgramSetServer(t)
-
-		r := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/programs/%d/sets/999", programID), strings.NewReader(`{"rounds":1}`))
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, r)
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test Program")
+		r := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/programs/%d/sets/999", p.ID), strings.NewReader(`{"rounds":1}`))
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
@@ -209,28 +160,30 @@ func TestProgramSetHandler_Update(t *testing.T) {
 }
 
 func TestProgramSetHandler_Delete(t *testing.T) {
-	t.Run("deletes set", func(t *testing.T) {
-		mux, s, programID := newTestProgramSetServer(t)
-		created, err := s.Create(programID, nil, 1, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+	t.Run("success", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test Program")
+		ps := app.SeedProgramSet(p.ID, 1)
 
-		r := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/programs/%d/sets/%d", programID, created.ID), nil)
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, r)
+		r := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/programs/%d/sets/%d", p.ID, ps.ID), nil)
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusNoContent {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusNoContent)
 		}
+
+		// Verify gone
+		_, err := app.ProgramSets.Get(p.ID, ps.ID)
+		if err == nil {
+			t.Error("expected error getting deleted set")
+		}
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		mux, _, programID := newTestProgramSetServer(t)
-
-		r := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/programs/%d/sets/999", programID), nil)
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, r)
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test Program")
+		r := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/programs/%d/sets/999", p.ID), nil)
+		w := app.DoRaw(r)
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)

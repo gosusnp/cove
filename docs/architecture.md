@@ -397,3 +397,43 @@ The MCP server is an alternative interface to the same service layer used by HTT
 - **DO** group MCP tools by resource in `register[Resource]Tools` functions.
 - **DO** call the same service methods that HTTP handlers call — no direct store access from MCP tools.
 - **DON'T** duplicate business logic between the MCP layer and HTTP handlers.
+
+---
+
+## Testing Patterns
+
+Cove uses a vertical integration testing strategy. We prioritize testing the full stack (Handlers → Services → Stores) against a real database.
+
+### 1. Test Infrastructure (`testutil`)
+All shared testing infrastructure lives in `internal/testutil`.
+- **`RunMain(m, dsnPtr)`**: Call this in `TestMain` to handle the PostgreSQL container lifecycle automatically.
+- **`NewDB(t, dsn, fs)`**: Use this to get an isolated, migrated database for a single test.
+
+### 2. The `TestApp` Pattern
+For handler and integration tests, use the `TestApp` struct (found in `internal/handlers/app_test.go`). It provides a pre-wired application stack including all services and the real `OAuth` middleware.
+
+```go
+func TestExample(t *testing.T) {
+    app := NewTestApp(t) // Starts DB, wires services, applies /api prefix + middleware
+
+    // 1. Seed data directly via services
+    p := app.SeedProgram("Strength")
+
+    // 2. Make authenticated request
+    r := app.AuthRequest("GET", "/api/programs", nil, userID)
+    w := app.Do(r)
+
+    // 3. Verify
+    if w.Code != http.StatusOK { ... }
+}
+```
+
+### 3. Key Helpers
+- **`app.Do(r)`**: Executes a request against the fully wired API (with `/api` prefix and OAuth).
+- **`app.DoRaw(r)`**: Executes a request against the internal mux (no prefix, no auth).
+- **`app.Seed[Entity]`**: Use "Seed" methods to bypass the HTTP layer when setting up prerequisites for a test.
+- **`app.AuthRequest(...)`**: Automatically creates a valid session and attaches the `Bearer` token to the request.
+
+### 4. Coverage Standards
+- **Unhappy Paths**: Every handler must have tests for "not found", "invalid body", and "unauthorized" scenarios.
+- **Normalization**: Test expectations must account for service-level normalization (e.g., exercise names being trimmed or lowercased).

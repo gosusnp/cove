@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"golang.org/x/oauth2"
@@ -212,6 +213,42 @@ func TestOAuthHandler_Callback(t *testing.T) {
 		}
 		if os != "macOS" {
 			t.Errorf("got os %q, want %q", os, "macOS")
+		}
+	})
+}
+
+func TestOAuthHandler_DevLogin(t *testing.T) {
+	t.Run("success creates session", func(t *testing.T) {
+		tokenURL, userinfoURL := fakeOAuthServer(t, "dev@example.com", "sub-dev")
+		h, mux, _ := newTestOAuthHandler(t, nil, tokenURL, userinfoURL)
+		h.RegisterDevRoutes(mux)
+
+		body := `{"email":"dev@example.com"}`
+		r := httptest.NewRequest(http.MethodPost, "/auth/dev-login", strings.NewReader(body))
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("got status %d, want 200", w.Code)
+		}
+		var got map[string]string
+		_ = json.NewDecoder(w.Body).Decode(&got)
+		if !strings.HasPrefix(got["token"], "sess_") {
+			t.Errorf("expected sess_ prefix, got %q", got["token"])
+		}
+	})
+
+	t.Run("missing email returns 400", func(t *testing.T) {
+		tokenURL, userinfoURL := fakeOAuthServer(t, "", "")
+		h, mux, _ := newTestOAuthHandler(t, nil, tokenURL, userinfoURL)
+		h.RegisterDevRoutes(mux)
+
+		r := httptest.NewRequest(http.MethodPost, "/auth/dev-login", strings.NewReader(`{}`))
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want 400", w.Code)
 		}
 	})
 }

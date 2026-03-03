@@ -19,7 +19,11 @@ test("settings shows user email", async ({ page }) => {
 
 test("sign out navigates to login", async ({ page }) => {
 	await page.goto("/settings");
-	await page.getByRole("button", { name: "Sign out" }).click();
+	await page
+		.locator("section")
+		.filter({ hasText: "Account" })
+		.getByRole("button", { name: "Sign out" })
+		.click();
 	await expect(page).toHaveURL("/login");
 });
 

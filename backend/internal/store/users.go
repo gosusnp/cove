@@ -271,33 +271,35 @@ func (s *UserStore) GetUserByToken(
 	var user domain.User
 	var org domain.Org
 	var tokenID uuid.UUID
+
+	// Use UPDATE ... RETURNING to atomically update last used info and fetch user/org details.
+	// The CASE handles the 1-minute throttle to minimize vacuum pressure.
 	err := q.QueryRowContext(
 		ctx,
-		`WITH updated AS (
+		`WITH t AS (
 			UPDATE user_tokens
-			SET last_used_at   = NOW(),
-			    last_ip_masked = $2,
-			    last_browser   = $3,
-			    last_os        = $4
+			SET last_used_at = CASE
+				WHEN last_used_at IS NULL
+				  OR last_used_at < NOW() - INTERVAL '1 minute'
+				  OR last_ip_masked IS DISTINCT FROM $2
+				  OR last_browser   IS DISTINCT FROM $3
+				  OR last_os        IS DISTINCT FROM $4
+				THEN NOW()
+				ELSE last_used_at
+				END,
+				last_ip_masked = $2,
+				last_browser   = $3,
+				last_os        = $4
 			WHERE token = $1
 			  AND (expires_at IS NULL OR expires_at > NOW())
-			  AND (
-			      last_used_at IS NULL
-			   OR last_used_at   < NOW() - INTERVAL '1 minute'
-			   OR last_ip_masked IS DISTINCT FROM $2
-			   OR last_browser   IS DISTINCT FROM $3
-			   OR last_os        IS DISTINCT FROM $4
-			  )
-		 )
-		 SELECT u.id, u.email, u.google_sub, u.created_at, t.org_id, t.id
-		 FROM user_tokens t
-		 JOIN users u ON u.id = t.user_id
-		 WHERE t.token = $1 AND (t.expires_at IS NULL OR t.expires_at > NOW())`,
-		sha256TokenHash(token),
-		ipMasked,
-		browser,
-		os,
+			RETURNING user_id, org_id, id AS token_id
+		)
+		SELECT u.id, u.email, u.google_sub, u.created_at, t.org_id, t.token_id
+		FROM t
+		JOIN users u ON u.id = t.user_id`,
+		sha256TokenHash(token), ipMasked, browser, os,
 	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt, &org.ID, &tokenID)
+
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil, uuid.Nil, ErrNotFound
 	}

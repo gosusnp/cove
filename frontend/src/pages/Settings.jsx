@@ -283,7 +283,7 @@ export function Settings() {
 						<Row
 							key={s.id}
 							label={`${s.last_browser ?? s.initial_browser ?? "Unknown Browser"} on ${s.last_os ?? s.initial_os ?? "Unknown OS"}${s.is_current ? " · Current" : ""}`}
-							sublabel={`${s.last_ip_masked ?? s.initial_ip_masked ?? "Unknown IP"} · Active ${timeAgo(s.last_used_at ?? s.created_at)}`}
+							sublabel={`Active ${timeAgo(s.last_used_at ?? s.created_at)} · ${s.last_ip_masked ?? s.initial_ip_masked ?? "Unknown IP"}`}
 							last={i === sessions.value.length - 1}
 						>
 							<Button

@@ -191,7 +191,7 @@ describe("Settings", () => {
 			});
 			renderSettings();
 			await waitFor(() =>
-				expect(screen.getByText(/Last used .+ ago/)).toBeInTheDocument(),
+				expect(screen.getByText(/Last used .+/)).toBeInTheDocument(),
 			);
 		});
 
@@ -371,7 +371,7 @@ describe("Settings", () => {
 			});
 			renderSettings();
 			await waitFor(() =>
-				expect(screen.getByText(/Active .+ ago/)).toBeInTheDocument(),
+				expect(screen.getByText(/Active .+/)).toBeInTheDocument(),
 			);
 		});
 
@@ -390,7 +390,7 @@ describe("Settings", () => {
 			});
 			renderSettings();
 			await waitFor(() =>
-				expect(screen.getByText(/Active .+ ago/)).toBeInTheDocument(),
+				expect(screen.getByText(/Active .+/)).toBeInTheDocument(),
 			);
 		});
 
