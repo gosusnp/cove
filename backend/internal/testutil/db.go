@@ -26,8 +26,14 @@ import (
 )
 
 // RunMain starts a PostgreSQL testcontainer, runs the tests, and shuts down the container.
+// If TEST_DATABASE_URL is set, it skips container management and uses the provided DSN.
 func RunMain(m *testing.M, dsnPtr *string) {
 	ctx := context.Background()
+
+	if dsn := os.Getenv("TEST_DATABASE_URL"); dsn != "" {
+		*dsnPtr = dsn
+		os.Exit(m.Run())
+	}
 
 	dsn, cleanup, err := StartContainer(ctx)
 	if err != nil {
