@@ -39,7 +39,7 @@ func TestUserService_GetOrCreate(t *testing.T) {
 		if user.GoogleSub != "sub-alice" {
 			t.Errorf("got sub %q, want %q", user.GoogleSub, "sub-alice")
 		}
-		if user.ID == [16]byte{} {
+		if user.ID.UUID == uuid.Nil {
 			t.Error("expected non-zero UUID")
 		}
 	})
@@ -157,7 +157,7 @@ func TestUserService_Get(t *testing.T) {
 
 		// Flip one byte so the UUID is valid but unknown.
 		id := user.ID
-		id[0] ^= 0xff
+		id.UUID[0] ^= 0xff
 
 		_, err = svc.Get(id)
 		if !errors.Is(err, ErrNotFound) {
@@ -278,7 +278,7 @@ func TestUserService_DeletePAT(t *testing.T) {
 		_, svc, us := newTestUserService(t)
 		user, _ := setupUserWithOrg(t, svc, us)
 
-		err := svc.DeletePAT(user.ID, uuid.Max)
+		err := svc.DeletePAT(user.ID, domain.NewTokenID(uuid.Max))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}

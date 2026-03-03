@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/uuid"
-
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
@@ -83,7 +81,7 @@ func (s *UserService) Get(id domain.UserID) (*domain.User, error) {
 }
 
 // CreatePAT creates a named PAT for the user. Returns the raw token (shown once) and the PAT metadata.
-func (s *UserService) CreatePAT(userID domain.UserID, orgID domain.OrgID, name, ipMasked, browser, os string) (string, *store.PAT, error) {
+func (s *UserService) CreatePAT(userID domain.UserID, orgID domain.OrgID, name, ipMasked, browser, os string) (string, *domain.PAT, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", nil, &ValidationError{Msg: "name is required"}
@@ -96,7 +94,7 @@ func (s *UserService) CreatePAT(userID domain.UserID, orgID domain.OrgID, name, 
 }
 
 // ListPATs returns all PATs for the user.
-func (s *UserService) ListPATs(userID domain.UserID) ([]store.PAT, error) {
+func (s *UserService) ListPATs(userID domain.UserID) ([]domain.PAT, error) {
 	pats, err := s.users.ListPATs(userID)
 	if err != nil {
 		return nil, fmt.Errorf("list pats: %w", err)
@@ -105,7 +103,7 @@ func (s *UserService) ListPATs(userID domain.UserID) ([]store.PAT, error) {
 }
 
 // ListSessions returns all active sessions for the user.
-func (s *UserService) ListSessions(userID domain.UserID) ([]store.Session, error) {
+func (s *UserService) ListSessions(userID domain.UserID) ([]domain.Session, error) {
 	sessions, err := s.users.ListSessions(userID)
 	if err != nil {
 		return nil, fmt.Errorf("list sessions: %w", err)
@@ -114,7 +112,7 @@ func (s *UserService) ListSessions(userID domain.UserID) ([]store.Session, error
 }
 
 // DeletePAT deletes the PAT with the given id for the user.
-func (s *UserService) DeletePAT(userID domain.UserID, id uuid.UUID) error {
+func (s *UserService) DeletePAT(userID domain.UserID, id domain.TokenID) error {
 	if err := s.users.DeletePAT(userID, id); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return ErrNotFound
@@ -125,8 +123,8 @@ func (s *UserService) DeletePAT(userID domain.UserID, id uuid.UUID) error {
 }
 
 // DeleteSession deletes the session with the given id for the user.
-func (s *UserService) DeleteSession(userID domain.UserID, id uuid.UUID) error {
-	if err := s.users.DeleteSession(userID, id); err != nil {
+func (s *UserService) DeleteSession(userID domain.UserID, sessionID domain.SessionID) error {
+	if err := s.users.DeleteSession(userID, sessionID); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return ErrNotFound
 		}

@@ -103,7 +103,7 @@ func (s *UserStore) CreatePAT(
 	name string,
 	ipMasked string,
 	browser string, os string,
-) (string, *PAT, error) {
+) (string, *domain.PAT, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
 		return "", nil, fmt.Errorf("generate pat id: %w", err)
@@ -114,7 +114,7 @@ func (s *UserStore) CreatePAT(
 	}
 	hash := sha256TokenHash(token)
 
-	var pat PAT
+	var pat domain.PAT
 	err = s.db.QueryRow(
 		`INSERT INTO user_tokens (id, user_id, org_id, kind, name, token, initial_ip_masked, initial_browser, initial_os) VALUES ($1, $2, $3, 'pat', $4, $5, $6, $7, $8) RETURNING id, name, created_at`,
 		id, userID, orgID, name, hash, ipMasked, browser, os,
@@ -126,7 +126,7 @@ func (s *UserStore) CreatePAT(
 }
 
 // ListPATs returns all PATs for the given user, ordered by creation time.
-func (s *UserStore) ListPATs(userID domain.UserID) ([]PAT, error) {
+func (s *UserStore) ListPATs(userID domain.UserID) ([]domain.PAT, error) {
 	rows, err := s.db.Query(`
 		SELECT id, name, created_at, last_used_at
 		FROM user_tokens
@@ -138,9 +138,9 @@ func (s *UserStore) ListPATs(userID domain.UserID) ([]PAT, error) {
 	}
 	defer rows.Close()
 
-	pats := []PAT{}
+	pats := []domain.PAT{}
 	for rows.Next() {
-		var p PAT
+		var p domain.PAT
 		if err := rows.Scan(&p.ID, &p.Name, &p.CreatedAt, &p.LastUsedAt); err != nil {
 			return nil, fmt.Errorf("scan pat: %w", err)
 		}
@@ -150,7 +150,7 @@ func (s *UserStore) ListPATs(userID domain.UserID) ([]PAT, error) {
 }
 
 // ListSessions returns all active sessions for the given user, ordered by last used time.
-func (s *UserStore) ListSessions(userID domain.UserID) ([]Session, error) {
+func (s *UserStore) ListSessions(userID domain.UserID) ([]domain.Session, error) {
 	rows, err := s.db.Query(`
 		SELECT id, created_at, last_used_at, initial_ip_masked, initial_browser, initial_os, last_ip_masked, last_browser, last_os
 		FROM user_tokens
@@ -162,9 +162,9 @@ func (s *UserStore) ListSessions(userID domain.UserID) ([]Session, error) {
 	}
 	defer rows.Close()
 
-	sessions := []Session{}
+	sessions := []domain.Session{}
 	for rows.Next() {
-		var sess Session
+		var sess domain.Session
 		if err := rows.Scan(&sess.ID, &sess.CreatedAt, &sess.LastUsedAt, &sess.InitialIPMasked, &sess.InitialBrowser, &sess.InitialOS, &sess.LastIPMasked, &sess.LastBrowser, &sess.LastOS); err != nil {
 			return nil, fmt.Errorf("scan session: %w", err)
 		}
@@ -174,10 +174,10 @@ func (s *UserStore) ListSessions(userID domain.UserID) ([]Session, error) {
 }
 
 // DeletePAT deletes the PAT with the given id scoped to the user. Returns ErrNotFound if no row was deleted.
-func (s *UserStore) DeletePAT(userID domain.UserID, id uuid.UUID) error {
+func (s *UserStore) DeletePAT(userID domain.UserID, tokenID domain.TokenID) error {
 	res, err := s.db.Exec(
 		`DELETE FROM user_tokens WHERE id = $1 AND user_id = $2 AND kind = 'pat'`,
-		id, userID,
+		tokenID, userID,
 	)
 	if err != nil {
 		return fmt.Errorf("delete pat: %w", err)
@@ -193,10 +193,10 @@ func (s *UserStore) DeletePAT(userID domain.UserID, id uuid.UUID) error {
 }
 
 // DeleteSession deletes the session with the given id scoped to the user. Returns ErrNotFound if no row was deleted.
-func (s *UserStore) DeleteSession(userID domain.UserID, id uuid.UUID) error {
+func (s *UserStore) DeleteSession(userID domain.UserID, sessionID domain.SessionID) error {
 	res, err := s.db.Exec(
 		`DELETE FROM user_tokens WHERE id = $1 AND user_id = $2 AND kind = 'session'`,
-		id, userID,
+		sessionID, userID,
 	)
 	if err != nil {
 		return fmt.Errorf("delete session: %w", err)

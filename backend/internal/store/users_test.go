@@ -69,7 +69,7 @@ func TestUserStore_UpsertUser(t *testing.T) {
 		if user.GoogleSub != "sub-alice" {
 			t.Errorf("got sub %q, want %q", user.GoogleSub, "sub-alice")
 		}
-		if user.ID == [16]byte{} {
+		if user.ID.UUID == uuid.Nil {
 			t.Error("expected non-zero UUID")
 		}
 	})
@@ -215,7 +215,7 @@ func TestUserStore_CreatePAT(t *testing.T) {
 		if len(token) < 4 || token[:4] != "pat_" {
 			t.Errorf("expected pat_ prefix, got %q", token[:min(len(token), 10)])
 		}
-		if pat.ID == (uuid.UUID{}) {
+		if pat.ID.UUID == uuid.Nil {
 			t.Error("expected non-zero PAT id")
 		}
 		if pat.Name != "my-token" {
@@ -318,7 +318,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 		if got.Email != user.Email {
 			t.Errorf("got email %q, want %q", got.Email, user.Email)
 		}
-		if org.ID == (domain.OrgID(uuid.UUID{})) {
+		if org.ID.UUID == uuid.Nil {
 			t.Error("expected non-zero org ID")
 		}
 	})

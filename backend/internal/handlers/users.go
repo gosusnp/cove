@@ -45,7 +45,7 @@ func (h *UserHandler) logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tokenID := middleware.TokenIDFromContext(r.Context())
-	if err := h.svc.DeleteSession(authUser.ID, tokenID); err != nil && !errors.Is(err, service.ErrNotFound) {
+	if err := h.svc.DeleteSession(authUser.ID, domain.NewSessionID(tokenID)); err != nil && !errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -85,30 +85,30 @@ type createTokenRequest struct {
 }
 
 type createTokenResponse struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	Token     string    `json:"token"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        domain.TokenID `json:"id"`
+	Name      string         `json:"name"`
+	Token     string         `json:"token"`
+	CreatedAt time.Time      `json:"created_at"`
 }
 
 type tokenResponse struct {
-	ID         uuid.UUID  `json:"id"`
-	Name       string     `json:"name"`
-	CreatedAt  time.Time  `json:"created_at"`
-	LastUsedAt *time.Time `json:"last_used_at"`
+	ID         domain.TokenID `json:"id"`
+	Name       string         `json:"name"`
+	CreatedAt  time.Time      `json:"created_at"`
+	LastUsedAt *time.Time     `json:"last_used_at"`
 }
 
 type sessionResponse struct {
-	ID              uuid.UUID  `json:"id"`
-	CreatedAt       time.Time  `json:"created_at"`
-	LastUsedAt      *time.Time `json:"last_used_at"`
-	InitialIPMasked *string    `json:"initial_ip_masked,omitempty"`
-	InitialBrowser  *string    `json:"initial_browser,omitempty"`
-	InitialOS       *string    `json:"initial_os,omitempty"`
-	LastIPMasked    *string    `json:"last_ip_masked,omitempty"`
-	LastBrowser     *string    `json:"last_browser,omitempty"`
-	LastOS          *string    `json:"last_os,omitempty"`
-	IsCurrent       bool       `json:"is_current"`
+	ID              domain.SessionID `json:"id"`
+	CreatedAt       time.Time        `json:"created_at"`
+	LastUsedAt      *time.Time       `json:"last_used_at"`
+	InitialIPMasked *domain.MaskedIP `json:"initial_ip_masked,omitempty"`
+	InitialBrowser  *string          `json:"initial_browser,omitempty"`
+	InitialOS       *string          `json:"initial_os,omitempty"`
+	LastIPMasked    *domain.MaskedIP `json:"last_ip_masked,omitempty"`
+	LastBrowser     *string          `json:"last_browser,omitempty"`
+	LastOS          *string          `json:"last_os,omitempty"`
+	IsCurrent       bool             `json:"is_current"`
 }
 
 func (h *UserHandler) listTokens(w http.ResponseWriter, r *http.Request) {
@@ -172,7 +172,8 @@ func (h *UserHandler) deleteToken(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	if err := h.svc.DeletePAT(authUser.ID, id); errors.Is(err, service.ErrNotFound) {
+	tokenID := domain.NewTokenID(id)
+	if err := h.svc.DeletePAT(authUser.ID, tokenID); errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "token not found", http.StatusNotFound)
 		return
 	} else if err != nil {
@@ -206,7 +207,7 @@ func (h *UserHandler) listSessions(w http.ResponseWriter, r *http.Request) {
 			LastIPMasked:    s.LastIPMasked,
 			LastBrowser:     s.LastBrowser,
 			LastOS:          s.LastOS,
-			IsCurrent:       s.ID == tokenID,
+			IsCurrent:       s.ID.UUID == tokenID,
 		}
 	}
 	jsonOK(w, resp)
@@ -223,7 +224,8 @@ func (h *UserHandler) deleteSession(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	if err := h.svc.DeleteSession(authUser.ID, id); errors.Is(err, service.ErrNotFound) {
+	sessionID := domain.NewSessionID(id)
+	if err := h.svc.DeleteSession(authUser.ID, sessionID); errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "session not found", http.StatusNotFound)
 		return
 	} else if err != nil {
