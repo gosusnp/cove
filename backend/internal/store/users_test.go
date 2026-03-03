@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/gosusnp/cove/backend/internal/domain"
 )
 
 func newTestUserStore(t *testing.T) (context.Context, *sql.DB, *UserStore, *OrgStore) {
@@ -37,14 +39,15 @@ func createTestUser(t *testing.T, s *UserStore, os *OrgStore, email, googleSub s
 		t.Fatalf("UpsertUser: %v", err)
 	}
 	if created {
-		orgID, err := uuid.NewV7()
+		orgID := domain.NewOrgID()
 		if err != nil {
 			t.Fatalf("generate org id: %v", err)
 		}
 		if err := os.CreateOrg(ctx, s.db, orgID, email); err != nil {
 			t.Fatalf("CreateOrg: %v", err)
 		}
-		if err := os.CreateOrgMember(ctx, s.db, orgID, user.ID, "owner"); err != nil {
+		// TODO remove userID wrapping
+		if err := os.CreateOrgMember(ctx, s.db, orgID, domain.UserID(user.ID), "owner"); err != nil {
 			t.Fatalf("CreateOrgMember: %v", err)
 		}
 	}

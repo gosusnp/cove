@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
@@ -47,14 +48,12 @@ func (s *UserService) GetOrCreate(ctx context.Context, email, googleSub string) 
 	}
 
 	if created {
-		orgID, err := uuid.NewV7()
-		if err != nil {
-			return nil, false, fmt.Errorf("generate org id: %w", err)
-		}
+		orgID := domain.NewOrgID()
 		if err := s.orgs.CreateOrg(ctx, tx, orgID, email); err != nil {
 			return nil, false, err
 		}
-		if err := s.orgs.CreateOrgMember(ctx, tx, orgID, user.ID, "owner"); err != nil {
+		// TODO remove userID wrapping
+		if err := s.orgs.CreateOrgMember(ctx, tx, orgID, domain.UserID(user.ID), "owner"); err != nil {
 			return nil, false, err
 		}
 	}

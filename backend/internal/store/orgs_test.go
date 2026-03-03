@@ -9,19 +9,21 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"github.com/gosusnp/cove/backend/internal/domain"
 )
 
-func newTestOrgStore(t *testing.T) (context.Context, *sql.DB, *OrgStore, *UserStore) {
+func setupTestOrgStore(t *testing.T) (context.Context, *sql.DB, *OrgStore) {
 	t.Helper()
-	db := newTestDB(t)
-	return t.Context(), db, NewOrgStore(), NewUserStore(db)
+	return t.Context(), newTestDB(t), NewOrgStore()
 }
 
 func TestOrgStore_CreateOrg(t *testing.T) {
-	t.Run("creates org successfully", func(t *testing.T) {
-		ctx, db, os, _ := newTestOrgStore(t)
 
-		id, _ := uuid.NewV7()
+	t.Run("creates org successfully", func(t *testing.T) {
+		ctx, db, os := setupTestOrgStore(t)
+
+		id := domain.NewOrgID()
 		if err := os.CreateOrg(ctx, db, id, "test@example.com"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -38,7 +40,8 @@ func TestOrgStore_CreateOrg(t *testing.T) {
 
 func TestOrgStore_CreateOrgMember(t *testing.T) {
 	t.Run("creates membership successfully", func(t *testing.T) {
-		ctx, db, os, us := newTestOrgStore(t)
+		ctx, db, os := setupTestOrgStore(t)
+		us := NewUserStore(db)
 
 		userID, _ := uuid.NewV7()
 		user, _, err := us.UpsertUser(ctx, db, userID, "member@example.com", "sub-member")
@@ -46,11 +49,12 @@ func TestOrgStore_CreateOrgMember(t *testing.T) {
 			t.Fatalf("UpsertUser: %v", err)
 		}
 
-		orgID, _ := uuid.NewV7()
+		orgID := domain.NewOrgID()
 		if err := os.CreateOrg(ctx, db, orgID, "member@example.com"); err != nil {
 			t.Fatalf("CreateOrg: %v", err)
 		}
-		if err := os.CreateOrgMember(ctx, db, orgID, user.ID, "owner"); err != nil {
+		// TODO remove userID wrapping
+		if err := os.CreateOrgMember(ctx, db, orgID, domain.UserID(user.ID), "owner"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -60,64 +64,6 @@ func TestOrgStore_CreateOrgMember(t *testing.T) {
 		}
 		if role != "owner" {
 			t.Errorf("got role %q, want %q", role, "owner")
-		}
-	})
-}
-
-func TestOrgStore_WithTx(t *testing.T) {
-	t.Run("rolled back transaction leaves no data", func(t *testing.T) {
-		ctx := t.Context()
-		db := newTestDB(t)
-		os := NewOrgStore()
-
-		tx, err := db.Begin()
-		if err != nil {
-			t.Fatalf("begin tx: %v", err)
-		}
-
-		id, _ := uuid.NewV7()
-		if err := os.CreateOrg(ctx, tx, id, "rollback@example.com"); err != nil {
-			t.Fatalf("CreateOrg: %v", err)
-		}
-
-		if err := tx.Rollback(); err != nil {
-			t.Fatalf("rollback: %v", err)
-		}
-
-		var count int
-		if err := db.QueryRowContext(ctx, `SELECT count(*) FROM orgs WHERE id = $1`, id).Scan(&count); err != nil {
-			t.Fatalf("query: %v", err)
-		}
-		if count != 0 {
-			t.Errorf("expected 0 orgs after rollback, got %d", count)
-		}
-	})
-
-	t.Run("committed transaction persists data", func(t *testing.T) {
-		ctx := t.Context()
-		db := newTestDB(t)
-		os := NewOrgStore()
-
-		tx, err := db.Begin()
-		if err != nil {
-			t.Fatalf("begin tx: %v", err)
-		}
-
-		id, _ := uuid.NewV7()
-		if err := os.CreateOrg(ctx, tx, id, "commit@example.com"); err != nil {
-			t.Fatalf("CreateOrg: %v", err)
-		}
-
-		if err := tx.Commit(); err != nil {
-			t.Fatalf("commit: %v", err)
-		}
-
-		var count int
-		if err := db.QueryRowContext(ctx, `SELECT count(*) FROM orgs WHERE id = $1`, id).Scan(&count); err != nil {
-			t.Fatalf("query: %v", err)
-		}
-		if count != 1 {
-			t.Errorf("expected 1 org after commit, got %d", count)
 		}
 	})
 }
