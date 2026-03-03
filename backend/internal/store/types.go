@@ -9,17 +9,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type User struct {
-	ID        uuid.UUID
-	Email     string
-	GoogleSub string
-	CreatedAt time.Time
-}
-
-type Org struct {
-	ID uuid.UUID
-}
-
 type Exercise struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`

@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/httputil"
 	"github.com/gosusnp/cove/backend/internal/middleware"
 	"github.com/gosusnp/cove/backend/internal/service"
@@ -52,9 +53,9 @@ func (h *UserHandler) logout(w http.ResponseWriter, r *http.Request) {
 }
 
 type userResponse struct {
-	ID        uuid.UUID `json:"id"`
-	Email     string    `json:"email"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        domain.UserID `json:"id"`
+	Email     domain.Email  `json:"email"`
+	CreatedAt time.Time     `json:"created_at"`
 }
 
 func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {

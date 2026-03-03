@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/httputil"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
@@ -19,14 +20,14 @@ type orgCtxKey struct{}
 type tokenIDCtxKey struct{}
 
 // UserFromContext returns the authenticated user stored in the request context by OAuth middleware.
-func UserFromContext(ctx context.Context) *store.User {
-	u, _ := ctx.Value(userCtxKey{}).(*store.User)
+func UserFromContext(ctx context.Context) *domain.User {
+	u, _ := ctx.Value(userCtxKey{}).(*domain.User)
 	return u
 }
 
 // OrgFromContext returns the org the auth token is scoped to.
-func OrgFromContext(ctx context.Context) *store.Org {
-	o, _ := ctx.Value(orgCtxKey{}).(*store.Org)
+func OrgFromContext(ctx context.Context) *domain.Org {
+	o, _ := ctx.Value(orgCtxKey{}).(*domain.Org)
 	return o
 }
 

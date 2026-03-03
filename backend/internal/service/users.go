@@ -30,17 +30,14 @@ func NewUserService(db *sql.DB, users *store.UserStore, orgs *store.OrgStore) *U
 
 // GetOrCreate upserts a user by google_sub, creating an org and membership on first insert.
 // Returns the user and whether it was newly created.
-func (s *UserService) GetOrCreate(ctx context.Context, email, googleSub string) (*store.User, bool, error) {
+func (s *UserService) GetOrCreate(ctx context.Context, email domain.Email, googleSub domain.GoogleSub) (*domain.User, bool, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, false, fmt.Errorf("begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	newID, err := uuid.NewV7()
-	if err != nil {
-		return nil, false, fmt.Errorf("generate user id: %w", err)
-	}
+	newID := domain.NewUserID()
 
 	user, created, err := s.users.UpsertUser(ctx, tx, newID, email, googleSub)
 	if err != nil {
@@ -49,7 +46,7 @@ func (s *UserService) GetOrCreate(ctx context.Context, email, googleSub string) 
 
 	if created {
 		orgID := domain.NewOrgID()
-		if err := s.orgs.CreateOrg(ctx, tx, orgID, email); err != nil {
+		if err := s.orgs.CreateOrg(ctx, tx, orgID, string(email)); err != nil {
 			return nil, false, err
 		}
 		// TODO remove userID wrapping
@@ -65,7 +62,7 @@ func (s *UserService) GetOrCreate(ctx context.Context, email, googleSub string) 
 }
 
 // CreateSession generates a session token for the user.
-func (s *UserService) CreateSession(userID uuid.UUID, ip, browser, os string) (string, error) {
+func (s *UserService) CreateSession(userID domain.UserID, ip, browser, os string) (string, error) {
 	token, err := s.users.CreateSession(userID, ip, browser, os)
 	if err != nil {
 		return "", fmt.Errorf("create session: %w", err)
@@ -74,7 +71,7 @@ func (s *UserService) CreateSession(userID uuid.UUID, ip, browser, os string) (s
 }
 
 // Get returns the user with the given ID.
-func (s *UserService) Get(id uuid.UUID) (*store.User, error) {
+func (s *UserService) Get(id domain.UserID) (*domain.User, error) {
 	user, err := s.users.GetByID(id)
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, ErrNotFound
@@ -86,7 +83,7 @@ func (s *UserService) Get(id uuid.UUID) (*store.User, error) {
 }
 
 // CreatePAT creates a named PAT for the user. Returns the raw token (shown once) and the PAT metadata.
-func (s *UserService) CreatePAT(userID, orgID uuid.UUID, name, ipMasked, browser, os string) (string, *store.PAT, error) {
+func (s *UserService) CreatePAT(userID domain.UserID, orgID domain.OrgID, name, ipMasked, browser, os string) (string, *store.PAT, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", nil, &ValidationError{Msg: "name is required"}
@@ -99,7 +96,7 @@ func (s *UserService) CreatePAT(userID, orgID uuid.UUID, name, ipMasked, browser
 }
 
 // ListPATs returns all PATs for the user.
-func (s *UserService) ListPATs(userID uuid.UUID) ([]store.PAT, error) {
+func (s *UserService) ListPATs(userID domain.UserID) ([]store.PAT, error) {
 	pats, err := s.users.ListPATs(userID)
 	if err != nil {
 		return nil, fmt.Errorf("list pats: %w", err)
@@ -108,7 +105,7 @@ func (s *UserService) ListPATs(userID uuid.UUID) ([]store.PAT, error) {
 }
 
 // ListSessions returns all active sessions for the user.
-func (s *UserService) ListSessions(userID uuid.UUID) ([]store.Session, error) {
+func (s *UserService) ListSessions(userID domain.UserID) ([]store.Session, error) {
 	sessions, err := s.users.ListSessions(userID)
 	if err != nil {
 		return nil, fmt.Errorf("list sessions: %w", err)
@@ -117,7 +114,7 @@ func (s *UserService) ListSessions(userID uuid.UUID) ([]store.Session, error) {
 }
 
 // DeletePAT deletes the PAT with the given id for the user.
-func (s *UserService) DeletePAT(userID uuid.UUID, id uuid.UUID) error {
+func (s *UserService) DeletePAT(userID domain.UserID, id uuid.UUID) error {
 	if err := s.users.DeletePAT(userID, id); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return ErrNotFound
@@ -128,7 +125,7 @@ func (s *UserService) DeletePAT(userID uuid.UUID, id uuid.UUID) error {
 }
 
 // DeleteSession deletes the session with the given id for the user.
-func (s *UserService) DeleteSession(userID uuid.UUID, id uuid.UUID) error {
+func (s *UserService) DeleteSession(userID domain.UserID, id uuid.UUID) error {
 	if err := s.users.DeleteSession(userID, id); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return ErrNotFound

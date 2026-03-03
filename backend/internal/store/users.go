@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/gosusnp/cove/backend/internal/domain"
 )
 
 type UserStore struct {
@@ -36,15 +38,25 @@ func (s *UserStore) WithTx(tx *sql.Tx) *UserStore {
 
 // UpsertUser inserts or updates a user by google_sub.
 // Returns the user and whether it was newly created.
-func (s *UserStore) UpsertUser(ctx context.Context, q Querier, id uuid.UUID, email, googleSub string) (*User, bool, error) {
-	var user User
+func (s *UserStore) UpsertUser(
+	ctx context.Context,
+	q Querier,
+	id domain.UserID,
+	email domain.Email,
+	googleSub domain.GoogleSub,
+) (*domain.User, bool, error) {
+	var user domain.User
 	var created bool
-	err := q.QueryRowContext(ctx, `
-		INSERT INTO users (id, email, google_sub)
-		VALUES ($1, $2, $3)
-		ON CONFLICT (google_sub) DO UPDATE SET email = EXCLUDED.email
-		RETURNING id, email, google_sub, created_at, (xmax = 0)
-	`, id, email, googleSub).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt, &created)
+	err := q.QueryRowContext(
+		ctx,
+		`INSERT INTO users (id, email, google_sub)
+		 VALUES ($1, $2, $3)
+		 ON CONFLICT (google_sub) DO UPDATE SET email = EXCLUDED.email
+		 RETURNING id, email, google_sub, created_at, (xmax = 0)`,
+		id,
+		email,
+		googleSub,
+	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt, &created)
 	if err != nil {
 		return nil, false, fmt.Errorf("upsert user: %w", err)
 	}
@@ -53,8 +65,13 @@ func (s *UserStore) UpsertUser(ctx context.Context, q Querier, id uuid.UUID, ema
 
 // CreateSession generates a random session token (prefixed with "sess_"), stores its
 // SHA-256 hash in user_tokens, and returns the raw token (only time it is ever plaintext).
-func (s *UserStore) CreateSession(userID uuid.UUID, ipMasked, browser, os string) (string, error) {
-	var orgID uuid.UUID
+func (s *UserStore) CreateSession(
+	userID domain.UserID,
+	ipMasked string,
+	browser string,
+	os string,
+) (string, error) {
+	var orgID domain.OrgID
 	if err := s.db.QueryRow(
 		`SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`, userID,
 	).Scan(&orgID); err != nil {
@@ -80,7 +97,13 @@ func (s *UserStore) CreateSession(userID uuid.UUID, ipMasked, browser, os string
 
 // CreatePAT generates a named personal access token (prefixed with "pat_") that never expires.
 // The raw token is returned once; only its SHA-256 hash is stored.
-func (s *UserStore) CreatePAT(userID, orgID uuid.UUID, name, ipMasked, browser, os string) (string, *PAT, error) {
+func (s *UserStore) CreatePAT(
+	userID domain.UserID,
+	orgID domain.OrgID,
+	name string,
+	ipMasked string,
+	browser string, os string,
+) (string, *PAT, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
 		return "", nil, fmt.Errorf("generate pat id: %w", err)
@@ -103,7 +126,7 @@ func (s *UserStore) CreatePAT(userID, orgID uuid.UUID, name, ipMasked, browser, 
 }
 
 // ListPATs returns all PATs for the given user, ordered by creation time.
-func (s *UserStore) ListPATs(userID uuid.UUID) ([]PAT, error) {
+func (s *UserStore) ListPATs(userID domain.UserID) ([]PAT, error) {
 	rows, err := s.db.Query(`
 		SELECT id, name, created_at, last_used_at
 		FROM user_tokens
@@ -127,7 +150,7 @@ func (s *UserStore) ListPATs(userID uuid.UUID) ([]PAT, error) {
 }
 
 // ListSessions returns all active sessions for the given user, ordered by last used time.
-func (s *UserStore) ListSessions(userID uuid.UUID) ([]Session, error) {
+func (s *UserStore) ListSessions(userID domain.UserID) ([]Session, error) {
 	rows, err := s.db.Query(`
 		SELECT id, created_at, last_used_at, initial_ip_masked, initial_browser, initial_os, last_ip_masked, last_browser, last_os
 		FROM user_tokens
@@ -151,7 +174,7 @@ func (s *UserStore) ListSessions(userID uuid.UUID) ([]Session, error) {
 }
 
 // DeletePAT deletes the PAT with the given id scoped to the user. Returns ErrNotFound if no row was deleted.
-func (s *UserStore) DeletePAT(userID uuid.UUID, id uuid.UUID) error {
+func (s *UserStore) DeletePAT(userID domain.UserID, id uuid.UUID) error {
 	res, err := s.db.Exec(
 		`DELETE FROM user_tokens WHERE id = $1 AND user_id = $2 AND kind = 'pat'`,
 		id, userID,
@@ -170,7 +193,7 @@ func (s *UserStore) DeletePAT(userID uuid.UUID, id uuid.UUID) error {
 }
 
 // DeleteSession deletes the session with the given id scoped to the user. Returns ErrNotFound if no row was deleted.
-func (s *UserStore) DeleteSession(userID uuid.UUID, id uuid.UUID) error {
+func (s *UserStore) DeleteSession(userID domain.UserID, id uuid.UUID) error {
 	res, err := s.db.Exec(
 		`DELETE FROM user_tokens WHERE id = $1 AND user_id = $2 AND kind = 'session'`,
 		id, userID,
@@ -202,12 +225,13 @@ func sha256TokenHash(token string) string {
 }
 
 // GetByID returns the user with the given ID.
-func (s *UserStore) GetByID(id uuid.UUID) (*User, error) {
-	var user User
-	err := s.db.QueryRow(`
-		SELECT id, email, google_sub, created_at
-		FROM users WHERE id = $1
-	`, id).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt)
+func (s *UserStore) GetByID(id domain.UserID) (*domain.User, error) {
+	var user domain.User
+	err := s.db.QueryRow(
+		`SELECT id, email, google_sub, created_at
+		 FROM users WHERE id = $1`,
+		id,
+	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -221,9 +245,9 @@ func (s *UserStore) GetByID(id uuid.UUID) (*User, error) {
 // Returns both the user and the org the token is scoped to.
 // As a side effect, updates last_used_at and last session info when either the throttle
 // window (1 minute) has elapsed or the client info has changed, to minimise dead tuples.
-func (s *UserStore) GetUserByToken(token, ipMasked, browser, os string) (*User, *Org, uuid.UUID, error) {
-	var user User
-	var org Org
+func (s *UserStore) GetUserByToken(token, ipMasked, browser, os string) (*domain.User, *domain.Org, uuid.UUID, error) {
+	var user domain.User
+	var org domain.Org
 	var tokenID uuid.UUID
 	err := s.db.QueryRow(`
 		WITH updated AS (

@@ -16,13 +16,14 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/gosusnp/cove/backend/internal/db"
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
 	"github.com/gosusnp/cove/backend/internal/testdb"
 )
 
 // createExpiredSession inserts a session that is already expired and returns the raw token.
-func createExpiredSession(t *testing.T, database *sql.DB, userID uuid.UUID) string {
+func createExpiredSession(t *testing.T, database *sql.DB, userID domain.UserID) string {
 	t.Helper()
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
@@ -151,7 +152,7 @@ func TestOAuth(t *testing.T) {
 			t.Fatalf("CreateSession: %v", err)
 		}
 
-		var gotUser *store.User
+		var gotUser *domain.User
 		capture := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			gotUser = UserFromContext(r.Context())
 			w.WriteHeader(http.StatusOK)

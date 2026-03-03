@@ -25,16 +25,13 @@ func newTestUserStore(t *testing.T) (context.Context, *sql.DB, *UserStore, *OrgS
 
 // createTestUser seeds a user with an org and owner membership, mirroring the
 // full setup that UserService.GetOrCreate performs in production.
-func createTestUser(t *testing.T, s *UserStore, os *OrgStore, email, googleSub string) *User {
+func createTestUser(t *testing.T, s *UserStore, os *OrgStore, email string, googleSub string) *domain.User {
 	t.Helper()
 
 	ctx := t.Context()
 
-	userID, err := uuid.NewV7()
-	if err != nil {
-		t.Fatalf("generate user id: %v", err)
-	}
-	user, created, err := s.UpsertUser(ctx, s.db, userID, email, googleSub)
+	userID := domain.NewUserID()
+	user, created, err := s.UpsertUser(ctx, s.db, userID, domain.Email(email), domain.GoogleSub(googleSub))
 	if err != nil {
 		t.Fatalf("UpsertUser: %v", err)
 	}
@@ -58,7 +55,7 @@ func TestUserStore_UpsertUser(t *testing.T) {
 	t.Run("creates new user", func(t *testing.T) {
 		ctx, db, s, _ := newTestUserStore(t)
 
-		id, _ := uuid.NewV7()
+		id := domain.NewUserID()
 		user, created, err := s.UpsertUser(ctx, db, id, "alice@example.com", "sub-alice")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -80,13 +77,13 @@ func TestUserStore_UpsertUser(t *testing.T) {
 	t.Run("returns existing user on conflict", func(t *testing.T) {
 		ctx, db, s, _ := newTestUserStore(t)
 
-		id, _ := uuid.NewV7()
+		id := domain.NewUserID()
 		first, _, err := s.UpsertUser(ctx, db, id, "carol@example.com", "sub-carol")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		id2, _ := uuid.NewV7()
+		id2 := domain.NewUserID()
 		second, created, err := s.UpsertUser(ctx, db, id2, "carol@example.com", "sub-carol")
 		if err != nil {
 			t.Fatalf("unexpected error on second call: %v", err)
@@ -102,12 +99,12 @@ func TestUserStore_UpsertUser(t *testing.T) {
 	t.Run("updates email when google sub already exists", func(t *testing.T) {
 		ctx, db, s, _ := newTestUserStore(t)
 
-		id, _ := uuid.NewV7()
+		id := domain.NewUserID()
 		if _, _, err := s.UpsertUser(ctx, db, id, "old@example.com", "sub-dave"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		id2, _ := uuid.NewV7()
+		id2 := domain.NewUserID()
 		updated, created, err := s.UpsertUser(ctx, db, id2, "new@example.com", "sub-dave")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -195,9 +192,9 @@ func TestUserStore_CreateSession(t *testing.T) {
 
 func TestUserStore_CreatePAT(t *testing.T) {
 	// lookupOrgID fetches the user's org from org_members.
-	lookupOrgID := func(t *testing.T, s *UserStore, userID uuid.UUID) uuid.UUID {
+	lookupOrgID := func(t *testing.T, s *UserStore, userID domain.UserID) domain.OrgID {
 		t.Helper()
-		var orgID uuid.UUID
+		var orgID domain.OrgID
 		if err := s.db.QueryRow(
 			`SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`, userID,
 		).Scan(&orgID); err != nil {
@@ -321,7 +318,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 		if got.Email != user.Email {
 			t.Errorf("got email %q, want %q", got.Email, user.Email)
 		}
-		if org.ID == (uuid.UUID{}) {
+		if org.ID == (domain.OrgID(uuid.UUID{})) {
 			t.Error("expected non-zero org ID")
 		}
 	})

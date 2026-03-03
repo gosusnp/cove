@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
@@ -165,7 +166,7 @@ func TestUserService_Get(t *testing.T) {
 	})
 }
 
-func setupUserWithOrg(t *testing.T, svc *UserService, us *store.UserStore) (*store.User, uuid.UUID) {
+func setupUserWithOrg(t *testing.T, svc *UserService, us *store.UserStore) (*domain.User, domain.OrgID) {
 	t.Helper()
 	user, _, err := svc.GetOrCreate(t.Context(), "pat@example.com", "sub-pat-svc")
 	if err != nil {

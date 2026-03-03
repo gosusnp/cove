@@ -12,8 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
-
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/middleware"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
@@ -99,8 +98,8 @@ func TestUserHandler_Me(t *testing.T) {
 		}
 
 		var got struct {
-			ID    uuid.UUID `json:"id"`
-			Email string    `json:"email"`
+			ID    domain.UserID `json:"id"`
+			Email string        `json:"email"`
 		}
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)

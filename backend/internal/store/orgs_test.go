@@ -8,8 +8,6 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/google/uuid"
-
 	"github.com/gosusnp/cove/backend/internal/domain"
 )
 
@@ -43,7 +41,7 @@ func TestOrgStore_CreateOrgMember(t *testing.T) {
 		ctx, db, os := setupTestOrgStore(t)
 		us := NewUserStore(db)
 
-		userID, _ := uuid.NewV7()
+		userID := domain.NewUserID()
 		user, _, err := us.UpsertUser(ctx, db, userID, "member@example.com", "sub-member")
 		if err != nil {
 			t.Fatalf("UpsertUser: %v", err)
