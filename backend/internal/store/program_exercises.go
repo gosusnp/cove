@@ -7,6 +7,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+
+	"github.com/gosusnp/cove/backend/internal/domain"
 )
 
 type ProgramExerciseStore struct {
@@ -63,7 +65,7 @@ func (s *ProgramExerciseStore) Get(programSetID, id int64) (*ProgramExercise, er
 	return pe, nil
 }
 
-func (s *ProgramExerciseStore) Create(programSetID, exerciseID int64, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*ProgramExercise, error) {
+func (s *ProgramExerciseStore) Create(programSetID int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*ProgramExercise, error) {
 	var id int64
 	err := s.db.QueryRow(
 		`INSERT INTO program_exercises (program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
@@ -75,7 +77,7 @@ func (s *ProgramExerciseStore) Create(programSetID, exerciseID int64, laterality
 	return s.Get(programSetID, id)
 }
 
-func (s *ProgramExerciseStore) Update(programSetID, id, exerciseID int64, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*ProgramExercise, error) {
+func (s *ProgramExerciseStore) Update(programSetID, id int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*ProgramExercise, error) {
 	res, err := s.db.Exec(
 		`UPDATE program_exercises SET exercise_id = $1, laterality = $2, target_reps = $3, target_duration_seconds = $4, target_weight_kg = $5, sort_order = $6 WHERE id = $7 AND program_set_id = $8`,
 		exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder, id, programSetID,

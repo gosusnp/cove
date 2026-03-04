@@ -86,20 +86,20 @@ func (s *UserStore) CreateSession(
 	ipMasked domain.MaskedIP,
 	browser string,
 	os string,
-) (string, error) {
+) (string, domain.SessionID, error) {
 	var orgID domain.OrgID
 	if err := q.QueryRowContext(
 		ctx,
 		`SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`,
 		userID,
 	).Scan(&orgID); err != nil {
-		return "", fmt.Errorf("get org for session: %w", err)
+		return "", domain.SessionID{}, fmt.Errorf("get org for session: %w", err)
 	}
 
 	sessionID := domain.NewSessionID()
 	token, err := generateToken("sess_")
 	if err != nil {
-		return "", err
+		return "", domain.SessionID{}, err
 	}
 	hash := sha256TokenHash(token)
 
@@ -111,9 +111,9 @@ func (s *UserStore) CreateSession(
 		sessionID, userID, orgID, hash, expiresAt, ipMasked, browser, os,
 	)
 	if err != nil {
-		return "", fmt.Errorf("create session: %w", err)
+		return "", domain.SessionID{}, fmt.Errorf("create session: %w", err)
 	}
-	return token, nil
+	return token, sessionID, nil
 }
 
 // CreatePAT generates a named personal access token (prefixed with "pat_") that never expires.

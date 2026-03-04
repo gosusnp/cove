@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
 )
 
@@ -28,12 +29,12 @@ func (h *ProgramExerciseHandler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 type programExerciseRequest struct {
-	ExerciseID            int64    `json:"exercise_id"`
-	Laterality            *string  `json:"laterality,omitempty"`
-	TargetReps            *int     `json:"reps,omitempty"`
-	TargetDurationSeconds *int     `json:"duration_s,omitempty"`
-	TargetWeightKg        *float64 `json:"weight_kg,omitempty"`
-	SortOrder             *int     `json:"sort_order,omitempty"`
+	ExerciseID            domain.ExerciseID `json:"exercise_id"`
+	Laterality            *string           `json:"laterality,omitempty"`
+	TargetReps            *int              `json:"reps,omitempty"`
+	TargetDurationSeconds *int              `json:"duration_s,omitempty"`
+	TargetWeightKg        *float64          `json:"weight_kg,omitempty"`
+	SortOrder             *int              `json:"sort_order,omitempty"`
 }
 
 func (h *ProgramExerciseHandler) list(w http.ResponseWriter, r *http.Request) {

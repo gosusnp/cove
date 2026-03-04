@@ -18,12 +18,12 @@ import (
 var containerDSN string
 
 func TestMain(m *testing.M) {
-	testutil.RunMain(m, &containerDSN)
+	testutil.RunMain(m, &containerDSN, db.MigrationsFS)
 }
 
 func newTestAPIHandler(t *testing.T) http.Handler {
 	t.Helper()
-	database := testutil.NewDB(t, containerDSN, db.MigrationsFS)
+	database := testutil.NewDB(t)
 	userStore := store.NewUserStore()
 	orgStore := store.NewOrgStore()
 	userSvc := service.NewUserService(database, userStore, orgStore)

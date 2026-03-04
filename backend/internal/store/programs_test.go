@@ -8,11 +8,12 @@ import (
 	"testing"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
+	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
 func newTestProgramStore(t *testing.T) *ProgramStore {
 	t.Helper()
-	return NewProgramStore(newTestDB(t))
+	return NewProgramStore(testutil.NewDB(t))
 
 }
 
@@ -167,7 +168,7 @@ func TestProgramStore_GetDetail(t *testing.T) {
 	})
 
 	t.Run("returns full hierarchy", func(t *testing.T) {
-		db := newTestDB(t)
+		db := testutil.NewDB(t)
 		p, _ := NewProgramStore(db).Create("Strength")
 		ps, _ := NewProgramSetStore(db).Create(p.ID, nil, 3, nil, nil)
 		e, _ := NewExerciseStore(db).Create("Pull-up", nil)

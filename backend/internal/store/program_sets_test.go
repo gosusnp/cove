@@ -8,11 +8,12 @@ import (
 	"testing"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
+	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
 func newTestProgramSetStore(t *testing.T) (*ProgramSetStore, domain.ProgramID) {
 	t.Helper()
-	db := newTestDB(t)
+	db := testutil.NewDB(t)
 	ps := NewProgramSetStore(db)
 
 	// create a parent program for tests
@@ -40,7 +41,7 @@ func TestProgramSetStore_List(t *testing.T) {
 	})
 
 	t.Run("returns sets for program only", func(t *testing.T) {
-		db := newTestDB(t)
+		db := testutil.NewDB(t)
 		ps := NewProgramSetStore(db)
 		p1, _ := NewProgramStore(db).Create("Program 1")
 		p2, _ := NewProgramStore(db).Create("Program 2")
@@ -92,7 +93,7 @@ func TestProgramSetStore_Get(t *testing.T) {
 	})
 
 	t.Run("wrong program returns not found", func(t *testing.T) {
-		db := newTestDB(t)
+		db := testutil.NewDB(t)
 		ps := NewProgramSetStore(db)
 		p1, _ := NewProgramStore(db).Create("Program 1")
 		p2, _ := NewProgramStore(db).Create("Program 2")

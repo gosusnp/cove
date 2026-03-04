@@ -5,17 +5,6 @@ package store
 
 import "github.com/gosusnp/cove/backend/internal/domain"
 
-type Exercise struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
-}
-
-type ExerciseDetail struct {
-	ID          int64   `json:"id"`
-	Name        string  `json:"name"`
-	Progression *string `json:"progression,omitempty"`
-}
-
 type ProgramSet struct {
 	ID                  int64            `json:"id"`
 	ProgramID           domain.ProgramID `json:"program_id"`
@@ -26,12 +15,12 @@ type ProgramSet struct {
 }
 
 type ProgramExercise struct {
-	ID                    int64    `json:"id"`
-	ProgramSetID          int64    `json:"program_set_id"`
-	ExerciseID            int64    `json:"exercise_id"`
-	Laterality            *string  `json:"laterality,omitempty"`
-	TargetReps            *int     `json:"reps,omitempty"`
-	TargetDurationSeconds *int     `json:"duration_s,omitempty"`
-	TargetWeightKg        *float64 `json:"weight_kg,omitempty"`
-	SortOrder             *int     `json:"sort_order,omitempty"`
+	ID                    int64             `json:"id"`
+	ProgramSetID          int64             `json:"program_set_id"`
+	ExerciseID            domain.ExerciseID `json:"exercise_id"`
+	Laterality            *string           `json:"laterality,omitempty"`
+	TargetReps            *int              `json:"reps,omitempty"`
+	TargetDurationSeconds *int              `json:"duration_s,omitempty"`
+	TargetWeightKg        *float64          `json:"weight_kg,omitempty"`
+	SortOrder             *int              `json:"sort_order,omitempty"`
 }

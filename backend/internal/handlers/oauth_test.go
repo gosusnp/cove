@@ -13,7 +13,6 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/gosusnp/cove/backend/internal/db"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
 	"github.com/gosusnp/cove/backend/internal/testutil"
@@ -41,7 +40,7 @@ func fakeOAuthServer(t *testing.T, email, sub string) (tokenURL, userinfoURL str
 
 func newTestOAuthHandler(t *testing.T, allowed []string, tokenURL, userinfoURL string) (*OAuthHandler, *http.ServeMux, *sql.DB) {
 	t.Helper()
-	dbConn := testutil.NewDB(t, containerDSN, db.MigrationsFS)
+	dbConn := testutil.NewDB(t)
 	us := store.NewUserStore()
 	orgs := store.NewOrgStore()
 	svc := service.NewUserService(dbConn, us, orgs)

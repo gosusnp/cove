@@ -25,13 +25,20 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
+var (
+	testDSN        string
+	testMigrations embed.FS
+)
+
 // RunMain starts a PostgreSQL testcontainer, runs the tests, and shuts down the container.
 // If TEST_DATABASE_URL is set, it skips container management and uses the provided DSN.
-func RunMain(m *testing.M, dsnPtr *string) {
+func RunMain(m *testing.M, dsnPtr *string, migrations embed.FS) {
 	ctx := context.Background()
+	testMigrations = migrations
 
 	if dsn := os.Getenv("TEST_DATABASE_URL"); dsn != "" {
 		*dsnPtr = dsn
+		testDSN = dsn
 		os.Exit(m.Run())
 	}
 
@@ -40,6 +47,7 @@ func RunMain(m *testing.M, dsnPtr *string) {
 		panic(err)
 	}
 	*dsnPtr = dsn
+	testDSN = dsn
 
 	code := m.Run()
 	cleanup()
@@ -70,16 +78,22 @@ func StartContainer(ctx context.Context) (string, func(), error) {
 	return dsn, func() { _ = container.Terminate(ctx) }, nil
 }
 
-// NewDB creates an isolated test database with the given migrations applied.
-func NewDB(t *testing.T, dsn string, migrationsFS embed.FS) *sql.DB {
+// NewDB creates an isolated test database with the migrations provided to RunMain applied.
+func NewDB(t *testing.T) *sql.DB {
 	t.Helper()
-	return pgtestdb.New(t, parseConfig(dsn), &fsMigrator{fs: migrationsFS})
+	if testDSN == "" {
+		t.Fatal("testutil.NewDB called before RunMain or with empty DSN")
+	}
+	return pgtestdb.New(t, parseConfig(testDSN), &fsMigrator{fs: testMigrations})
 }
 
 // NewEmptyDB creates an isolated empty test database with no migrations applied.
-func NewEmptyDB(t *testing.T, dsn string) *sql.DB {
+func NewEmptyDB(t *testing.T) *sql.DB {
 	t.Helper()
-	return pgtestdb.New(t, parseConfig(dsn), pgtestdb.NoopMigrator{})
+	if testDSN == "" {
+		t.Fatal("testutil.NewEmptyDB called before RunMain or with empty DSN")
+	}
+	return pgtestdb.New(t, parseConfig(testDSN), pgtestdb.NoopMigrator{})
 }
 
 type fsMigrator struct {

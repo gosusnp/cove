@@ -14,7 +14,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gosusnp/cove/backend/internal/db"
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/middleware"
 	"github.com/gosusnp/cove/backend/internal/service"
@@ -45,7 +44,7 @@ type TestApp struct {
 func NewTestApp(t *testing.T) *TestApp {
 	t.Helper()
 
-	database := testutil.NewDB(t, containerDSN, db.MigrationsFS)
+	database := testutil.NewDB(t)
 
 	// Stores
 	exStore := store.NewExerciseStore(database)
@@ -121,7 +120,7 @@ func (a *TestApp) AuthRequest(method, path string, body any, userID domain.UserI
 	}
 
 	r := httptest.NewRequest(method, path, rbody)
-	token, err := a.Users.CreateSession(context.Background(), userID, "127.0.0.1", "test-agent", "Test OS")
+	token, _, err := a.Users.CreateSession(context.Background(), userID, "127.0.0.1", "test-agent", "Test OS")
 	if err != nil {
 		a.T.Fatalf("create session: %v", err)
 	}
@@ -140,7 +139,7 @@ func (a *TestApp) SeedUser(email, sub string) domain.UserID {
 }
 
 // SeedExercise creates an exercise and returns it.
-func (a *TestApp) SeedExercise(name string, progression *string) *store.ExerciseDetail {
+func (a *TestApp) SeedExercise(name string, progression *string) *domain.Exercise {
 	a.T.Helper()
 	ex, err := a.Exercises.Create(name, progression)
 	if err != nil {
@@ -170,7 +169,7 @@ func (a *TestApp) SeedProgramSet(programID domain.ProgramID, rounds int) *store.
 }
 
 // SeedProgramExercise adds an exercise to a set.
-func (a *TestApp) SeedProgramExercise(setID, exerciseID int64) *store.ProgramExercise {
+func (a *TestApp) SeedProgramExercise(setID int64, exerciseID domain.ExerciseID) *store.ProgramExercise {
 	a.T.Helper()
 	pe, err := a.ProgramExercises.Create(setID, exerciseID, nil, nil, nil, nil, nil)
 	if err != nil {

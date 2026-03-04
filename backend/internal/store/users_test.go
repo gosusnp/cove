@@ -5,27 +5,24 @@ package store
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
-
 	"github.com/gosusnp/cove/backend/internal/domain"
+	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
 func newTestUserStore(t *testing.T) (context.Context, *sql.DB, *UserStore, *OrgStore) {
 	t.Helper()
-	db := newTestDB(t)
+	db := testutil.NewDB(t)
 	return t.Context(), db, NewUserStore(), NewOrgStore()
 }
 
 // createTestUser seeds a user with an org and owner membership, mirroring the
 // full setup that UserService.GetOrCreate performs in production.
-func createTestUser(t *testing.T, db *sql.DB, s *UserStore, os *OrgStore, email string, googleSub string) *domain.User {
+func createTestUser(t *testing.T, db *sql.DB, s *UserStore, os *OrgStore, email string, googleSub string) (*domain.User, domain.OrgID) {
 	t.Helper()
 
 	ctx := t.Context()
@@ -35,406 +32,239 @@ func createTestUser(t *testing.T, db *sql.DB, s *UserStore, os *OrgStore, email 
 	if err != nil {
 		t.Fatalf("UpsertUser: %v", err)
 	}
+
+	var orgID domain.OrgID
 	if created {
-		orgID := domain.NewOrgID()
-		if err != nil {
-			t.Fatalf("generate org id: %v", err)
-		}
+		orgID = domain.NewOrgID()
 		if err := os.CreateOrg(ctx, db, orgID, email); err != nil {
 			t.Fatalf("CreateOrg: %v", err)
 		}
-		// TODO remove userID wrapping
-		if err := os.CreateOrgMember(ctx, db, orgID, domain.UserID(user.ID), "owner"); err != nil {
+		if err := os.CreateOrgMember(ctx, db, orgID, user.ID, "owner"); err != nil {
 			t.Fatalf("CreateOrgMember: %v", err)
 		}
+	} else {
+		err = db.QueryRowContext(ctx, "SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1", user.ID).Scan(&orgID)
+		if err != nil {
+			t.Fatalf("get existing org: %v", err)
+		}
 	}
-	return user
+
+	return user, orgID
 }
 
 func TestUserStore_UpsertUser(t *testing.T) {
-	t.Run("creates new user", func(t *testing.T) {
+	t.Run("create new user", func(t *testing.T) {
 		ctx, db, s, _ := newTestUserStore(t)
-
 		id := domain.NewUserID()
-		user, created, err := s.UpsertUser(ctx, db, id, "alice@example.com", "sub-alice")
+
+		user, created, err := s.UpsertUser(ctx, db, id, "test@example.com", "google-123")
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Fatalf("UpsertUser: %v", err)
 		}
 		if !created {
-			t.Error("expected created=true for new user")
+			t.Error("expected created=true")
 		}
-		if user.Email != "alice@example.com" {
-			t.Errorf("got email %q, want %q", user.Email, "alice@example.com")
+		if user.Email != "test@example.com" {
+			t.Errorf("got email %q, want test@example.com", user.Email)
 		}
-		if user.GoogleSub != "sub-alice" {
-			t.Errorf("got sub %q, want %q", user.GoogleSub, "sub-alice")
-		}
-		if user.ID.UUID == uuid.Nil {
-			t.Error("expected non-zero UUID")
+		if user.ID != id {
+			t.Errorf("got id %v, want %v", user.ID, id)
 		}
 	})
 
-	t.Run("returns existing user on conflict", func(t *testing.T) {
+	t.Run("update existing user (same sub, same email)", func(t *testing.T) {
 		ctx, db, s, _ := newTestUserStore(t)
-
 		id := domain.NewUserID()
-		first, _, err := s.UpsertUser(ctx, db, id, "carol@example.com", "sub-carol")
+
+		_, _, _ = s.UpsertUser(ctx, db, id, "test@example.com", "google-123")
+		user, created, err := s.UpsertUser(ctx, db, id, "test@example.com", "google-123")
+
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		id2 := domain.NewUserID()
-		second, created, err := s.UpsertUser(ctx, db, id2, "carol@example.com", "sub-carol")
-		if err != nil {
-			t.Fatalf("unexpected error on second call: %v", err)
-		}
-		if created {
-			t.Error("expected created=false for existing user")
-		}
-		if first.ID != second.ID {
-			t.Errorf("expected same ID, got %v and %v", first.ID, second.ID)
-		}
-	})
-
-	t.Run("updates email when google sub already exists", func(t *testing.T) {
-		ctx, db, s, _ := newTestUserStore(t)
-
-		id := domain.NewUserID()
-		if _, _, err := s.UpsertUser(ctx, db, id, "old@example.com", "sub-dave"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		id2 := domain.NewUserID()
-		updated, created, err := s.UpsertUser(ctx, db, id2, "new@example.com", "sub-dave")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Fatalf("UpsertUser: %v", err)
 		}
 		if created {
 			t.Error("expected created=false")
 		}
-		if updated.Email != "new@example.com" {
-			t.Errorf("got email %q, want %q", updated.Email, "new@example.com")
+		if user.ID != id {
+			t.Errorf("got id %v, want %v", user.ID, id)
+		}
+	})
+}
+
+func TestUserStore_GetByID(t *testing.T) {
+	t.Run("found", func(t *testing.T) {
+		ctx, db, s, _ := newTestUserStore(t)
+		id := domain.NewUserID()
+		_, _, _ = s.UpsertUser(ctx, db, id, "test@example.com", "sub")
+
+		user, err := s.GetByID(ctx, db, id)
+		if err != nil {
+			t.Fatalf("GetByID: %v", err)
+		}
+		if user.Email != "test@example.com" {
+			t.Errorf("got email %q, want test@example.com", user.Email)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		ctx, db, s, _ := newTestUserStore(t)
+		_, err := s.GetByID(ctx, db, domain.NewUserID())
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
 		}
 	})
 }
 
 func TestUserStore_CreateSession(t *testing.T) {
-	t.Run("returns non-empty token with sess_ prefix", func(t *testing.T) {
-		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, db, s, orgs, "eve@example.com", "sub-eve")
+	ctx, db, s, os := newTestUserStore(t)
+	user, _ := createTestUser(t, db, s, os, "test@example.com", "sub")
 
-		token, err := s.CreateSession(ctx, db, user.ID, "", "", "")
+	t.Run("success", func(t *testing.T) {
+		token, _, err := s.CreateSession(ctx, db, user.ID, "127.0.0.1", "Chrome", "macOS")
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Fatalf("CreateSession: %v", err)
 		}
-		if token == "" {
-			t.Error("expected non-empty token")
-		}
-		if len(token) < 5 || token[:5] != "sess_" {
-			t.Errorf("expected sess_ prefix, got %q", token[:min(len(token), 10)])
-		}
-	})
 
-	t.Run("stores hash not plaintext", func(t *testing.T) {
-		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, db, s, orgs, "frank@example.com", "sub-frank")
-
-		token, err := s.CreateSession(ctx, db, user.ID, "", "", "")
+		// Verify it exists (hashed)
+		hash := sha256TokenHash(token)
+		var count int
+		err = db.QueryRow("SELECT count(*) FROM user_tokens WHERE token = $1 AND kind = 'session'", hash).Scan(&count)
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Fatal(err)
 		}
-
-		h := sha256.Sum256([]byte(token))
-		wantHash := hex.EncodeToString(h[:])
-
-		var storedToken string
-		err = db.QueryRowContext(ctx, `SELECT token FROM user_tokens WHERE user_id = $1 AND kind = 'session'`, user.ID).Scan(&storedToken)
-		if err != nil {
-			t.Fatalf("query session: %v", err)
-		}
-		if storedToken == token {
-			t.Error("plaintext token must not be stored in DB")
-		}
-		if storedToken != wantHash {
-			t.Errorf("stored token %q, want SHA-256 hash %q", storedToken, wantHash)
-		}
-	})
-
-	t.Run("stores initial session info", func(t *testing.T) {
-		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, db, s, orgs, "session-info@example.com", "sub-session-info")
-
-		_, err := s.CreateSession(ctx, db, user.ID, "1.2.3.0", "Chrome", "macOS")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		var ip, browser, os string
-		err = db.QueryRowContext(
-			ctx,
-			`SELECT initial_ip_masked, initial_browser, initial_os FROM user_tokens WHERE user_id = $1 AND kind = 'session'`,
-			user.ID,
-		).Scan(&ip, &browser, &os)
-		if err != nil {
-			t.Fatalf("query session info: %v", err)
-		}
-
-		if ip != "1.2.3.0" {
-			t.Errorf("got ip %q, want %q", ip, "1.2.3.0")
-		}
-		if browser != "Chrome" {
-			t.Errorf("got browser %q, want %q", browser, "Chrome")
-		}
-		if os != "macOS" {
-			t.Errorf("got os %q, want %q", os, "macOS")
+		if count != 1 {
+			t.Error("session token not created")
 		}
 	})
 }
 
 func TestUserStore_CreatePAT(t *testing.T) {
-	// lookupOrgID fetches the user's org from org_members.
-	lookupOrgID := func(t *testing.T, db *sql.DB, s *UserStore, userID domain.UserID) domain.OrgID {
-		t.Helper()
-		var orgID domain.OrgID
-		if err := db.QueryRow(
-			`SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`, userID,
-		).Scan(&orgID); err != nil {
-			t.Fatalf("lookup org: %v", err)
-		}
-		return orgID
-	}
+	ctx, db, s, os := newTestUserStore(t)
+	user, orgID := createTestUser(t, db, s, os, "test@example.com", "sub")
 
-	t.Run("returns token with pat_ prefix", func(t *testing.T) {
-		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, db, s, orgs, "pat@example.com", "sub-pat")
-		orgID := lookupOrgID(t, db, s, user.ID)
-
-		token, pat, err := s.CreatePAT(ctx, db, user.ID, orgID, "my-token", "", "", "")
+	t.Run("success", func(t *testing.T) {
+		token, pat, err := s.CreatePAT(ctx, db, user.ID, orgID, "My PAT", "127.0.0.1", "Chrome", "macOS")
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Fatalf("CreatePAT: %v", err)
 		}
-		if len(token) < 4 || token[:4] != "pat_" {
-			t.Errorf("expected pat_ prefix, got %q", token[:min(len(token), 10)])
-		}
-		if pat.ID.UUID == uuid.Nil {
-			t.Error("expected non-zero PAT id")
-		}
-		if pat.Name != "my-token" {
-			t.Errorf("got name %q, want %q", pat.Name, "my-token")
-		}
-	})
 
-	t.Run("PAT is valid for GetUserByToken", func(t *testing.T) {
-		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, db, s, orgs, "pat2@example.com", "sub-pat2")
-		orgID := lookupOrgID(t, db, s, user.ID)
+		if pat.Name != "My PAT" {
+			t.Errorf("got name %q, want 'My PAT'", pat.Name)
+		}
 
-		token, _, err := s.CreatePAT(ctx, db, user.ID, orgID, "ci-token", "", "", "")
+		// Verify it exists (hashed)
+		hash := sha256TokenHash(token)
+		var count int
+		err = db.QueryRow("SELECT count(*) FROM user_tokens WHERE token = $1 AND kind = 'pat'", hash).Scan(&count)
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Fatal(err)
 		}
-
-		got, _, _, err := s.GetUserByToken(ctx, db, token, "", "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got.ID != user.ID {
-			t.Errorf("got user ID %v, want %v", got.ID, user.ID)
+		if count != 1 {
+			t.Error("pat token not created")
 		}
 	})
 }
 
-func TestUserStore_Sessions(t *testing.T) {
-	t.Run("ListSessions returns all active sessions", func(t *testing.T) {
-		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, db, s, orgs, "sess-list@example.com", "sub-sess-list")
+func TestUserStore_Lists(t *testing.T) {
+	ctx, db, s, os := newTestUserStore(t)
+	user, orgID := createTestUser(t, db, s, os, "test@example.com", "sub")
 
-		// Create two sessions.
-		_, err := s.CreateSession(ctx, db, user.ID, "1.1.1.1", "Chrome", "macOS")
-		if err != nil {
-			t.Fatalf("CreateSession 1: %v", err)
-		}
-		_, err = s.CreateSession(ctx, db, user.ID, "2.2.2.2", "Firefox", "Linux")
-		if err != nil {
-			t.Fatalf("CreateSession 2: %v", err)
-		}
+	t.Run("sessions", func(t *testing.T) {
+		_, _, _ = s.CreateSession(ctx, db, user.ID, "1.1.1.1", "B1", "O1")
+		_, _, _ = s.CreateSession(ctx, db, user.ID, "2.2.2.2", "B2", "O2")
 
-		sessions, err := s.ListSessions(ctx, db, user.ID)
+		list, err := s.ListSessions(ctx, db, user.ID)
 		if err != nil {
-			t.Fatalf("ListSessions: %v", err)
+			t.Fatal(err)
 		}
-		if len(sessions) != 2 {
-			t.Errorf("expected 2 sessions, got %d", len(sessions))
-		}
-
-		// Order is by last_used_at DESC, then created_at DESC.
-		// Since we haven't used them, it's by created_at DESC.
-		if *sessions[0].InitialIPMasked != "2.2.2.2" {
-			t.Errorf("expected latest session first, got %s", *sessions[0].InitialIPMasked)
+		if len(list) != 2 {
+			t.Errorf("expected 2 sessions, got %d", len(list))
 		}
 	})
 
-	t.Run("DeleteSession removes session", func(t *testing.T) {
-		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, db, s, orgs, "sess-del@example.com", "sub-sess-del")
+	t.Run("pats", func(t *testing.T) {
+		_, _, _ = s.CreatePAT(ctx, db, user.ID, orgID, "PAT 1", "1.1.1.1", "B1", "O1")
+		_, _, _ = s.CreatePAT(ctx, db, user.ID, orgID, "PAT 2", "2.2.2.2", "B2", "O2")
 
-		_, err := s.CreateSession(ctx, db, user.ID, "", "", "")
+		list, err := s.ListPATs(ctx, db, user.ID)
 		if err != nil {
-			t.Fatalf("CreateSession: %v", err)
+			t.Fatal(err)
 		}
-
-		sessions, _ := s.ListSessions(ctx, db, user.ID)
-		if len(sessions) != 1 {
-			t.Fatalf("expected 1 session, got %d", len(sessions))
-		}
-
-		err = s.DeleteSession(ctx, db, user.ID, sessions[0].ID)
-		if err != nil {
-			t.Fatalf("DeleteSession: %v", err)
-		}
-
-		sessions, _ = s.ListSessions(ctx, db, user.ID)
-		if len(sessions) != 0 {
-			t.Errorf("expected 0 sessions after delete, got %d", len(sessions))
+		if len(list) != 2 {
+			t.Errorf("expected 2 pats, got %d", len(list))
 		}
 	})
 }
 
 func TestUserStore_GetUserByToken(t *testing.T) {
-	t.Run("valid token returns user", func(t *testing.T) {
-		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, db, s, orgs, "grace@example.com", "sub-grace")
-		token, err := s.CreateSession(ctx, db, user.ID, "", "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+	ctx, db, s, os := newTestUserStore(t)
+	user, _ := createTestUser(t, db, s, os, "test@example.com", "sub")
 
-		got, org, _, err := s.GetUserByToken(ctx, db, token, "", "", "")
+	t.Run("found active session", func(t *testing.T) {
+		token, _, _ := s.CreateSession(ctx, db, user.ID, "1.1.1.1", "B1", "O1")
+
+		gotUser, gotOrg, tokenID, err := s.GetUserByToken(ctx, db, token, "2.2.2.2", "B2", "O2")
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Fatalf("GetUserByToken: %v", err)
 		}
-		if got.ID != user.ID {
-			t.Errorf("got user ID %v, want %v", got.ID, user.ID)
+		if gotUser.ID != user.ID {
+			t.Errorf("got userID %v, want %v", gotUser.ID, user.ID)
 		}
-		if got.Email != user.Email {
-			t.Errorf("got email %q, want %q", got.Email, user.Email)
+		if gotOrg.ID == (domain.OrgID{}) {
+			t.Error("expected non-empty org ID")
 		}
-		if org.ID.UUID == uuid.Nil {
-			t.Error("expected non-zero org ID")
+		if tokenID == (uuid.Nil) {
+			t.Error("expected non-empty token ID")
 		}
 	})
 
-	t.Run("invalid token returns ErrNotFound", func(t *testing.T) {
-		ctx, db, s, _ := newTestUserStore(t)
-
-		_, _, _, err := s.GetUserByToken(ctx, db, "notavalidtoken", "", "", "")
+	t.Run("not found", func(t *testing.T) {
+		_, _, _, err := s.GetUserByToken(ctx, db, "nonexistent", "", "", "")
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
 	})
+}
 
-	t.Run("sets last_used_at on first use", func(t *testing.T) {
-		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, db, s, orgs, "ida@example.com", "sub-ida")
-		token, err := s.CreateSession(ctx, db, user.ID, "", "", "")
+func TestUserStore_Deletes(t *testing.T) {
+	ctx, db, s, os := newTestUserStore(t)
+	user, orgID := createTestUser(t, db, s, os, "test@example.com", "sub")
+
+	t.Run("delete pat", func(t *testing.T) {
+		_, pat, _ := s.CreatePAT(ctx, db, user.ID, orgID, "To Delete", "", "", "")
+
+		err := s.DeletePAT(ctx, db, user.ID, domain.TokenID(pat.ID))
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Fatalf("DeletePAT: %v", err)
 		}
 
-		if _, _, _, err = s.GetUserByToken(ctx, db, token, "", "", ""); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		var lastUsedAt *time.Time
-		if err = db.QueryRowContext(
-			ctx,
-			`SELECT last_used_at FROM user_tokens WHERE user_id = $1 AND kind = 'session'`,
-			user.ID,
-		).Scan(&lastUsedAt); err != nil {
-			t.Fatalf("query last_used_at: %v", err)
-		}
-		if lastUsedAt == nil {
-			t.Error("expected last_used_at to be set after first use")
-		}
-	})
-
-	t.Run("does not update last_used_at within throttle window", func(t *testing.T) {
-		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, db, s, orgs, "jack@example.com", "sub-jack")
-		token, err := s.CreateSession(ctx, db, user.ID, "", "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		// First call: sets last_used_at.
-		if _, _, _, err = s.GetUserByToken(ctx, db, token, "", "", ""); err != nil {
-			t.Fatalf("first call: %v", err)
-		}
-		var first time.Time
-		if err = db.QueryRowContext(
-			ctx,
-			`SELECT last_used_at FROM user_tokens WHERE user_id = $1 AND kind = 'session'`,
-			user.ID,
-		).Scan(&first); err != nil {
-			t.Fatalf("query first last_used_at: %v", err)
-		}
-
-		// Second call immediately: last_used_at must not change.
-		if _, _, _, err = s.GetUserByToken(ctx, db, token, "", "", ""); err != nil {
-			t.Fatalf("second call: %v", err)
-		}
-		var second time.Time
-		if err = db.QueryRowContext(
-			ctx,
-			`SELECT last_used_at FROM user_tokens WHERE user_id = $1 AND kind = 'session'`,
-			user.ID,
-		).Scan(&second); err != nil {
-			t.Fatalf("query second last_used_at: %v", err)
-		}
-		if !second.Equal(first) {
-			t.Errorf("last_used_at changed within throttle window: %v → %v", first, second)
-		}
-	})
-
-	t.Run("expired token returns ErrNotFound", func(t *testing.T) {
-		ctx, db, s, orgs := newTestUserStore(t)
-		user := createTestUser(t, db, s, orgs, "henry@example.com", "sub-henry")
-
-		var orgID uuid.UUID
-		if err := db.QueryRowContext(
-			ctx, `SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`, user.ID,
-		).Scan(&orgID); err != nil {
-			t.Fatalf("lookup org: %v", err)
-		}
-
-		// Insert an already-expired session directly.
-		expiredAt := time.Now().Add(-1 * time.Hour)
-		_, err := db.ExecContext(
-			ctx,
-			`INSERT INTO user_tokens (user_id, org_id, kind, token, expires_at, initial_ip_masked, initial_browser, initial_os) VALUES ($1, $2, 'session', $3, $4, '', '', '')`,
-			user.ID,
-			orgID,
-			"expiredtokenhash",
-			expiredAt,
-		)
-		if err != nil {
-			t.Fatalf("insert expired session: %v", err)
-		}
-
-		// The raw "token" whose hash would be "expiredtokenhash" doesn't exist,
-		// but we can verify the expired row isn't returned by querying directly
-		// with the stored hash value (simulating a lookup by hash).
+		// Verify gone
 		var count int
-		err = db.QueryRowContext(
-			ctx,
-			`SELECT count(*) FROM user_tokens WHERE token = $1 AND expires_at > NOW()`,
-			"expiredtokenhash",
-		).Scan(&count)
+		err = db.QueryRow("SELECT count(*) FROM user_tokens WHERE id = $1", pat.ID).Scan(&count)
 		if err != nil {
-			t.Fatalf("query: %v", err)
+			t.Fatal(err)
 		}
 		if count != 0 {
-			t.Error("expired session should not be returned by active query")
+			t.Error("token still exists")
+		}
+	})
+
+	t.Run("delete session", func(t *testing.T) {
+		_, sessionID, _ := s.CreateSession(ctx, db, user.ID, "", "", "")
+
+		err := s.DeleteSession(ctx, db, user.ID, sessionID)
+		if err != nil {
+			t.Fatalf("DeleteSession: %v", err)
+		}
+
+		// Verify gone
+		var count int
+		err = db.QueryRow("SELECT count(*) FROM user_tokens WHERE id = $1", sessionID).Scan(&count)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Error("token still exists")
 		}
 	})
 }

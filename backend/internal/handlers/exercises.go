@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
 )
 
@@ -42,7 +43,7 @@ func (h *ExerciseHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ExerciseHandler) get(w http.ResponseWriter, r *http.Request) {
-	id, err := pathID[int64](r, "id")
+	id, err := pathID[domain.ExerciseID](r, "id")
 	if err != nil {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
@@ -79,7 +80,7 @@ func (h *ExerciseHandler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ExerciseHandler) update(w http.ResponseWriter, r *http.Request) {
-	id, err := pathID[int64](r, "id")
+	id, err := pathID[domain.ExerciseID](r, "id")
 	if err != nil {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
@@ -107,7 +108,7 @@ func (h *ExerciseHandler) update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ExerciseHandler) delete(w http.ResponseWriter, r *http.Request) {
-	id, err := pathID[int64](r, "id")
+	id, err := pathID[domain.ExerciseID](r, "id")
 	if err != nil {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return

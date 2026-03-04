@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -24,7 +25,7 @@ func registerProgramExerciseTools(server *mcp.Server, exercises *service.Program
 		TargetWeightKg        *float64 `json:"weight_kg,omitempty"`
 		SortOrder             *int     `json:"sort_order,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		pe, err := exercises.Create(params.SetID, params.ExerciseID, params.Laterality, params.TargetReps, params.TargetDurationSeconds, params.TargetWeightKg, params.SortOrder)
+		pe, err := exercises.Create(params.SetID, domain.ExerciseID(params.ExerciseID), params.Laterality, params.TargetReps, params.TargetDurationSeconds, params.TargetWeightKg, params.SortOrder)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -48,7 +49,7 @@ func registerProgramExerciseTools(server *mcp.Server, exercises *service.Program
 		TargetWeightKg        *float64 `json:"weight_kg,omitempty"`
 		SortOrder             *int     `json:"sort_order,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		pe, err := exercises.Update(params.SetID, params.ID, params.ExerciseID, params.Laterality, params.TargetReps, params.TargetDurationSeconds, params.TargetWeightKg, params.SortOrder)
+		pe, err := exercises.Update(params.SetID, params.ID, domain.ExerciseID(params.ExerciseID), params.Laterality, params.TargetReps, params.TargetDurationSeconds, params.TargetWeightKg, params.SortOrder)
 		if err != nil {
 			return nil, struct{}{}, err
 		}

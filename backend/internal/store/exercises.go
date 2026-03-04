@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -22,16 +23,16 @@ func NewExerciseStore(db *sql.DB) *ExerciseStore {
 	return &ExerciseStore{db: db}
 }
 
-func (s *ExerciseStore) List() ([]Exercise, error) {
+func (s *ExerciseStore) List() ([]domain.ExerciseLite, error) {
 	rows, err := s.db.Query(`SELECT id, name FROM exercises ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("list exercises: %w", err)
 	}
 	defer rows.Close()
 
-	exercises := []Exercise{}
+	exercises := []domain.ExerciseLite{}
 	for rows.Next() {
-		var e Exercise
+		var e domain.ExerciseLite
 		if err := rows.Scan(&e.ID, &e.Name); err != nil {
 			return nil, fmt.Errorf("scan exercise: %w", err)
 		}
@@ -40,8 +41,8 @@ func (s *ExerciseStore) List() ([]Exercise, error) {
 	return exercises, rows.Err()
 }
 
-func (s *ExerciseStore) Get(id int64) (*ExerciseDetail, error) {
-	var e ExerciseDetail
+func (s *ExerciseStore) Get(id domain.ExerciseID) (*domain.Exercise, error) {
+	var e domain.Exercise
 	err := s.db.QueryRow(`SELECT id, name, progression FROM exercises WHERE id = $1`, id).
 		Scan(&e.ID, &e.Name, &e.Progression)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -58,8 +59,8 @@ func isUniqueConstraintErr(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
-func (s *ExerciseStore) Create(name string, progression *string) (*ExerciseDetail, error) {
-	var id int64
+func (s *ExerciseStore) Create(name string, progression *string) (*domain.Exercise, error) {
+	var id domain.ExerciseID
 	err := s.db.QueryRow(
 		`INSERT INTO exercises (name, progression) VALUES ($1, $2) RETURNING id`,
 		name, progression,
@@ -73,7 +74,7 @@ func (s *ExerciseStore) Create(name string, progression *string) (*ExerciseDetai
 	return s.Get(id)
 }
 
-func (s *ExerciseStore) Update(id int64, name string, progression *string) (*ExerciseDetail, error) {
+func (s *ExerciseStore) Update(id domain.ExerciseID, name string, progression *string) (*domain.Exercise, error) {
 	res, err := s.db.Exec(
 		`UPDATE exercises SET name = $1, progression = $2 WHERE id = $3`,
 		name, progression, id,
@@ -94,7 +95,7 @@ func (s *ExerciseStore) Update(id int64, name string, progression *string) (*Exe
 	return s.Get(id)
 }
 
-func (s *ExerciseStore) Delete(id int64) error {
+func (s *ExerciseStore) Delete(id domain.ExerciseID) error {
 	res, err := s.db.Exec(`DELETE FROM exercises WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("delete exercise: %w", err)

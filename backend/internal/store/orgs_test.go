@@ -9,25 +9,28 @@ import (
 	"testing"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
+	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
-func setupTestOrgStore(t *testing.T) (context.Context, *sql.DB, *OrgStore) {
+func newTestOrgStore(t *testing.T) (context.Context, *sql.DB, *OrgStore) {
 	t.Helper()
-	return t.Context(), newTestDB(t), NewOrgStore()
+	return t.Context(), testutil.NewDB(t), NewOrgStore()
 }
 
 func TestOrgStore_CreateOrg(t *testing.T) {
-
-	t.Run("creates org successfully", func(t *testing.T) {
-		ctx, db, os := setupTestOrgStore(t)
-
+	t.Run("success", func(t *testing.T) {
+		ctx, db, s := newTestOrgStore(t)
 		id := domain.NewOrgID()
-		if err := os.CreateOrg(ctx, db, id, "test@example.com"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+
+		err := s.CreateOrg(ctx, db, id, "test@example.com")
+		if err != nil {
+			t.Fatalf("CreateOrg: %v", err)
 		}
 
+		// Verify it was created
 		var count int
-		if err := db.QueryRowContext(ctx, `SELECT count(*) FROM orgs WHERE id = $1`, id).Scan(&count); err != nil {
+		err = db.QueryRow("SELECT count(*) FROM orgs WHERE id = $1", id).Scan(&count)
+		if err != nil {
 			t.Fatalf("query: %v", err)
 		}
 		if count != 1 {
@@ -37,31 +40,35 @@ func TestOrgStore_CreateOrg(t *testing.T) {
 }
 
 func TestOrgStore_CreateOrgMember(t *testing.T) {
-	t.Run("creates membership successfully", func(t *testing.T) {
-		ctx, db, os := setupTestOrgStore(t)
-		us := NewUserStore()
-
-		userID := domain.NewUserID()
-		user, _, err := us.UpsertUser(ctx, db, userID, "member@example.com", "sub-member")
-		if err != nil {
-			t.Fatalf("UpsertUser: %v", err)
-		}
-
+	t.Run("success", func(t *testing.T) {
+		ctx, db, s := newTestOrgStore(t)
 		orgID := domain.NewOrgID()
-		if err := os.CreateOrg(ctx, db, orgID, "member@example.com"); err != nil {
-			t.Fatalf("CreateOrg: %v", err)
-		}
-		// TODO remove userID wrapping
-		if err := os.CreateOrgMember(ctx, db, orgID, domain.UserID(user.ID), "owner"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		userID := domain.NewUserID()
+
+		// Setup org first
+		if err := s.CreateOrg(ctx, db, orgID, "test@example.com"); err != nil {
+			t.Fatal(err)
 		}
 
-		var role string
-		if err := db.QueryRowContext(ctx, `SELECT role FROM org_members WHERE org_id = $1 AND user_id = $2`, orgID, user.ID).Scan(&role); err != nil {
+		// Setup user first (required by FK)
+		_, _, err := NewUserStore().UpsertUser(ctx, db, userID, "test@example.com", "sub")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = s.CreateOrgMember(ctx, db, orgID, userID, "owner")
+		if err != nil {
+			t.Fatalf("CreateOrgMember: %v", err)
+		}
+
+		// Verify it was created
+		var count int
+		err = db.QueryRow("SELECT count(*) FROM org_members WHERE org_id = $1 AND user_id = $2", orgID, userID).Scan(&count)
+		if err != nil {
 			t.Fatalf("query: %v", err)
 		}
-		if role != "owner" {
-			t.Errorf("got role %q, want %q", role, "owner")
+		if count != 1 {
+			t.Errorf("expected 1 member, got %d", count)
 		}
 	})
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -33,7 +34,7 @@ func registerExerciseTools(server *mcp.Server, exercises *service.ExerciseServic
 	}, func(_ context.Context, _ *mcp.CallToolRequest, params struct {
 		ID int64 `json:"id"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		exercise, err := exercises.Get(params.ID)
+		exercise, err := exercises.Get(domain.ExerciseID(params.ID))
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -70,7 +71,7 @@ func registerExerciseTools(server *mcp.Server, exercises *service.ExerciseServic
 		Name        string  `json:"name"`
 		Progression *string `json:"progression,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		exercise, err := exercises.Update(params.ID, params.Name, params.Progression)
+		exercise, err := exercises.Update(domain.ExerciseID(params.ID), params.Name, params.Progression)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -87,7 +88,7 @@ func registerExerciseTools(server *mcp.Server, exercises *service.ExerciseServic
 	}, func(_ context.Context, _ *mcp.CallToolRequest, params struct {
 		ID int64 `json:"id"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		if err := exercises.Delete(params.ID); err != nil {
+		if err := exercises.Delete(domain.ExerciseID(params.ID)); err != nil {
 			return nil, struct{}{}, err
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "deleted"}}}, struct{}{}, nil

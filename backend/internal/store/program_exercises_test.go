@@ -8,18 +8,19 @@ import (
 	"testing"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
+	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
 type programExerciseFixture struct {
 	store      *ProgramExerciseStore
 	programID  domain.ProgramID
 	setID      int64
-	exerciseID int64
+	exerciseID domain.ExerciseID
 }
 
 func newProgramExerciseFixture(t *testing.T) programExerciseFixture {
 	t.Helper()
-	db := newTestDB(t)
+	db := testutil.NewDB(t)
 
 	p, err := NewProgramStore(db).Create("Test Program")
 	if err != nil {
@@ -58,7 +59,7 @@ func TestProgramExerciseStore_List(t *testing.T) {
 	})
 
 	t.Run("returns exercises for set only", func(t *testing.T) {
-		db := newTestDB(t)
+		db := testutil.NewDB(t)
 		p, _ := NewProgramStore(db).Create("Program")
 		set1, _ := NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
 		set2, _ := NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
@@ -112,7 +113,7 @@ func TestProgramExerciseStore_Get(t *testing.T) {
 	})
 
 	t.Run("wrong set returns not found", func(t *testing.T) {
-		db := newTestDB(t)
+		db := testutil.NewDB(t)
 		p, _ := NewProgramStore(db).Create("Program")
 		set1, _ := NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
 		set2, _ := NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
@@ -173,7 +174,7 @@ func TestProgramExerciseStore_Create(t *testing.T) {
 
 func TestProgramExerciseStore_Update(t *testing.T) {
 	t.Run("updates fields", func(t *testing.T) {
-		db := newTestDB(t)
+		db := testutil.NewDB(t)
 		p, _ := NewProgramStore(db).Create("Program")
 		ps, _ := NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
 		e1, _ := NewExerciseStore(db).Create("Pull-up", nil)

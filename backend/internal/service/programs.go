@@ -14,12 +14,12 @@ import (
 )
 
 type ProgramExerciseInput struct {
-	ExerciseID            int64    `json:"exercise_id"`
-	Laterality            *string  `json:"laterality,omitempty"`
-	TargetReps            *int     `json:"reps,omitempty"`
-	TargetDurationSeconds *int     `json:"duration_s,omitempty"`
-	TargetWeightKg        *float64 `json:"weight_kg,omitempty"`
-	SortOrder             *int     `json:"sort_order,omitempty"`
+	ExerciseID            domain.ExerciseID `json:"exercise_id"`
+	Laterality            *string           `json:"laterality,omitempty"`
+	TargetReps            *int              `json:"reps,omitempty"`
+	TargetDurationSeconds *int              `json:"duration_s,omitempty"`
+	TargetWeightKg        *float64          `json:"weight_kg,omitempty"`
+	SortOrder             *int              `json:"sort_order,omitempty"`
 }
 
 type ProgramSetInput struct {
@@ -134,8 +134,8 @@ func (s *ProgramService) CreateFull(name string, sets []ProgramSetInput) (*domai
 
 func (s *ProgramService) validateExerciseIDs(sets []ProgramSetInput) error {
 	// Collect unique IDs preserving insertion order for deterministic error messages.
-	seen := map[int64]bool{}
-	var ids []int64
+	seen := map[domain.ExerciseID]bool{}
+	var ids []domain.ExerciseID
 	for _, set := range sets {
 		for _, ex := range set.Exercises {
 			if !seen[ex.ExerciseID] {
@@ -161,9 +161,9 @@ func (s *ProgramService) validateExerciseIDs(sets []ProgramSetInput) error {
 	}
 	defer rows.Close()
 
-	found := map[int64]bool{}
+	found := map[domain.ExerciseID]bool{}
 	for rows.Next() {
-		var id int64
+		var id domain.ExerciseID
 		if err := rows.Scan(&id); err != nil {
 			return fmt.Errorf("scan exercise id: %w", err)
 		}

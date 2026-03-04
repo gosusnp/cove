@@ -6,6 +6,7 @@ package service
 import (
 	"errors"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
@@ -22,29 +23,29 @@ func (s *ProgramExerciseService) List(setID int64) ([]store.ProgramExercise, err
 }
 
 func (s *ProgramExerciseService) Get(setID, id int64) (*store.ProgramExercise, error) {
-	e, err := s.store.Get(setID, id)
+	pe, err := s.store.Get(setID, id)
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, ErrNotFound
 	}
-	return e, err
+	return pe, err
 }
 
-func (s *ProgramExerciseService) Create(setID, exerciseID int64, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*store.ProgramExercise, error) {
+func (s *ProgramExerciseService) Create(setID int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*store.ProgramExercise, error) {
 	if exerciseID == 0 {
 		return nil, &ValidationError{Msg: "exercise_id is required"}
 	}
 	return s.store.Create(setID, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder)
 }
 
-func (s *ProgramExerciseService) Update(setID, id, exerciseID int64, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*store.ProgramExercise, error) {
+func (s *ProgramExerciseService) Update(setID, id int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*store.ProgramExercise, error) {
 	if exerciseID == 0 {
 		return nil, &ValidationError{Msg: "exercise_id is required"}
 	}
-	e, err := s.store.Update(setID, id, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder)
+	pe, err := s.store.Update(setID, id, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder)
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, ErrNotFound
 	}
-	return e, err
+	return pe, err
 }
 
 func (s *ProgramExerciseService) Delete(setID, id int64) error {

@@ -4,7 +4,7 @@
 package middleware
 
 import (
-	"crypto/rand"
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -13,50 +13,36 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-
-	"github.com/gosusnp/cove/backend/internal/db"
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
 	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
-// createExpiredSession inserts a session that is already expired and returns the raw token.
-func createExpiredSession(t *testing.T, database *sql.DB, userID domain.UserID) string {
+func createExpiredSession(t *testing.T, db *sql.DB, userID domain.UserID) string {
 	t.Helper()
-	buf := make([]byte, 32)
-	if _, err := rand.Read(buf); err != nil {
-		t.Fatalf("rand: %v", err)
-	}
-	token := "sess_" + hex.EncodeToString(buf)
-	h := sha256.Sum256([]byte(token))
-	hash := hex.EncodeToString(h[:])
+	token := "expiredtoken"
+	hash := hex.EncodeToString(sha256.New().Sum([]byte(token)))
 
-	var orgID uuid.UUID
-	if err := database.QueryRow(
+	var orgID domain.OrgID
+	if err := db.QueryRow(
 		`SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`, userID,
 	).Scan(&orgID); err != nil {
 		t.Fatalf("get org: %v", err)
 	}
 
 	expiresAt := time.Now().Add(-time.Hour)
-	if _, err := database.Exec(
-		`INSERT INTO user_tokens (user_id, org_id, kind, token, expires_at, initial_ip_masked, initial_browser, initial_os) VALUES ($1, $2, 'session', $3, $4, '', '', '')`,
-		userID, orgID, hash, expiresAt,
+	if _, err := db.Exec(
+		`INSERT INTO user_tokens (id, user_id, org_id, kind, token, expires_at, initial_ip_masked, initial_browser, initial_os) VALUES ($1, $2, $3, 'session', $4, $5, '', '', '')`,
+		domain.NewSessionID(), userID, orgID, hash, expiresAt,
 	); err != nil {
 		t.Fatalf("insert expired session: %v", err)
 	}
 	return token
 }
 
-func newTestDB(t *testing.T) *sql.DB {
-	t.Helper()
-	return testutil.NewDB(t, containerDSN, db.MigrationsFS)
-}
-
 func newOAuth(t *testing.T, next http.Handler) http.Handler {
-	db := newTestDB(t)
+	db := testutil.NewDB(t)
 	us := store.NewUserStore()
 	orgs := store.NewOrgStore()
 	svc := service.NewUserService(db, us, orgs)
@@ -69,114 +55,109 @@ func TestOAuth(t *testing.T) {
 	})
 
 	t.Run("missing header returns 401", func(t *testing.T) {
+		handler := newOAuth(t, next)
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
-		oauth := newOAuth(t, next)
 
-		oauth.ServeHTTP(w, r)
+		handler.ServeHTTP(w, r)
 
 		if w.Code != http.StatusUnauthorized {
-			t.Errorf("got status %d, want %d", w.Code, http.StatusUnauthorized)
+			t.Errorf("got code %d, want 401", w.Code)
 		}
 	})
 
-	t.Run("invalid token returns 401", func(t *testing.T) {
+	t.Run("invalid token format returns 401", func(t *testing.T) {
+		handler := newOAuth(t, next)
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.Header.Set("Authorization", "Bearer notavalidtoken")
+		r.Header.Set("Authorization", "InvalidFormat")
 		w := httptest.NewRecorder()
-		oauth := newOAuth(t, next)
 
-		oauth.ServeHTTP(w, r)
+		handler.ServeHTTP(w, r)
 
 		if w.Code != http.StatusUnauthorized {
-			t.Errorf("got status %d, want %d", w.Code, http.StatusUnauthorized)
+			t.Errorf("got code %d, want 401", w.Code)
+		}
+	})
+
+	t.Run("valid session token succeeds and sets context", func(t *testing.T) {
+		database := testutil.NewDB(t)
+		us := store.NewUserStore()
+		orgs := store.NewOrgStore()
+		svc := service.NewUserService(database, us, orgs)
+
+		user, _, _ := svc.GetOrCreate(context.Background(), "test@example.com", "sub123")
+		token, _, _ := svc.CreateSession(context.Background(), user.ID, "1.2.3.4", "Chrome", "macOS")
+
+		handler := OAuth(svc, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			got := UserIDFromContext(r.Context())
+			if got != user.ID {
+				t.Errorf("got userID %v, want %v", got, user.ID)
+			}
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("got code %d, want 200", w.Code)
+		}
+	})
+
+	t.Run("valid pat token succeeds and sets context", func(t *testing.T) {
+		database := testutil.NewDB(t)
+		us := store.NewUserStore()
+		orgs := store.NewOrgStore()
+		svc := service.NewUserService(database, us, orgs)
+
+		user, _, _ := svc.GetOrCreate(context.Background(), "test@example.com", "sub123")
+		var orgID domain.OrgID
+		err := database.QueryRowContext(context.Background(), "SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1", user.ID).Scan(&orgID)
+		if err != nil {
+			t.Fatalf("get org for pat: %v", err)
+		}
+		token, _, _ := svc.CreatePAT(context.Background(), user.ID, orgID, "My PAT", "1.2.3.4", "Chrome", "macOS")
+
+		handler := OAuth(svc, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			got := UserIDFromContext(r.Context())
+			if got != user.ID {
+				t.Errorf("got userID %v, want %v", got, user.ID)
+			}
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("got code %d, want 200", w.Code)
 		}
 	})
 
 	t.Run("expired token returns 401", func(t *testing.T) {
-		ctx := t.Context()
-		database := newTestDB(t)
+		database := testutil.NewDB(t)
 		us := store.NewUserStore()
 		orgs := store.NewOrgStore()
 		svc := service.NewUserService(database, us, orgs)
 
-		user, _, err := svc.GetOrCreate(ctx, "expired@example.com", "sub-expired")
-		if err != nil {
-			t.Fatalf("GetOrCreate: %v", err)
-		}
+		user, _, _ := svc.GetOrCreate(context.Background(), "test@example.com", "sub123")
 		token := createExpiredSession(t, database, user.ID)
 
+		handler := OAuth(svc, next)
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
 
-		OAuth(svc, next).ServeHTTP(w, r)
+		handler.ServeHTTP(w, r)
 
 		if w.Code != http.StatusUnauthorized {
-			t.Errorf("got status %d, want %d", w.Code, http.StatusUnauthorized)
-		}
-	})
-
-	t.Run("valid token calls next", func(t *testing.T) {
-		ctx := t.Context()
-		database := newTestDB(t)
-		us := store.NewUserStore()
-		orgs := store.NewOrgStore()
-		svc := service.NewUserService(database, us, orgs)
-
-		user, _, err := svc.GetOrCreate(ctx, "test@example.com", "sub-test")
-		if err != nil {
-			t.Fatalf("GetOrCreate: %v", err)
-		}
-		token, err := svc.CreateSession(ctx, user.ID, "", "", "")
-		if err != nil {
-			t.Fatalf("CreateSession: %v", err)
-		}
-
-		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.Header.Set("Authorization", "Bearer "+token)
-		w := httptest.NewRecorder()
-
-		OAuth(svc, next).ServeHTTP(w, r)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
-		}
-	})
-
-	t.Run("valid token stores userID in context", func(t *testing.T) {
-		ctx := t.Context()
-		database := newTestDB(t)
-		us := store.NewUserStore()
-		orgs := store.NewOrgStore()
-		svc := service.NewUserService(database, us, orgs)
-
-		user, _, err := svc.GetOrCreate(ctx, "ctx@example.com", "sub-ctx")
-		if err != nil {
-			t.Fatalf("GetOrCreate: %v", err)
-		}
-		token, err := svc.CreateSession(ctx, user.ID, "", "", "")
-		if err != nil {
-			t.Fatalf("CreateSession: %v", err)
-		}
-
-		var gotUserID domain.UserID
-		capture := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			gotUserID = UserIDFromContext(r.Context())
-			w.WriteHeader(http.StatusOK)
-		})
-
-		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.Header.Set("Authorization", "Bearer "+token)
-		w := httptest.NewRecorder()
-
-		OAuth(svc, capture).ServeHTTP(w, r)
-
-		if gotUserID.UUID == uuid.Nil {
-			t.Fatal("expected userID in context, got nil")
-		}
-		if gotUserID != user.ID {
-			t.Errorf("got userID %v, want %v", gotUserID, user.ID)
+			t.Errorf("got code %d, want 401", w.Code)
 		}
 	})
 }

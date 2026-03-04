@@ -15,11 +15,11 @@ import (
 var containerDSN string
 
 func TestMain(m *testing.M) {
-	testutil.RunMain(m, &containerDSN)
+	testutil.RunMain(m, &containerDSN, MigrationsFS)
 }
 
 func TestMigrations_Roundtrip(t *testing.T) {
-	db := testutil.NewEmptyDB(t, containerDSN)
+	db := testutil.NewEmptyDB(t)
 
 	driver, err := migratepostgres.WithInstance(db, &migratepostgres.Config{})
 	if err != nil {

@@ -32,12 +32,31 @@ type ProgramSet struct {
 }
 
 type ProgramExercise struct {
-	ID                    int64    `json:"id"`
-	ExerciseID            int64    `json:"exercise_id"`
-	Name                  string   `json:"name"`
-	Laterality            *string  `json:"laterality,omitempty"`
-	TargetReps            *int     `json:"reps,omitempty"`
-	TargetDurationSeconds *int     `json:"duration_s,omitempty"`
-	TargetWeightKg        *float64 `json:"weight_kg,omitempty"`
-	SortOrder             *int     `json:"sort_order,omitempty"`
+	ID                    int64      `json:"id"`
+	ExerciseID            ExerciseID `json:"exercise_id"`
+	Name                  string     `json:"name"`
+	Laterality            *string    `json:"laterality,omitempty"`
+	TargetReps            *int       `json:"reps,omitempty"`
+	TargetDurationSeconds *int       `json:"duration_s,omitempty"`
+	TargetWeightKg        *float64   `json:"weight_kg,omitempty"`
+	SortOrder             *int       `json:"sort_order,omitempty"`
+}
+
+// -----------------------------------------------------------------------------
+// Exercise
+// -----------------------------------------------------------------------------
+
+type ExerciseID IntID[struct{ exercise struct{} }]
+
+// Exercise is the complete exercise definition.
+type Exercise struct {
+	ID          ExerciseID `json:"id"`
+	Name        string     `json:"name"`
+	Progression *string    `json:"progression,omitempty"`
+}
+
+// ExerciseLite is a trimmed version of an exercise.
+type ExerciseLite struct {
+	ID   ExerciseID `json:"id"`
+	Name string     `json:"name"`
 }

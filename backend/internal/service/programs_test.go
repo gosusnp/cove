@@ -7,12 +7,53 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
+	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
 func newTestProgramService(t *testing.T) *ProgramService {
 	t.Helper()
-	return NewProgramService(newTestDB(t))
+	return NewProgramService(testutil.NewDB(t))
+}
+
+func TestProgramService_List(t *testing.T) {
+	t.Run("returns all programs", func(t *testing.T) {
+		svc := newTestProgramService(t)
+		_, _ = svc.Create("Strength")
+		_, _ = svc.Create("Hypertrophy")
+
+		list, err := svc.List()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(list) != 2 {
+			t.Errorf("expected 2 programs, got %d", len(list))
+		}
+	})
+}
+
+func TestProgramService_GetDetail(t *testing.T) {
+	t.Run("found", func(t *testing.T) {
+		svc := newTestProgramService(t)
+		created, _ := svc.Create("Strength")
+
+		got, err := svc.GetDetail(created.ID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.Name != "Strength" {
+			t.Errorf("got %q, want Strength", got.Name)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		svc := newTestProgramService(t)
+		_, err := svc.GetDetail(domain.ProgramID(999))
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
 }
 
 func TestProgramService_Create(t *testing.T) {
@@ -44,7 +85,7 @@ func TestProgramService_Create(t *testing.T) {
 
 func TestProgramService_CreateFull(t *testing.T) {
 	t.Run("creates full hierarchy atomically", func(t *testing.T) {
-		db := newTestDB(t)
+		db := testutil.NewDB(t)
 		svc := NewProgramService(db)
 		e, err := store.NewExerciseStore(db).Create("Pull-up", nil)
 		if err != nil {
@@ -123,6 +164,19 @@ func TestProgramService_CreateFull(t *testing.T) {
 }
 
 func TestProgramService_Update(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		svc := newTestProgramService(t)
+		p, _ := svc.Create("Strength")
+
+		updated, err := svc.Update(p.ID, "New Name")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if updated.Name != "New Name" {
+			t.Errorf("got %q, want New Name", updated.Name)
+		}
+	})
+
 	t.Run("empty name returns ValidationError", func(t *testing.T) {
 		svc := newTestProgramService(t)
 		p, err := svc.Create("Strength")
@@ -134,6 +188,37 @@ func TestProgramService_Update(t *testing.T) {
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("got %v, want ValidationError", err)
+		}
+	})
+
+	t.Run("not found returns ErrNotFound", func(t *testing.T) {
+		svc := newTestProgramService(t)
+		_, err := svc.Update(domain.ProgramID(999), "Valid Name")
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func TestProgramService_Delete(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		svc := newTestProgramService(t)
+		p, _ := svc.Create("Strength")
+
+		if err := svc.Delete(p.ID); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		_, err := svc.GetDetail(p.ID)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("expected ErrNotFound, got %v", err)
+		}
+	})
+
+	t.Run("not found returns ErrNotFound", func(t *testing.T) {
+		svc := newTestProgramService(t)
+		err := svc.Delete(domain.ProgramID(999))
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
 		}
 	})
 }

@@ -27,7 +27,8 @@ type OAuthHandler struct {
 
 func (h *OAuthHandler) createSession(r *http.Request, userID domain.UserID) (string, error) {
 	ip, browser, os := httputil.FromRequest(r)
-	return h.userSvc.CreateSession(r.Context(), userID, ip, browser, os)
+	token, _, err := h.userSvc.CreateSession(r.Context(), userID, ip, browser, os)
+	return token, err
 }
 
 func NewOAuthHandler(cfg *oauth2.Config, svc *service.UserService, allowed []string) *OAuthHandler {

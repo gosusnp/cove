@@ -7,6 +7,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
@@ -22,11 +23,11 @@ func NewExerciseService(s *store.ExerciseStore) *ExerciseService {
 	return &ExerciseService{store: s}
 }
 
-func (s *ExerciseService) List() ([]store.Exercise, error) {
+func (s *ExerciseService) List() ([]domain.ExerciseLite, error) {
 	return s.store.List()
 }
 
-func (s *ExerciseService) Get(id int64) (*store.ExerciseDetail, error) {
+func (s *ExerciseService) Get(id domain.ExerciseID) (*domain.Exercise, error) {
 	e, err := s.store.Get(id)
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, ErrNotFound
@@ -34,7 +35,7 @@ func (s *ExerciseService) Get(id int64) (*store.ExerciseDetail, error) {
 	return e, err
 }
 
-func (s *ExerciseService) Create(name string, progression *string) (*store.ExerciseDetail, error) {
+func (s *ExerciseService) Create(name string, progression *string) (*domain.Exercise, error) {
 	name = normalizeName(name)
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
@@ -46,7 +47,7 @@ func (s *ExerciseService) Create(name string, progression *string) (*store.Exerc
 	return e, err
 }
 
-func (s *ExerciseService) Update(id int64, name string, progression *string) (*store.ExerciseDetail, error) {
+func (s *ExerciseService) Update(id domain.ExerciseID, name string, progression *string) (*domain.Exercise, error) {
 	name = normalizeName(name)
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
@@ -61,7 +62,7 @@ func (s *ExerciseService) Update(id int64, name string, progression *string) (*s
 	return e, err
 }
 
-func (s *ExerciseService) Delete(id int64) error {
+func (s *ExerciseService) Delete(id domain.ExerciseID) error {
 	if err := s.store.Delete(id); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return ErrNotFound

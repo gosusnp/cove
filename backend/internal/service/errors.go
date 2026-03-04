@@ -3,10 +3,12 @@
 
 package service
 
-import "errors"
+import (
+	"github.com/gosusnp/cove/backend/internal/store"
+)
 
-var ErrNotFound = errors.New("not found")
-var ErrDuplicate = errors.New("duplicate")
+var ErrNotFound = store.ErrNotFound
+var ErrDuplicate = store.ErrDuplicate
 
 type ValidationError struct{ Msg string }
 

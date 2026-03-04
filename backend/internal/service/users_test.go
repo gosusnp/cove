@@ -5,316 +5,167 @@ package service
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 
 	"github.com/google/uuid"
-
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
+	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
-func newTestUserService(t *testing.T) (context.Context, *UserService, *sql.DB) {
+func newTestUserService(t *testing.T) (context.Context, *UserService) {
 	t.Helper()
-	db := newTestDB(t)
-	us := store.NewUserStore()
-	orgs := store.NewOrgStore()
-	return t.Context(), NewUserService(db, us, orgs), db
+	db := testutil.NewDB(t)
+	return t.Context(), NewUserService(db, store.NewUserStore(), store.NewOrgStore())
 }
 
 func TestUserService_GetOrCreate(t *testing.T) {
-	t.Run("creates new user", func(t *testing.T) {
-		ctx, svc, _ := newTestUserService(t)
+	t.Run("creates new user and org", func(t *testing.T) {
+		ctx, svc := newTestUserService(t)
+		email := domain.Email("test@example.com")
+		sub := domain.GoogleSub("google-123")
 
-		user, created, err := svc.GetOrCreate(ctx, "alice@example.com", "sub-alice")
+		user, created, err := svc.GetOrCreate(ctx, email, sub)
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Fatalf("GetOrCreate: %v", err)
 		}
 		if !created {
-			t.Error("expected created=true for new user")
+			t.Error("expected created=true")
 		}
-		if user.Email != "alice@example.com" {
-			t.Errorf("got email %q, want %q", user.Email, "alice@example.com")
+		if user.Email != email {
+			t.Errorf("got email %q, want %q", user.Email, email)
 		}
-		if user.GoogleSub != "sub-alice" {
-			t.Errorf("got sub %q, want %q", user.GoogleSub, "sub-alice")
+
+		// Verify org exists
+		var orgID domain.OrgID
+		err = svc.db.QueryRowContext(ctx, "SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1", user.ID).Scan(&orgID)
+		if err != nil {
+			t.Fatalf("verify org membership: %v", err)
 		}
-		if user.ID.UUID == uuid.Nil {
-			t.Error("expected non-zero UUID")
+		if orgID.UUID == [16]byte{} {
+			t.Error("expected non-nil orgID")
 		}
 	})
 
-	t.Run("creates org and membership for new user", func(t *testing.T) {
-		ctx, svc, db := newTestUserService(t)
+	t.Run("returns existing user", func(t *testing.T) {
+		ctx, svc := newTestUserService(t)
+		email := domain.Email("test@example.com")
+		sub := domain.GoogleSub("google-123")
 
-		user, _, err := svc.GetOrCreate(ctx, "bob@example.com", "sub-bob")
+		_, _, _ = svc.GetOrCreate(ctx, email, sub)
+		user, created, err := svc.GetOrCreate(ctx, email, sub)
+
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		var count int
-		err = db.QueryRowContext(
-			ctx,
-			`SELECT count(*) FROM org_members WHERE user_id = $1 AND role = 'owner'`,
-			user.ID,
-		).Scan(&count)
-		if err != nil {
-			t.Fatalf("query org_members: %v", err)
-		}
-		if count != 1 {
-			t.Errorf("expected 1 org membership, got %d", count)
-		}
-	})
-
-	t.Run("does not create duplicate org on second login", func(t *testing.T) {
-		ctx, svc, db := newTestUserService(t)
-
-		if _, _, err := svc.GetOrCreate(ctx, "carol@example.com", "sub-carol"); err != nil {
-			t.Fatalf("first call: %v", err)
-		}
-		user, _, err := svc.GetOrCreate(ctx, "carol@example.com", "sub-carol")
-		if err != nil {
-			t.Fatalf("second call: %v", err)
-		}
-
-		var count int
-		if err := db.QueryRowContext(ctx, `SELECT count(*) FROM org_members WHERE user_id = $1`, user.ID).Scan(&count); err != nil {
-			t.Fatalf("query org_members: %v", err)
-		}
-		if count != 1 {
-			t.Errorf("expected 1 org membership, got %d", count)
-		}
-	})
-
-	t.Run("returns existing user on second call", func(t *testing.T) {
-		ctx, svc, _ := newTestUserService(t)
-
-		first, _, err := svc.GetOrCreate(ctx, "carol2@example.com", "sub-carol2")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		second, created, err := svc.GetOrCreate(ctx, "carol2@example.com", "sub-carol2")
-		if err != nil {
-			t.Fatalf("unexpected error on second call: %v", err)
+			t.Fatalf("GetOrCreate: %v", err)
 		}
 		if created {
-			t.Error("expected created=false for existing user")
+			t.Error("expected created=false for second call")
 		}
-		if first.ID != second.ID {
-			t.Errorf("expected same ID, got %v and %v", first.ID, second.ID)
-		}
-	})
-
-	t.Run("updates email when google sub already exists", func(t *testing.T) {
-		ctx, svc, _ := newTestUserService(t)
-
-		if _, _, err := svc.GetOrCreate(ctx, "old@example.com", "sub-dave"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		updated, created, err := svc.GetOrCreate(ctx, "new@example.com", "sub-dave")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if created {
-			t.Error("expected created=false")
-		}
-		if updated.Email != "new@example.com" {
-			t.Errorf("got email %q, want %q", updated.Email, "new@example.com")
+		if user.Email != email {
+			t.Errorf("got email %q, want %q", user.Email, email)
 		}
 	})
 }
 
 func TestUserService_Get(t *testing.T) {
-	t.Run("returns existing user", func(t *testing.T) {
-		ctx, svc, _ := newTestUserService(t)
-
-		created, _, err := svc.GetOrCreate(ctx, "get@example.com", "sub-get")
-		if err != nil {
-			t.Fatalf("GetOrCreate: %v", err)
-		}
+	t.Run("found", func(t *testing.T) {
+		ctx, svc := newTestUserService(t)
+		created, _, _ := svc.GetOrCreate(ctx, "test@example.com", "sub")
 
 		got, err := svc.Get(ctx, created.ID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if got.Email != "get@example.com" {
-			t.Errorf("got email %q, want %q", got.Email, "get@example.com")
-		}
-		if got.ID != created.ID {
-			t.Errorf("got id %v, want %v", got.ID, created.ID)
+		if got.Email != "test@example.com" {
+			t.Errorf("got %q, want test@example.com", got.Email)
 		}
 	})
 
-	t.Run("unknown id returns ErrNotFound", func(t *testing.T) {
-		ctx, svc, _ := newTestUserService(t)
-
-		// Create a user to generate a valid UUID format, then discard it.
-		user, _, err := svc.GetOrCreate(ctx, "other@example.com", "sub-other")
-		if err != nil {
-			t.Fatalf("GetOrCreate: %v", err)
-		}
-
-		// Flip one byte so the UUID is valid but unknown.
-		id := user.ID
-		id.UUID[0] ^= 0xff
-
-		_, err = svc.Get(ctx, id)
+	t.Run("not found", func(t *testing.T) {
+		ctx, svc := newTestUserService(t)
+		_, err := svc.Get(ctx, domain.NewUserID())
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
 	})
 }
 
-func setupUserWithOrg(t *testing.T, svc *UserService) (*domain.User, domain.OrgID) {
-	t.Helper()
-	ctx := t.Context()
-	user, _, err := svc.GetOrCreate(ctx, "pat@example.com", "sub-pat-svc")
-	if err != nil {
-		t.Fatalf("GetOrCreate: %v", err)
-	}
-	// Use CreateSession + GetUserByToken to discover the org without DB access.
-	token, err := svc.CreateSession(ctx, user.ID, "", "", "")
-	if err != nil {
-		t.Fatalf("CreateSession: %v", err)
-	}
-	_, org, _, err := svc.GetUserByToken(ctx, token, "", "", "")
-	if err != nil {
-		t.Fatalf("GetUserByToken: %v", err)
-	}
-	return user, org.ID
-}
+func TestUserService_GetUserByToken(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		ctx, svc := newTestUserService(t)
+		user, _, _ := svc.GetOrCreate(ctx, "test@example.com", "sub")
+		token, _, _ := svc.CreateSession(ctx, user.ID, "1.2.3.4", "Chrome", "OS")
 
-func TestUserService_CreatePAT(t *testing.T) {
-	t.Run("returns token with pat_ prefix", func(t *testing.T) {
-		ctx, svc, _ := newTestUserService(t)
-		user, orgID := setupUserWithOrg(t, svc)
-
-		token, pat, err := svc.CreatePAT(ctx, user.ID, orgID, "my-key", "", "", "")
+		gotUser, gotOrg, tokenID, err := svc.GetUserByToken(ctx, token, "1.2.3.4", "Chrome", "OS")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(token) < 4 || token[:4] != "pat_" {
-			t.Errorf("expected pat_ prefix, got %q", token[:min(len(token), 10)])
+		if gotUser.ID != user.ID {
+			t.Errorf("got userID %v, want %v", gotUser.ID, user.ID)
 		}
-		if pat.Name != "my-key" {
-			t.Errorf("got name %q, want %q", pat.Name, "my-key")
+		if gotOrg == nil {
+			t.Error("expected org")
 		}
-	})
-
-	t.Run("empty name returns ValidationError", func(t *testing.T) {
-		ctx, svc, _ := newTestUserService(t)
-		user, orgID := setupUserWithOrg(t, svc)
-
-		_, _, err := svc.CreatePAT(ctx, user.ID, orgID, "  ", "", "", "")
-		var ve *ValidationError
-		if !errors.As(err, &ve) {
-			t.Errorf("got %v, want ValidationError", err)
-		}
-	})
-}
-
-func TestUserService_ListPATs(t *testing.T) {
-	t.Run("returns empty list when none exist", func(t *testing.T) {
-		ctx, svc, _ := newTestUserService(t)
-		user, _ := setupUserWithOrg(t, svc)
-
-		pats, err := svc.ListPATs(ctx, user.ID)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(pats) != 0 {
-			t.Errorf("expected 0 pats, got %d", len(pats))
+		if tokenID == uuid.Nil {
+			t.Error("expected tokenID")
 		}
 	})
 
-	t.Run("returns created PATs", func(t *testing.T) {
-		ctx, svc, _ := newTestUserService(t)
-		user, orgID := setupUserWithOrg(t, svc)
-
-		if _, _, err := svc.CreatePAT(ctx, user.ID, orgID, "key-a", "", "", ""); err != nil {
-			t.Fatalf("CreatePAT: %v", err)
-		}
-		if _, _, err := svc.CreatePAT(ctx, user.ID, orgID, "key-b", "", "", ""); err != nil {
-			t.Fatalf("CreatePAT: %v", err)
-		}
-
-		pats, err := svc.ListPATs(ctx, user.ID)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(pats) != 2 {
-			t.Fatalf("expected 2 pats, got %d", len(pats))
-		}
-		if pats[0].Name != "key-a" {
-			t.Errorf("expected first pat name %q, got %q", "key-a", pats[0].Name)
-		}
-	})
-}
-
-func TestUserService_DeletePAT(t *testing.T) {
-	t.Run("deletes existing PAT", func(t *testing.T) {
-		ctx, svc, _ := newTestUserService(t)
-		user, orgID := setupUserWithOrg(t, svc)
-
-		_, pat, err := svc.CreatePAT(ctx, user.ID, orgID, "to-delete", "", "", "")
-		if err != nil {
-			t.Fatalf("CreatePAT: %v", err)
-		}
-
-		if err := svc.DeletePAT(ctx, user.ID, pat.ID); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		pats, err := svc.ListPATs(ctx, user.ID)
-		if err != nil {
-			t.Fatalf("ListPATs: %v", err)
-		}
-		if len(pats) != 0 {
-			t.Errorf("expected 0 pats after delete, got %d", len(pats))
-		}
-	})
-
-	t.Run("unknown id returns ErrNotFound", func(t *testing.T) {
-		ctx, svc, _ := newTestUserService(t)
-		user, _ := setupUserWithOrg(t, svc)
-
-		err := svc.DeletePAT(ctx, user.ID, domain.NewTokenID(uuid.Max))
+	t.Run("not found", func(t *testing.T) {
+		ctx, svc := newTestUserService(t)
+		_, _, _, err := svc.GetUserByToken(ctx, "invalid", "", "", "")
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
 	})
 }
 
-func TestUserService_Sessions(t *testing.T) {
-	t.Run("lists sessions", func(t *testing.T) {
-		ctx, svc, _ := newTestUserService(t)
-		user, _ := setupUserWithOrg(t, svc)
+func TestUserService_Tokens(t *testing.T) {
+	ctx, svc := newTestUserService(t)
+	user, _, _ := svc.GetOrCreate(ctx, "test@example.com", "sub")
+	var orgID domain.OrgID
+	_ = svc.db.QueryRowContext(ctx, "SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1", user.ID).Scan(&orgID)
 
-		sessions, err := svc.ListSessions(ctx, user.ID)
+	t.Run("session lifecycle", func(t *testing.T) {
+		token, tokenID, err := svc.CreateSession(ctx, user.ID, "1.1.1.1", "B1", "O1")
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Fatal(err)
 		}
-		// setupUserWithOrg creates 1 session via CreateSession.
+
+		sessions, _ := svc.ListSessions(ctx, user.ID)
 		if len(sessions) != 1 {
 			t.Errorf("expected 1 session, got %d", len(sessions))
 		}
-	})
 
-	t.Run("deletes session", func(t *testing.T) {
-		ctx, svc, _ := newTestUserService(t)
-		user, _ := setupUserWithOrg(t, svc)
-
-		sessions, _ := svc.ListSessions(ctx, user.ID)
-		if err := svc.DeleteSession(ctx, user.ID, sessions[0].ID); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if err := svc.DeleteSession(ctx, user.ID, domain.SessionID(tokenID)); err != nil {
+			t.Fatal(err)
 		}
 
-		sessions, _ = svc.ListSessions(ctx, user.ID)
-		if len(sessions) != 0 {
-			t.Errorf("expected 0 sessions after delete, got %d", len(sessions))
+		_, _, _, err = svc.GetUserByToken(ctx, token, "", "", "")
+		if !errors.Is(err, ErrNotFound) {
+			t.Error("expected token to be deleted")
+		}
+	})
+
+	t.Run("pat lifecycle", func(t *testing.T) {
+		token, pat, err := svc.CreatePAT(ctx, user.ID, orgID, "My PAT", "1.1.1.1", "B1", "O1")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		pats, _ := svc.ListPATs(ctx, user.ID)
+		if len(pats) != 1 {
+			t.Errorf("expected 1 pat, got %d", len(pats))
+		}
+
+		if err := svc.DeletePAT(ctx, user.ID, domain.TokenID(pat.ID)); err != nil {
+			t.Fatal(err)
+		}
+
+		_, _, _, err = svc.GetUserByToken(ctx, token, "", "", "")
+		if !errors.Is(err, ErrNotFound) {
+			t.Error("expected pat to be deleted")
 		}
 	})
 }

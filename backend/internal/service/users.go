@@ -89,12 +89,12 @@ func (s *UserService) CreateSession(
 	ip domain.MaskedIP,
 	browser string,
 	os string,
-) (string, error) {
-	token, err := s.users.CreateSession(ctx, s.db, userID, ip, browser, os)
+) (string, domain.SessionID, error) {
+	token, sessionID, err := s.users.CreateSession(ctx, s.db, userID, ip, browser, os)
 	if err != nil {
-		return "", fmt.Errorf("create session: %w", err)
+		return "", domain.SessionID{}, fmt.Errorf("create session: %w", err)
 	}
-	return token, nil
+	return token, sessionID, nil
 }
 
 // CreatePAT creates a named PAT for the user. Returns the raw token (shown once) and the PAT metadata.

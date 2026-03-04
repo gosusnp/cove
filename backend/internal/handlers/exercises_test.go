@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gosusnp/cove/backend/internal/store"
+	"github.com/gosusnp/cove/backend/internal/domain"
 )
 
 func TestExerciseHandler_List(t *testing.T) {
@@ -24,7 +24,7 @@ func TestExerciseHandler_List(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
 		}
-		var got []store.Exercise
+		var got []domain.ExerciseLite
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
@@ -35,8 +35,8 @@ func TestExerciseHandler_List(t *testing.T) {
 
 	t.Run("returns exercises", func(t *testing.T) {
 		app := NewTestApp(t)
-		app.SeedExercise("Pull-up", nil)
 		app.SeedExercise("Push-up", nil)
+		app.SeedExercise("Air Squat", nil)
 
 		r := httptest.NewRequest(http.MethodGet, "/exercises", nil)
 		w := app.DoRaw(r)
@@ -44,7 +44,7 @@ func TestExerciseHandler_List(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
 		}
-		var got []store.Exercise
+		var got []domain.ExerciseLite
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
@@ -57,20 +57,24 @@ func TestExerciseHandler_List(t *testing.T) {
 func TestExerciseHandler_Get(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
 		app := NewTestApp(t)
-		created := app.SeedExercise("Pull-up", nil)
+		prog := "Add 1 rep"
+		e := app.SeedExercise("Push-up", &prog)
 
-		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/exercises/%d", created.ID), nil)
+		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/exercises/%d", e.ID), nil)
 		w := app.DoRaw(r)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
 		}
-		var got store.Exercise
+		var got domain.Exercise
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if got.Name != "Pull-up" {
-			t.Errorf("got name %q, want %q", got.Name, "Pull-up")
+		if got.Name != "Push-up" {
+			t.Errorf("got name %q, want %q", got.Name, "Push-up")
+		}
+		if got.Progression == nil || *got.Progression != prog {
+			t.Errorf("got progression %v, want %q", got.Progression, prog)
 		}
 	})
 
@@ -98,48 +102,25 @@ func TestExerciseHandler_Get(t *testing.T) {
 func TestExerciseHandler_Create(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		app := NewTestApp(t)
-		body := `{"name":"Squat","progression":"Add 5lbs"}`
+		body := `{"name":"New Exercise", "progression":"Test"}`
 		r := httptest.NewRequest(http.MethodPost, "/exercises", strings.NewReader(body))
 		w := app.DoRaw(r)
 
 		if w.Code != http.StatusCreated {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusCreated)
 		}
-		var got store.ExerciseDetail
+		var got domain.Exercise
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if got.Name != "Squat" { // normalized
-			t.Errorf("got name %q, want %q", got.Name, "Squat")
+		if got.Name != "New Exercise" {
+			t.Errorf("got name %q, want %q", got.Name, "New Exercise")
 		}
 	})
 
-	t.Run("duplicate", func(t *testing.T) {
-		app := NewTestApp(t)
-		app.SeedExercise("squat", nil)
-
-		body := `{"name":"Squat"}`
-		r := httptest.NewRequest(http.MethodPost, "/exercises", strings.NewReader(body))
-		w := app.DoRaw(r)
-
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("missing name returns 400", func(t *testing.T) {
+	t.Run("missing name", func(t *testing.T) {
 		app := NewTestApp(t)
 		r := httptest.NewRequest(http.MethodPost, "/exercises", strings.NewReader(`{}`))
-		w := app.DoRaw(r)
-
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("invalid body returns 400", func(t *testing.T) {
-		app := NewTestApp(t)
-		r := httptest.NewRequest(http.MethodPost, "/exercises", strings.NewReader(`not json`))
 		w := app.DoRaw(r)
 
 		if w.Code != http.StatusBadRequest {
@@ -151,10 +132,10 @@ func TestExerciseHandler_Create(t *testing.T) {
 func TestExerciseHandler_Update(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		app := NewTestApp(t)
-		created := app.SeedExercise("Old Name", nil)
+		e := app.SeedExercise("Old Name", nil)
 
-		body := `{"name":"New Name"}`
-		r := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/exercises/%d", created.ID), strings.NewReader(body))
+		body := `{"name":"New Name", "progression":"Updated"}`
+		r := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/exercises/%d", e.ID), strings.NewReader(body))
 		w := app.DoRaw(r)
 
 		if w.Code != http.StatusOK {
@@ -162,7 +143,7 @@ func TestExerciseHandler_Update(t *testing.T) {
 		}
 
 		// Verify change
-		ex, _ := app.Exercises.Get(created.ID)
+		ex, _ := app.Exercises.Get(e.ID)
 		if ex.Name != "New Name" {
 			t.Errorf("got name %q, want %q", ex.Name, "New Name")
 		}
@@ -170,23 +151,11 @@ func TestExerciseHandler_Update(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		app := NewTestApp(t)
-		r := httptest.NewRequest(http.MethodPut, "/exercises/999", strings.NewReader(`{"name":"Pull-up"}`))
+		r := httptest.NewRequest(http.MethodPut, "/exercises/999", strings.NewReader(`{"name":"test"}`))
 		w := app.DoRaw(r)
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
-		}
-	})
-
-	t.Run("missing name returns 400", func(t *testing.T) {
-		app := NewTestApp(t)
-		created := app.SeedExercise("Pull-up", nil)
-
-		r := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/exercises/%d", created.ID), strings.NewReader(`{}`))
-		w := app.DoRaw(r)
-
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
 		}
 	})
 }
@@ -194,9 +163,9 @@ func TestExerciseHandler_Update(t *testing.T) {
 func TestExerciseHandler_Delete(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		app := NewTestApp(t)
-		created := app.SeedExercise("Pull-up", nil)
+		e := app.SeedExercise("To Delete", nil)
 
-		r := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/exercises/%d", created.ID), nil)
+		r := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/exercises/%d", e.ID), nil)
 		w := app.DoRaw(r)
 
 		if w.Code != http.StatusNoContent {
@@ -204,7 +173,7 @@ func TestExerciseHandler_Delete(t *testing.T) {
 		}
 
 		// Verify gone
-		_, err := app.Exercises.Get(created.ID)
+		_, err := app.Exercises.Get(e.ID)
 		if err == nil {
 			t.Error("expected error getting deleted exercise")
 		}

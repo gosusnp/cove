@@ -4,27 +4,21 @@
 package store
 
 import (
-	"database/sql"
 	"errors"
 	"testing"
 
-	"github.com/gosusnp/cove/backend/internal/db"
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
-func newTestDB(t *testing.T) *sql.DB {
+func newTestExerciseStore(t *testing.T) *ExerciseStore {
 	t.Helper()
-	return testutil.NewDB(t, containerDSN, db.MigrationsFS)
-}
-
-func newTestStore(t *testing.T) *ExerciseStore {
-	t.Helper()
-	return NewExerciseStore(newTestDB(t))
+	return NewExerciseStore(testutil.NewDB(t))
 }
 
 func TestExerciseStore_List(t *testing.T) {
 	t.Run("empty returns empty slice not nil", func(t *testing.T) {
-		s := newTestStore(t)
+		s := newTestExerciseStore(t)
 
 		exercises, err := s.List()
 		if err != nil {
@@ -39,11 +33,11 @@ func TestExerciseStore_List(t *testing.T) {
 	})
 
 	t.Run("returns all exercises ordered by name", func(t *testing.T) {
-		s := newTestStore(t)
+		s := newTestExerciseStore(t)
 		if _, err := s.Create("Push-up", nil); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := s.Create("Pull-up", nil); err != nil {
+		if _, err := s.Create("Air Squat", nil); err != nil {
 			t.Fatal(err)
 		}
 
@@ -54,7 +48,7 @@ func TestExerciseStore_List(t *testing.T) {
 		if len(exercises) != 2 {
 			t.Fatalf("expected 2 exercises, got %d", len(exercises))
 		}
-		if exercises[0].Name != "Pull-up" || exercises[1].Name != "Push-up" {
+		if exercises[0].Name != "Air Squat" || exercises[1].Name != "Push-up" {
 			t.Errorf("unexpected order: %q, %q", exercises[0].Name, exercises[1].Name)
 		}
 	})
@@ -62,8 +56,9 @@ func TestExerciseStore_List(t *testing.T) {
 
 func TestExerciseStore_Get(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
-		s := newTestStore(t)
-		created, err := s.Create("Pull-up", nil)
+		s := newTestExerciseStore(t)
+		prog := "Add 1 rep each session"
+		created, err := s.Create("Push-up", &prog)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -72,15 +67,18 @@ func TestExerciseStore_Get(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if got.Name != "Pull-up" {
-			t.Errorf("got name %q, want %q", got.Name, "Pull-up")
+		if got.Name != "Push-up" {
+			t.Errorf("got name %q, want %q", got.Name, "Push-up")
+		}
+		if got.Progression == nil || *got.Progression != prog {
+			t.Errorf("got progression %v, want %q", got.Progression, prog)
 		}
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		s := newTestStore(t)
+		s := newTestExerciseStore(t)
 
-		_, err := s.Get(999)
+		_, err := s.Get(domain.ExerciseID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -88,89 +86,75 @@ func TestExerciseStore_Get(t *testing.T) {
 }
 
 func TestExerciseStore_Create(t *testing.T) {
-	t.Run("without progression", func(t *testing.T) {
-		s := newTestStore(t)
+	t.Run("creates with progression", func(t *testing.T) {
+		s := newTestExerciseStore(t)
+		prog := "Bodyweight"
 
-		e, err := s.Create("Pull-up", nil)
+		e, err := s.Create("Push-up", &prog)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if e.Name != "Pull-up" {
-			t.Errorf("got name %q, want %q", e.Name, "Pull-up")
+		if e.Name != "Push-up" {
+			t.Errorf("got name %q, want %q", e.Name, "Push-up")
+		}
+		if e.Progression == nil || *e.Progression != prog {
+			t.Errorf("got progression %v, want %q", e.Progression, prog)
+		}
+		if e.ID == domain.ExerciseID(0) {
+			t.Error("expected non-zero ID")
+		}
+	})
+
+	t.Run("creates without progression", func(t *testing.T) {
+		s := newTestExerciseStore(t)
+
+		e, err := s.Create("Push-up", nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
 		}
 		if e.Progression != nil {
 			t.Errorf("expected nil progression, got %v", e.Progression)
 		}
 	})
 
-	t.Run("with progression", func(t *testing.T) {
-		s := newTestStore(t)
-		prog := "weighted"
-
-		e, err := s.Create("Pull-up", &prog)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if e.Progression == nil || *e.Progression != "weighted" {
-			t.Errorf("got progression %v, want %q", e.Progression, "weighted")
-		}
-	})
-
-	t.Run("duplicate name returns error", func(t *testing.T) {
-		s := newTestStore(t)
-		if _, err := s.Create("Pull-up", nil); err != nil {
+	t.Run("duplicate name returns ErrDuplicate", func(t *testing.T) {
+		s := newTestExerciseStore(t)
+		if _, err := s.Create("Push-up", nil); err != nil {
 			t.Fatal(err)
 		}
 
-		_, err := s.Create("Pull-up", nil)
-		if err == nil {
-			t.Error("expected error for duplicate name, got nil")
+		_, err := s.Create("Push-up", nil)
+		if !errors.Is(err, ErrDuplicate) {
+			t.Errorf("got %v, want ErrDuplicate", err)
 		}
 	})
 }
 
 func TestExerciseStore_Update(t *testing.T) {
-	t.Run("updates name and progression", func(t *testing.T) {
-		s := newTestStore(t)
-		created, err := s.Create("Pull-up", nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		prog := "weighted"
-
-		updated, err := s.Update(created.ID, "Weighted Pull-up", &prog)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if updated.Name != "Weighted Pull-up" {
-			t.Errorf("got name %q, want %q", updated.Name, "Weighted Pull-up")
-		}
-		if updated.Progression == nil || *updated.Progression != "weighted" {
-			t.Errorf("got progression %v, want %q", updated.Progression, "weighted")
-		}
-	})
-
-	t.Run("clears progression when nil", func(t *testing.T) {
-		s := newTestStore(t)
-		prog := "weighted"
-		created, err := s.Create("Pull-up", &prog)
+	t.Run("updates fields", func(t *testing.T) {
+		s := newTestExerciseStore(t)
+		created, err := s.Create("Push-up", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		updated, err := s.Update(created.ID, "Pull-up", nil)
+		newProg := "Weight vest"
+		updated, err := s.Update(created.ID, "Hard Push-up", &newProg)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if updated.Progression != nil {
-			t.Errorf("expected nil progression, got %v", updated.Progression)
+		if updated.Name != "Hard Push-up" {
+			t.Errorf("got name %q, want %q", updated.Name, "Hard Push-up")
+		}
+		if updated.Progression == nil || *updated.Progression != newProg {
+			t.Errorf("got progression %v, want %q", updated.Progression, newProg)
 		}
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		s := newTestStore(t)
+		s := newTestExerciseStore(t)
 
-		_, err := s.Update(999, "Pull-up", nil)
+		_, err := s.Update(domain.ExerciseID(999), "Push-up", nil)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -179,8 +163,8 @@ func TestExerciseStore_Update(t *testing.T) {
 
 func TestExerciseStore_Delete(t *testing.T) {
 	t.Run("deletes existing", func(t *testing.T) {
-		s := newTestStore(t)
-		created, err := s.Create("Pull-up", nil)
+		s := newTestExerciseStore(t)
+		created, err := s.Create("Push-up", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -195,9 +179,9 @@ func TestExerciseStore_Delete(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		s := newTestStore(t)
+		s := newTestExerciseStore(t)
 
-		err := s.Delete(999)
+		err := s.Delete(domain.ExerciseID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
