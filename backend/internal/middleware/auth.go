@@ -15,12 +15,9 @@ import (
 	"github.com/gosusnp/cove/backend/internal/service"
 )
 
-type identityCtxKey struct{}
-
 // IdentityFromContext returns the identity stored in the request context.
 func IdentityFromContext(ctx context.Context) (*domain.Identity, bool) {
-	id, ok := ctx.Value(identityCtxKey{}).(*domain.Identity)
-	return id, ok
+	return domain.IdentityFromContext(ctx)
 }
 
 // UserIDFromContext returns the authenticated user ID stored in the request context.
@@ -73,7 +70,6 @@ func OAuth(uSvc *service.UserService, next http.Handler) http.Handler {
 			TokenID: tokenID,
 		}
 
-		ctx := context.WithValue(r.Context(), identityCtxKey{}, id)
-		next.ServeHTTP(w, r.WithContext(ctx))
+		next.ServeHTTP(w, r.WithContext(domain.NewContext(r.Context(), id)))
 	})
 }

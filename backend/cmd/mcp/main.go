@@ -16,20 +16,22 @@ import (
 )
 
 func main() {
-	dbPath := os.Getenv("COVE_DB_PATH")
-	if dbPath == "" {
-		dbPath = "cove.db"
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		log.Fatal("DATABASE_URL is required")
 	}
 
-	database := db.Open(dbPath)
+	database := db.Open(dbURL)
 	defer database.Close()
 
-	server := covemcp.NewServer(covemcp.Services{
-		Exercises:        service.NewExerciseService(store.NewExerciseStore(database)),
+	svcs := covemcp.Services{
+		Exercises:        service.NewExerciseService(database, store.NewExerciseStore()),
 		Programs:         service.NewProgramService(database),
 		ProgramSets:      service.NewProgramSetService(store.NewProgramSetStore(database)),
 		ProgramExercises: service.NewProgramExerciseService(store.NewProgramExerciseStore(database)),
-	})
+	}
+
+	server := covemcp.NewServer(svcs)
 
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		log.Fatal(err)

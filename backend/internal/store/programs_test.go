@@ -4,9 +4,11 @@
 package store
 
 import (
+	"context"
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/testutil"
 )
@@ -169,15 +171,45 @@ func TestProgramStore_GetDetail(t *testing.T) {
 
 	t.Run("returns full hierarchy", func(t *testing.T) {
 		db := testutil.NewDB(t)
-		p, _ := NewProgramStore(db).Create("Strength")
-		ps, _ := NewProgramSetStore(db).Create(p.ID, nil, 3, nil, nil)
-		e, _ := NewExerciseStore(db).Create("Pull-up", nil)
-		reps := 8
-		if _, err := NewProgramExerciseStore(db).Create(ps.ID, e.ID, nil, &reps, nil, nil, nil); err != nil {
+
+		// Create exercise with identity context and scoped transaction
+		// We'll use a dummy identity for seeding system data
+		uID := "019cb68a-cfcb-76db-9003-87bbcaaebe01"
+		oID := "019cb68a-cfce-7aa3-bdfb-9700ccaebe02"
+
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = tx.Rollback() }()
+
+		// Ensure user and org exist
+		_, _ = tx.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'sys@test.com', 'sys')`, uID)
+		_, _ = tx.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'sys-org')`, oID)
+
+		_, _ = tx.Exec(`INSERT INTO programs (id, name) VALUES ($1, 'Strength')`, 1)
+		_, _ = tx.Exec(`INSERT INTO program_sets (id, program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES ($1, $2, $3, $4, $5, $6)`, 1, 1, "Set 1", 3, 60, 1)
+
+		ctx := domain.NewContext(context.Background(), &domain.Identity{
+			UserID: domain.UserID{UUID: uuid.MustParse(uID)},
+			OrgID:  domain.OrgID{UUID: uuid.MustParse(oID)},
+		})
+
+		q := NewScopedQuerier(tx, oID, uID)
+		e, err := NewExerciseStore().Create(ctx, q, "Pull-up", nil, nil, true)
+		if err != nil {
 			t.Fatal(err)
 		}
 
-		detail, err := NewProgramStore(db).GetDetail(p.ID)
+		reps := 8
+		_, _ = tx.Exec(`INSERT INTO program_exercises (program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)`, 1, e.ID, nil, reps, nil, nil, 1)
+
+		if err := tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+
+		detail, err := NewProgramStore(db).GetDetail(domain.ProgramID(1))
+
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

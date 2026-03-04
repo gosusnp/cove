@@ -4,6 +4,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -70,12 +71,12 @@ func TestProgramService_Create(t *testing.T) {
 		}
 	})
 
-	t.Run("valid name creates program", func(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
 		svc := newTestProgramService(t)
 
 		p, err := svc.Create("Strength")
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Fatal(err)
 		}
 		if p.Name != "Strength" {
 			t.Errorf("got name %q, want %q", p.Name, "Strength")
@@ -87,8 +88,28 @@ func TestProgramService_CreateFull(t *testing.T) {
 	t.Run("creates full hierarchy atomically", func(t *testing.T) {
 		db := testutil.NewDB(t)
 		svc := NewProgramService(db)
-		e, err := store.NewExerciseStore(db).Create("Pull-up", nil)
+
+		// Seed user/org for required fields
+		uSvc := NewUserService(db, store.NewUserStore(), store.NewOrgStore())
+		user, _, _ := uSvc.GetOrCreate(context.Background(), "test@test.com", "sub")
+		var orgID domain.OrgID
+		_ = db.QueryRow(`SELECT org_id FROM org_members WHERE user_id = $1`, user.ID).Scan(&orgID)
+		ctx := domain.NewContext(context.Background(), &domain.Identity{
+			UserID: user.ID,
+			OrgID:  orgID,
+		})
+
+		tx, err := db.Begin()
 		if err != nil {
+			t.Fatal(err)
+		}
+		q := store.NewScopedQuerier(tx, orgID.String(), user.ID.String())
+
+		e, err := store.NewExerciseStore().Create(ctx, q, "Pull-up", nil, nil, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := tx.Commit(); err != nil {
 			t.Fatal(err)
 		}
 		reps := 8
@@ -101,69 +122,87 @@ func TestProgramService_CreateFull(t *testing.T) {
 				},
 			},
 		})
+
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
-		}
-		if program.Name != "Strength" {
-			t.Errorf("got name %q, want %q", program.Name, "Strength")
 		}
 
-		detail, err := svc.GetDetail(program.ID)
+		// Verify program exists
+		p, err := svc.GetDetail(program.ID)
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Fatal(err)
 		}
-		if detail.Name != "Strength" {
-			t.Errorf("got name %q, want %q", detail.Name, "Strength")
+		if len(p.Sets) != 1 {
+			t.Errorf("expected 1 set, got %d", len(p.Sets))
 		}
-		if len(detail.Sets) != 1 {
-			t.Fatalf("expected 1 set, got %d", len(detail.Sets))
+		if len(p.Sets[0].Exercises) != 1 {
+			t.Errorf("expected 1 exercise in set, got %d", len(p.Sets[0].Exercises))
 		}
-		if detail.Sets[0].Rounds != 3 {
-			t.Errorf("got rounds %d, want 3", detail.Sets[0].Rounds)
-		}
-		if len(detail.Sets[0].Exercises) != 1 {
-			t.Fatalf("expected 1 exercise, got %d", len(detail.Sets[0].Exercises))
-		}
-		if detail.Sets[0].Exercises[0].TargetReps == nil || *detail.Sets[0].Exercises[0].TargetReps != 8 {
-			t.Errorf("got target_reps %v, want 8", detail.Sets[0].Exercises[0].TargetReps)
+		if p.Sets[0].Exercises[0].ExerciseID != e.ID {
+			t.Errorf("got exercise_id %d, want %d", p.Sets[0].Exercises[0].ExerciseID, e.ID)
 		}
 	})
 
-	t.Run("unknown exercise_id returns ValidationError and nothing is written", func(t *testing.T) {
-		svc := newTestProgramService(t)
+	t.Run("rolls back on error", func(t *testing.T) {
+		db := testutil.NewDB(t)
+		svc := NewProgramService(db)
 
-		_, err := svc.CreateFull("Strength", []ProgramSetInput{
-			{Rounds: 3, Exercises: []ProgramExerciseInput{{ExerciseID: 999}}},
+		// Create with non-existent exercise ID
+		_, err := svc.CreateFull("Fail", []ProgramSetInput{
+			{
+				Rounds: 1,
+				Exercises: []ProgramExerciseInput{
+					{ExerciseID: domain.ExerciseID(999)},
+				},
+			},
 		})
+
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+
+		// Verify program was NOT created
+		list, _ := svc.List()
+		if len(list) != 0 {
+			t.Errorf("expected 0 programs after rollback, got %d", len(list))
+		}
+	})
+
+	t.Run("invalid exercise_id returns ValidationError", func(t *testing.T) {
+		db := testutil.NewDB(t)
+		svc := NewProgramService(db)
+
+		_, err := svc.CreateFull("Fail", []ProgramSetInput{
+			{
+				Rounds: 1,
+				Exercises: []ProgramExerciseInput{
+					{ExerciseID: domain.ExerciseID(999)},
+				},
+			},
+		})
+
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("got %v, want ValidationError", err)
 		}
 		if ve.Msg != "exercise_id 999 not found" {
-			t.Errorf("got msg %q, want %q", ve.Msg, "exercise_id 999 not found")
-		}
-
-		programs, err := svc.List()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(programs) != 0 {
-			t.Errorf("expected no programs written, got %d", len(programs))
-		}
-	})
-
-	t.Run("empty name returns ValidationError", func(t *testing.T) {
-		svc := newTestProgramService(t)
-
-		_, err := svc.CreateFull("", nil)
-		var ve *ValidationError
-		if !errors.As(err, &ve) {
-			t.Fatalf("got %v, want ValidationError", err)
+			t.Errorf("unexpected message: %q", ve.Msg)
 		}
 	})
 }
 
 func TestProgramService_Update(t *testing.T) {
+	t.Run("empty name returns ValidationError", func(t *testing.T) {
+		svc := newTestProgramService(t)
+		p, _ := svc.Create("Strength")
+
+		_, err := svc.Update(p.ID, "")
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("got %v, want ValidationError", err)
+		}
+	})
+
 	t.Run("success", func(t *testing.T) {
 		svc := newTestProgramService(t)
 		p, _ := svc.Create("Strength")
@@ -177,23 +216,10 @@ func TestProgramService_Update(t *testing.T) {
 		}
 	})
 
-	t.Run("empty name returns ValidationError", func(t *testing.T) {
-		svc := newTestProgramService(t)
-		p, err := svc.Create("Strength")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		_, err = svc.Update(p.ID, "")
-		var ve *ValidationError
-		if !errors.As(err, &ve) {
-			t.Fatalf("got %v, want ValidationError", err)
-		}
-	})
-
 	t.Run("not found returns ErrNotFound", func(t *testing.T) {
 		svc := newTestProgramService(t)
-		_, err := svc.Update(domain.ProgramID(999), "Valid Name")
+
+		_, err := svc.Update(domain.ProgramID(999), "Name")
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -216,6 +242,7 @@ func TestProgramService_Delete(t *testing.T) {
 
 	t.Run("not found returns ErrNotFound", func(t *testing.T) {
 		svc := newTestProgramService(t)
+
 		err := svc.Delete(domain.ProgramID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)

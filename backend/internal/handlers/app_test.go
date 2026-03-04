@@ -47,7 +47,7 @@ func NewTestApp(t *testing.T) *TestApp {
 	database := testutil.NewDB(t)
 
 	// Stores
-	exStore := store.NewExerciseStore(database)
+	exStore := store.NewExerciseStore()
 	_ = store.NewProgramStore(database)
 	psStore := store.NewProgramSetStore(database)
 	peStore := store.NewProgramExerciseStore(database)
@@ -55,7 +55,7 @@ func NewTestApp(t *testing.T) *TestApp {
 	oStore := store.NewOrgStore()
 
 	// Services
-	exSvc := service.NewExerciseService(exStore)
+	exSvc := service.NewExerciseService(database, exStore)
 	pSvc := service.NewProgramService(database)
 	psSvc := service.NewProgramSetService(psStore)
 	peSvc := service.NewProgramExerciseService(peStore)
@@ -138,12 +138,47 @@ func (a *TestApp) SeedUser(email, sub string) domain.UserID {
 	return u.ID
 }
 
-// SeedExercise creates an exercise and returns it.
+// SeedUserWithOrg creates a user and returns their ID and OrgID.
+func (a *TestApp) SeedUserWithOrg(email, sub string) (domain.UserID, domain.OrgID) {
+	a.T.Helper()
+	u, _, err := a.Users.GetOrCreate(context.Background(), domain.Email(email), domain.GoogleSub(sub))
+	if err != nil {
+		a.T.Fatalf("seed user: %v", err)
+	}
+	// Get org ID from org_members
+	var orgID domain.OrgID
+	err = a.DB.QueryRow(`SELECT org_id FROM org_members WHERE user_id = $1`, u.ID).Scan(&orgID)
+	if err != nil {
+		a.T.Fatalf("get seeded org: %v", err)
+	}
+	return u.ID, orgID
+}
+
+// SeedExercise creates a public exercise.
 func (a *TestApp) SeedExercise(name string, progression *string) *domain.Exercise {
 	a.T.Helper()
-	ex, err := a.Exercises.Create(name, progression)
+	// All exercises now require an org and user.
+	// We'll create/use a default "system" user for this seeder.
+	u, o := a.SeedUserWithOrg("system@test.com", "system-sub")
+	id := &domain.Identity{UserID: u, OrgID: o}
+	ctx := domain.NewContext(context.Background(), id)
+
+	ex, err := a.Exercises.Create(ctx, name, progression, nil, true)
 	if err != nil {
 		a.T.Fatalf("seed exercise: %v", err)
+	}
+	return ex
+}
+
+// SeedExerciseForUser creates an exercise owned by the user's org.
+func (a *TestApp) SeedExerciseForUser(ctx context.Context, name string, progression *string, userID domain.UserID, orgID domain.OrgID) *domain.Exercise {
+	a.T.Helper()
+	id := &domain.Identity{UserID: userID, OrgID: orgID}
+	authCtx := domain.NewContext(ctx, id)
+
+	ex, err := a.Exercises.Create(authCtx, name, progression, nil, false)
+	if err != nil {
+		a.T.Fatalf("seed exercise for user: %v", err)
 	}
 	return ex
 }

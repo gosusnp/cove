@@ -4,6 +4,7 @@
 package domain
 
 import (
+	"context"
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
@@ -17,6 +18,19 @@ type Identity struct {
 	UserID  UserID
 	OrgID   OrgID
 	TokenID uuid.UUID
+}
+
+type identityCtxKey struct{}
+
+// NewContext returns a new context with the given identity.
+func NewContext(ctx context.Context, id *Identity) context.Context {
+	return context.WithValue(ctx, identityCtxKey{}, id)
+}
+
+// IdentityFromContext returns the identity stored in the request context.
+func IdentityFromContext(ctx context.Context) (*Identity, bool) {
+	id, ok := ctx.Value(identityCtxKey{}).(*Identity)
+	return id, ok
 }
 
 // -----------------------------------------------------------------------------

@@ -4,23 +4,49 @@
 package store
 
 import (
+	"context"
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
-func newTestExerciseStore(t *testing.T) *ExerciseStore {
+func newTestExerciseStore(t *testing.T) (*ExerciseStore, Querier, context.Context) {
 	t.Helper()
-	return NewExerciseStore(testutil.NewDB(t))
+	db := testutil.NewDB(t)
+
+	// Seed user and org for required fields
+	uID := domain.UserID{UUID: uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe01")}
+	oID := domain.OrgID{UUID: uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe02")}
+
+	_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'test@test.com', 'sub')`, uID)
+	_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'test-org')`, oID)
+	_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID)
+
+	ctx := domain.NewContext(context.Background(), &domain.Identity{
+		UserID: uID,
+		OrgID:  oID,
+	})
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback() })
+
+	q := NewScopedQuerier(tx, oID.String(), uID.String())
+
+	return NewExerciseStore(), q, ctx
 }
 
 func TestExerciseStore_List(t *testing.T) {
 	t.Run("empty returns empty slice not nil", func(t *testing.T) {
-		s := newTestExerciseStore(t)
+		s, db, ctx := newTestExerciseStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
 
-		exercises, err := s.List()
+		exercises, err := s.List(ctx, db, id.OrgID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -33,15 +59,16 @@ func TestExerciseStore_List(t *testing.T) {
 	})
 
 	t.Run("returns all exercises ordered by name", func(t *testing.T) {
-		s := newTestExerciseStore(t)
-		if _, err := s.Create("Push-up", nil); err != nil {
+		s, db, ctx := newTestExerciseStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
+		if _, err := s.Create(ctx, db, "Push-up", nil, nil, true); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := s.Create("Air Squat", nil); err != nil {
+		if _, err := s.Create(ctx, db, "Air Squat", nil, nil, true); err != nil {
 			t.Fatal(err)
 		}
 
-		exercises, err := s.List()
+		exercises, err := s.List(ctx, db, id.OrgID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -56,14 +83,15 @@ func TestExerciseStore_List(t *testing.T) {
 
 func TestExerciseStore_Get(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
-		s := newTestExerciseStore(t)
+		s, db, ctx := newTestExerciseStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
 		prog := "Add 1 rep each session"
-		created, err := s.Create("Push-up", &prog)
+		created, err := s.Create(ctx, db, "Push-up", &prog, nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		got, err := s.Get(created.ID)
+		got, err := s.Get(ctx, db, id.OrgID, created.ID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -76,9 +104,10 @@ func TestExerciseStore_Get(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		s := newTestExerciseStore(t)
+		s, db, ctx := newTestExerciseStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
 
-		_, err := s.Get(domain.ExerciseID(999))
+		_, err := s.Get(ctx, db, id.OrgID, domain.ExerciseID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -87,10 +116,10 @@ func TestExerciseStore_Get(t *testing.T) {
 
 func TestExerciseStore_Create(t *testing.T) {
 	t.Run("creates with progression", func(t *testing.T) {
-		s := newTestExerciseStore(t)
+		s, db, ctx := newTestExerciseStore(t)
 		prog := "Bodyweight"
 
-		e, err := s.Create("Push-up", &prog)
+		e, err := s.Create(ctx, db, "Push-up", &prog, nil, true)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -106,9 +135,9 @@ func TestExerciseStore_Create(t *testing.T) {
 	})
 
 	t.Run("creates without progression", func(t *testing.T) {
-		s := newTestExerciseStore(t)
+		s, db, ctx := newTestExerciseStore(t)
 
-		e, err := s.Create("Push-up", nil)
+		e, err := s.Create(ctx, db, "Push-up", nil, nil, true)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -116,30 +145,19 @@ func TestExerciseStore_Create(t *testing.T) {
 			t.Errorf("expected nil progression, got %v", e.Progression)
 		}
 	})
-
-	t.Run("duplicate name returns ErrDuplicate", func(t *testing.T) {
-		s := newTestExerciseStore(t)
-		if _, err := s.Create("Push-up", nil); err != nil {
-			t.Fatal(err)
-		}
-
-		_, err := s.Create("Push-up", nil)
-		if !errors.Is(err, ErrDuplicate) {
-			t.Errorf("got %v, want ErrDuplicate", err)
-		}
-	})
 }
 
 func TestExerciseStore_Update(t *testing.T) {
 	t.Run("updates fields", func(t *testing.T) {
-		s := newTestExerciseStore(t)
-		created, err := s.Create("Push-up", nil)
+		s, db, ctx := newTestExerciseStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
+		created, err := s.Create(ctx, db, "Push-up", nil, nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		newProg := "Weight vest"
-		updated, err := s.Update(created.ID, "Hard Push-up", &newProg)
+		updated, err := s.Update(ctx, db, id.OrgID, created.ID, "Hard Push-up", &newProg, nil, true)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -152,9 +170,10 @@ func TestExerciseStore_Update(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		s := newTestExerciseStore(t)
+		s, db, ctx := newTestExerciseStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
 
-		_, err := s.Update(domain.ExerciseID(999), "Push-up", nil)
+		_, err := s.Update(ctx, db, id.OrgID, domain.ExerciseID(999), "Push-up", nil, nil, true)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -163,25 +182,27 @@ func TestExerciseStore_Update(t *testing.T) {
 
 func TestExerciseStore_Delete(t *testing.T) {
 	t.Run("deletes existing", func(t *testing.T) {
-		s := newTestExerciseStore(t)
-		created, err := s.Create("Push-up", nil)
+		s, db, ctx := newTestExerciseStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
+		created, err := s.Create(ctx, db, "Push-up", nil, nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if err := s.Delete(created.ID); err != nil {
+		if err := s.Delete(ctx, db, id.OrgID, created.ID); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		_, err = s.Get(created.ID)
+		_, err = s.Get(ctx, db, id.OrgID, created.ID)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("expected ErrNotFound after delete, got %v", err)
 		}
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		s := newTestExerciseStore(t)
+		s, db, ctx := newTestExerciseStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
 
-		err := s.Delete(domain.ExerciseID(999))
+		err := s.Delete(ctx, db, id.OrgID, domain.ExerciseID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}

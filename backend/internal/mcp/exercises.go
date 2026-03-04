@@ -16,8 +16,8 @@ func registerExerciseTools(server *mcp.Server, exercises *service.ExerciseServic
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_exercises",
 		Description: "List all exercises",
-	}, func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, struct{}, error) {
-		list, err := exercises.List()
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, struct{}, error) {
+		list, err := exercises.List(ctx)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -31,10 +31,10 @@ func registerExerciseTools(server *mcp.Server, exercises *service.ExerciseServic
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_exercise",
 		Description: "Get an exercise by ID",
-	}, func(_ context.Context, _ *mcp.CallToolRequest, params struct {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
 		ID int64 `json:"id"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		exercise, err := exercises.Get(domain.ExerciseID(params.ID))
+		exercise, err := exercises.Get(ctx, domain.ExerciseID(params.ID))
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -48,11 +48,13 @@ func registerExerciseTools(server *mcp.Server, exercises *service.ExerciseServic
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "create_exercise",
 		Description: "Create a new exercise",
-	}, func(_ context.Context, _ *mcp.CallToolRequest, params struct {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
 		Name        string  `json:"name"`
 		Progression *string `json:"progression,omitempty"`
+		Description *string `json:"description,omitempty"`
+		IsPublic    bool    `json:"is_public"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		exercise, err := exercises.Create(params.Name, params.Progression)
+		exercise, err := exercises.Create(ctx, params.Name, params.Progression, params.Description, params.IsPublic)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -65,13 +67,15 @@ func registerExerciseTools(server *mcp.Server, exercises *service.ExerciseServic
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "update_exercise",
-		Description: "Update an exercise's name or progression",
-	}, func(_ context.Context, _ *mcp.CallToolRequest, params struct {
+		Description: "Update an exercise's name, progression, description or visibility",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
 		ID          int64   `json:"id"`
 		Name        string  `json:"name"`
 		Progression *string `json:"progression,omitempty"`
+		Description *string `json:"description,omitempty"`
+		IsPublic    bool    `json:"is_public"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		exercise, err := exercises.Update(domain.ExerciseID(params.ID), params.Name, params.Progression)
+		exercise, err := exercises.Update(ctx, domain.ExerciseID(params.ID), params.Name, params.Progression, params.Description, params.IsPublic)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -85,10 +89,10 @@ func registerExerciseTools(server *mcp.Server, exercises *service.ExerciseServic
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "delete_exercise",
 		Description: "Delete an exercise by ID",
-	}, func(_ context.Context, _ *mcp.CallToolRequest, params struct {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
 		ID int64 `json:"id"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		if err := exercises.Delete(domain.ExerciseID(params.ID)); err != nil {
+		if err := exercises.Delete(ctx, domain.ExerciseID(params.ID)); err != nil {
 			return nil, struct{}{}, err
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "deleted"}}}, struct{}{}, nil

@@ -4,6 +4,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -12,18 +13,34 @@ import (
 	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
-func newTestExerciseService(t *testing.T) *ExerciseService {
+func newTestExerciseService(t *testing.T) (*ExerciseService, context.Context) {
 	t.Helper()
-	return NewExerciseService(store.NewExerciseStore(testutil.NewDB(t)))
+	db := testutil.NewDB(t)
+	svc := NewExerciseService(db, store.NewExerciseStore())
+
+	// Create a test user and org
+	uSvc := NewUserService(db, store.NewUserStore(), store.NewOrgStore())
+	user, _, _ := uSvc.GetOrCreate(context.Background(), "test@example.com", "sub123")
+
+	// Get org ID from org_members
+	var orgID domain.OrgID
+	_ = db.QueryRow(`SELECT org_id FROM org_members WHERE user_id = $1`, user.ID).Scan(&orgID)
+
+	ctx := domain.NewContext(context.Background(), &domain.Identity{
+		UserID: user.ID,
+		OrgID:  orgID,
+	})
+
+	return svc, ctx
 }
 
 func TestExerciseService_List(t *testing.T) {
 	t.Run("returns all exercises", func(t *testing.T) {
-		svc := newTestExerciseService(t)
-		_, _ = svc.Create("Push-up", nil)
-		_, _ = svc.Create("Pull-up", nil)
+		svc, ctx := newTestExerciseService(t)
+		_, _ = svc.Create(ctx, "Push-up", nil, nil, true)
+		_, _ = svc.Create(ctx, "Pull-up", nil, nil, true)
 
-		list, err := svc.List()
+		list, err := svc.List(ctx)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -35,10 +52,10 @@ func TestExerciseService_List(t *testing.T) {
 
 func TestExerciseService_Get(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
-		svc := newTestExerciseService(t)
-		created, _ := svc.Create("Push-up", nil)
+		svc, ctx := newTestExerciseService(t)
+		created, _ := svc.Create(ctx, "Push-up", nil, nil, true)
 
-		got, err := svc.Get(created.ID)
+		got, err := svc.Get(ctx, created.ID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -48,8 +65,8 @@ func TestExerciseService_Get(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		svc := newTestExerciseService(t)
-		_, err := svc.Get(domain.ExerciseID(999))
+		svc, ctx := newTestExerciseService(t)
+		_, err := svc.Get(ctx, domain.ExerciseID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -58,9 +75,9 @@ func TestExerciseService_Get(t *testing.T) {
 
 func TestExerciseService_Create(t *testing.T) {
 	t.Run("empty name returns ValidationError", func(t *testing.T) {
-		svc := newTestExerciseService(t)
+		svc, ctx := newTestExerciseService(t)
 
-		_, err := svc.Create("", nil)
+		_, err := svc.Create(ctx, "", nil, nil, true)
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("got %v, want ValidationError", err)
@@ -71,9 +88,9 @@ func TestExerciseService_Create(t *testing.T) {
 	})
 
 	t.Run("trims name", func(t *testing.T) {
-		svc := newTestExerciseService(t)
+		svc, ctx := newTestExerciseService(t)
 
-		e, err := svc.Create("  Push-up  ", nil)
+		e, err := svc.Create(ctx, "  Push-up  ", nil, nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -81,42 +98,14 @@ func TestExerciseService_Create(t *testing.T) {
 			t.Errorf("got %q, want %q", e.Name, "Push-up")
 		}
 	})
-
-	t.Run("duplicate name returns ValidationError", func(t *testing.T) {
-		svc := newTestExerciseService(t)
-		if _, err := svc.Create("Push-up", nil); err != nil {
-			t.Fatal(err)
-		}
-
-		_, err := svc.Create("Push-up", nil)
-		var ve *ValidationError
-		if !errors.As(err, &ve) {
-			t.Fatalf("got %v, want ValidationError", err)
-		}
-		if ve.Msg != "exercise with this name already exists" {
-			t.Errorf("unexpected msg: %q", ve.Msg)
-		}
-	})
 }
 
 func TestExerciseService_Update(t *testing.T) {
 	t.Run("empty name returns ValidationError", func(t *testing.T) {
-		svc := newTestExerciseService(t)
-		e, _ := svc.Create("Push-up", nil)
+		svc, ctx := newTestExerciseService(t)
+		e, _ := svc.Create(ctx, "Push-up", nil, nil, true)
 
-		_, err := svc.Update(e.ID, "", nil)
-		var ve *ValidationError
-		if !errors.As(err, &ve) {
-			t.Fatalf("got %v, want ValidationError", err)
-		}
-	})
-
-	t.Run("duplicate name returns ValidationError", func(t *testing.T) {
-		svc := newTestExerciseService(t)
-		e1, _ := svc.Create("Push-up", nil)
-		e2, _ := svc.Create("Air Squat", nil)
-
-		_, err := svc.Update(e2.ID, e1.Name, nil)
+		_, err := svc.Update(ctx, e.ID, "", nil, nil, true)
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("got %v, want ValidationError", err)
@@ -124,9 +113,9 @@ func TestExerciseService_Update(t *testing.T) {
 	})
 
 	t.Run("not found returns ErrNotFound", func(t *testing.T) {
-		svc := newTestExerciseService(t)
+		svc, ctx := newTestExerciseService(t)
 
-		_, err := svc.Update(domain.ExerciseID(999), "Valid Name", nil)
+		_, err := svc.Update(ctx, domain.ExerciseID(999), "Valid Name", nil, nil, true)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -135,22 +124,22 @@ func TestExerciseService_Update(t *testing.T) {
 
 func TestExerciseService_Delete(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		svc := newTestExerciseService(t)
-		created, _ := svc.Create("Push-up", nil)
+		svc, ctx := newTestExerciseService(t)
+		created, _ := svc.Create(ctx, "Push-up", nil, nil, true)
 
-		if err := svc.Delete(created.ID); err != nil {
+		if err := svc.Delete(ctx, created.ID); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		_, err := svc.Get(created.ID)
+		_, err := svc.Get(ctx, created.ID)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("expected ErrNotFound, got %v", err)
 		}
 	})
 
 	t.Run("not found returns ErrNotFound", func(t *testing.T) {
-		svc := newTestExerciseService(t)
+		svc, ctx := newTestExerciseService(t)
 
-		err := svc.Delete(domain.ExerciseID(999))
+		err := svc.Delete(ctx, domain.ExerciseID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}

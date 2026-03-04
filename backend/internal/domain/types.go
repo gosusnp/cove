@@ -3,23 +3,27 @@
 
 package domain
 
+import (
+	"time"
+)
+
 // -----------------------------------------------------------------------------
 // Program
 // -----------------------------------------------------------------------------
 
 type ProgramID IntID[struct{ program struct{} }]
 
-// Program is the full program hierarchy.
+// ProgramLite is a trimmed version of a program.
+type ProgramLite struct {
+	ID   ProgramID `json:"id"`
+	Name string    `json:"name"`
+}
+
+// Program is the complete program hierarchy.
 type Program struct {
 	ID   ProgramID    `json:"id"`
 	Name string       `json:"name"`
 	Sets []ProgramSet `json:"sets"`
-}
-
-// ProgramLite is a trimmed version of a program, usually used in lists.
-type ProgramLite struct {
-	ID   ProgramID `json:"id"`
-	Name string    `json:"name"`
 }
 
 type ProgramSet struct {
@@ -53,6 +57,13 @@ type Exercise struct {
 	ID          ExerciseID `json:"id"`
 	Name        string     `json:"name"`
 	Progression *string    `json:"progression,omitempty"`
+	Description *string    `json:"description,omitempty"`
+	OrgID       OrgID      `json:"org_id"`
+	IsPublic    bool       `json:"is_public"`
+	CreatedBy   UserID     `json:"created_by"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedBy   *UserID    `json:"updated_by,omitempty"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 // ExerciseLite is a trimmed version of an exercise.

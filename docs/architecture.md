@@ -92,6 +92,7 @@ func (h *ExerciseHandler) RegisterRoutes(mux *http.ServeMux) {
 - **DO** use Go 1.22 method-path syntax in `HandleFunc`: `"GET /exercises"`, `"POST /exercises/{id}"`.
 - **DO** use `jsonOK`, `jsonError`, and `jsonResponse` from `handlers/helpers.go` for all responses.
 - **DO** use `pathID[Type](r, "id")` from `handlers/helpers.go` to parse path parameters.
+- **DO** map `service.ErrUnauthorized` → `401 Unauthorized` and `service.ErrNotFound` → `404 Not Found` in the handler's error helper.
 - **DON'T** perform business logic or validation in a handler — delegate to the service.
 - **DON'T** write inline `json.Marshal` or `w.Write` calls — use the helpers.
 
@@ -159,9 +160,28 @@ func (s *ExerciseService) Create(ctx context.Context, name string, progression *
 - **DON'T** let raw `store.ErrNotFound` or `store.ErrDuplicate` propagate to handlers without going through a service-level symbol first.
 - **DON'T** write SQL in a service. Delegate to the store.
 
-### Transactions
+### Scoped Transactions (RLS-gated operations)
 
-When a service operation spans multiple stores, the service owns the transaction lifecycle and passes it down via the `q store.Querier` argument:
+For operations on tenant-owned data, use the `withScopedTx` helper (internal to the `service` package). It:
+1. Extracts the `Identity` from the context, returning `ErrUnauthorized` if absent.
+2. Starts a transaction and wraps it in a `ScopedQuerier`.
+3. Sets PostgreSQL session variables (`app.current_org_id`, `app.current_user_id`) used by RLS policies and bookkeeping triggers.
+
+```go
+func (s *ExerciseService) Create(ctx context.Context, name string, ...) (*domain.Exercise, error) {
+    var ex *domain.Exercise
+    err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+        var err error
+        ex, err = s.store.Create(ctx, q, name, ...)
+        return err
+    })
+    return ex, err
+}
+```
+
+### Plain Transactions (non-RLS operations)
+
+When a service operation spans multiple stores but does not require RLS, manage the transaction lifecycle directly:
 
 ```go
 type UserService struct {
@@ -224,6 +244,25 @@ func NewExerciseStore() *ExerciseStore {
 
 - **DO** make stores stateless — they must not hold any internal state or connections.
 - **DO** accept `ctx context.Context` and `q Querier` as the first two arguments for every store method.
+
+### Defense-in-Depth
+
+Even with RLS enabled, stores **must** include explicit `org_id` and `is_public` filters in their SQL. This makes the access intent clear and provides a second layer of isolation.
+
+```go
+func (s *ExerciseStore) Get(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ExerciseID) (*domain.Exercise, error) {
+    var e domain.Exercise
+    err := q.QueryRowContext(ctx, `
+        SELECT id, name, ... FROM exercises
+        WHERE id = $1 AND (org_id = $2 OR is_public = true)
+    `, id, orgID).Scan(...)
+    // ...
+}
+```
+
+- **DO** pass `orgID` explicitly to store methods that access tenant-owned data.
+- **DO** filter with `WHERE org_id = $N` (or `org_id = $N OR is_public = true` for readable resources).
+- **DON'T** rely solely on RLS policies for data isolation.
 
 ### Sentinel Errors
 
@@ -305,6 +344,7 @@ type User struct {
 - **DO** use `*T` pointer fields with `omitempty` for nullable columns.
 - **DO** use hardened `ID[T]` (wrapping `uuid.UUID`) for primary keys on all new tables.
 - **DO** pay specific attention to identity tables (users, sessions, API keys) which **must** use these hardened UUIDs to follow the `UUID PRIMARY KEY` SQL convention.
+- **DO** use `time.Time` for all timestamp columns (`created_at`, `updated_at`) — never `string`.
 - **DON'T** add computed or presentation fields to domain types — those belong in a service or handler response struct.
 - **DON'T** define domain types inside handler or service files.
 
@@ -339,6 +379,23 @@ if errors.As(err, &ve) { ... }
 
 - **DO** use `errors.Is` for sentinel errors and `errors.As` for typed errors.
 - **DON'T** compare errors with `==` or check error strings.
+
+---
+
+## Multi-Tenancy & RLS
+
+Cove uses PostgreSQL Row Level Security to isolate tenant data.
+
+1. **Required Columns**: All tenant-owned tables must have `org_id` and `created_by` columns marked `NOT NULL`.
+2. **Bookkeeping Trigger**: Attach the `update_bookkeeping_columns` trigger to automate `updated_at`, `updated_by`, and default `org_id`/`created_by` from the session variables.
+3. **Policies**:
+    - `SELECT`: `USING (org_id = current_app_org_id() OR is_public = true)`
+    - `INSERT`: `WITH CHECK (org_id = current_app_org_id())`
+    - `UPDATE`: `USING (...) WITH CHECK (...)` — restricted to same org
+    - `DELETE`: `USING (org_id = current_app_org_id())`
+4. **Session Variables**: Set via `ScopedQuerier` inside `withScopedTx` before each query:
+    - `app.current_org_id` — read by `current_app_org_id()`
+    - `app.current_user_id` — read by `current_app_user_id()`
 
 ---
 
@@ -434,6 +491,18 @@ func TestExample(t *testing.T) {
 - **`app.Seed[Entity]`**: Use "Seed" methods to bypass the HTTP layer when setting up prerequisites for a test.
 - **`app.AuthRequest(...)`**: Automatically creates a valid session and attaches the `Bearer` token to the request.
 
-### 4. Coverage Standards
+### 4. Identity in Context
+
+Since RLS and bookkeeping triggers require session variables, tests **must** provide an `Identity` in the context when calling services or stores directly.
+
+```go
+id := &domain.Identity{UserID: uID, OrgID: oID}
+ctx := domain.NewContext(context.Background(), id)
+```
+
+Use `app.SeedUserWithOrg` to get a real `(UserID, OrgID)` pair, and `app.SeedExerciseForUser` to seed tenant-owned data.
+
+### 5. Coverage Standards
 - **Unhappy Paths**: Every handler must have tests for "not found", "invalid body", and "unauthorized" scenarios.
 - **Normalization**: Test expectations must account for service-level normalization (e.g., exercise names being trimmed or lowercased).
+- **RLS / Defense-in-Depth**: For tenant-owned resources, include a test that verifies a user from one org cannot read or modify data belonging to another org.

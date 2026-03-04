@@ -4,6 +4,8 @@
 package service
 
 import (
+	"context"
+	"database/sql"
 	"errors"
 	"strings"
 
@@ -11,63 +13,99 @@ import (
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
+type ExerciseService struct {
+	db    *sql.DB
+	store *store.ExerciseStore
+}
+
+func NewExerciseService(db *sql.DB, s *store.ExerciseStore) *ExerciseService {
+	return &ExerciseService{db: db, store: s}
+}
+
 func normalizeName(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
-type ExerciseService struct {
-	store *store.ExerciseStore
-}
-
-func NewExerciseService(s *store.ExerciseStore) *ExerciseService {
-	return &ExerciseService{store: s}
-}
-
-func (s *ExerciseService) List() ([]domain.ExerciseLite, error) {
-	return s.store.List()
-}
-
-func (s *ExerciseService) Get(id domain.ExerciseID) (*domain.Exercise, error) {
-	e, err := s.store.Get(id)
-	if errors.Is(err, store.ErrNotFound) {
-		return nil, ErrNotFound
+func (s *ExerciseService) List(ctx context.Context) ([]domain.ExerciseLite, error) {
+	id, ok := domain.IdentityFromContext(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
 	}
-	return e, err
-}
 
-func (s *ExerciseService) Create(name string, progression *string) (*domain.Exercise, error) {
-	name = normalizeName(name)
-	if name == "" {
-		return nil, &ValidationError{Msg: "name is required"}
-	}
-	e, err := s.store.Create(name, progression)
-	if errors.Is(err, store.ErrDuplicate) {
-		return nil, &ValidationError{Msg: "exercise with this name already exists"}
-	}
-	return e, err
-}
-
-func (s *ExerciseService) Update(id domain.ExerciseID, name string, progression *string) (*domain.Exercise, error) {
-	name = normalizeName(name)
-	if name == "" {
-		return nil, &ValidationError{Msg: "name is required"}
-	}
-	e, err := s.store.Update(id, name, progression)
-	if errors.Is(err, store.ErrNotFound) {
-		return nil, ErrNotFound
-	}
-	if errors.Is(err, store.ErrDuplicate) {
-		return nil, &ValidationError{Msg: "exercise with this name already exists"}
-	}
-	return e, err
-}
-
-func (s *ExerciseService) Delete(id domain.ExerciseID) error {
-	if err := s.store.Delete(id); err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			return ErrNotFound
-		}
+	var list []domain.ExerciseLite
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		var err error
+		list, err = s.store.List(ctx, q, id.OrgID)
 		return err
+	})
+	return list, err
+}
+
+func (s *ExerciseService) Get(ctx context.Context, id domain.ExerciseID) (*domain.Exercise, error) {
+	identity, ok := domain.IdentityFromContext(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
 	}
-	return nil
+
+	var ex *domain.Exercise
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		var err error
+		ex, err = s.store.Get(ctx, q, identity.OrgID, id)
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return ex, err
+}
+
+func (s *ExerciseService) Create(ctx context.Context, name string, progression *string, description *string, isPublic bool) (*domain.Exercise, error) {
+	name = normalizeName(name)
+	if name == "" {
+		return nil, &ValidationError{Msg: "name is required"}
+	}
+	var ex *domain.Exercise
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		var err error
+		ex, err = s.store.Create(ctx, q, name, progression, description, isPublic)
+		return err
+	})
+	return ex, err
+}
+
+func (s *ExerciseService) Update(ctx context.Context, id domain.ExerciseID, name string, progression *string, description *string, isPublic bool) (*domain.Exercise, error) {
+	identity, ok := domain.IdentityFromContext(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
+	}
+
+	name = normalizeName(name)
+	if name == "" {
+		return nil, &ValidationError{Msg: "name is required"}
+	}
+	var ex *domain.Exercise
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		var err error
+		ex, err = s.store.Update(ctx, q, identity.OrgID, id, name, progression, description, isPublic)
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return ex, err
+}
+
+func (s *ExerciseService) Delete(ctx context.Context, id domain.ExerciseID) error {
+	identity, ok := domain.IdentityFromContext(ctx)
+	if !ok {
+		return ErrUnauthorized
+	}
+
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		return s.store.Delete(ctx, q, identity.OrgID, id)
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return ErrNotFound
+	}
+	return err
 }
