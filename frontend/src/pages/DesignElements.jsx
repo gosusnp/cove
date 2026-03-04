@@ -36,6 +36,30 @@ import {
 	Divider,
 } from "../components/ui/Section.jsx";
 import { PageTitle } from "../components/ui/PageTitle.jsx";
+import {
+	Accordion,
+	AccordionItem,
+	AccordionTrigger,
+	AccordionContent,
+	AccordionDragHandle,
+} from "../components/ui/Accordion.jsx";
+import {
+	DndContext,
+	closestCenter,
+	KeyboardSensor,
+	PointerSensor,
+	useSensor,
+	useSensors,
+	DragOverlay,
+} from "@dnd-kit/core";
+import {
+	SortableContext,
+	verticalListSortingStrategy,
+	useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { cn } from "../lib/utils.js";
+import { useSortableGroups } from "../hooks/useSortableGroups.js";
 
 const PREVIEW_NAV_ITEMS = [
 	{ label: "Home", href: "/" },
@@ -106,6 +130,206 @@ function PreviewRow({ label, children }) {
 		</div>
 	);
 }
+
+// ── Accordion demo — exercise sets ────────────────────────────────────────────
+
+const INITIAL_SETS = [
+	{
+		id: "set-1",
+		name: "Lower body",
+		exercises: [
+			{ id: "ex-1", name: "Back squat", sets: 4, reps: 5 },
+			{ id: "ex-2", name: "Romanian deadlift", sets: 3, reps: 8 },
+			{ id: "ex-3", name: "Leg press", sets: 3, reps: 12 },
+		],
+	},
+	{
+		id: "set-2",
+		name: "Upper body push",
+		exercises: [
+			{ id: "ex-4", name: "Bench press", sets: 4, reps: 6 },
+			{ id: "ex-5", name: "Overhead press", sets: 3, reps: 8 },
+		],
+	},
+	{
+		id: "set-3",
+		name: "Upper body pull",
+		exercises: [
+			{ id: "ex-6", name: "Pull-ups", sets: 4, reps: 8 },
+			{ id: "ex-7", name: "Barbell row", sets: 3, reps: 6 },
+		],
+	},
+];
+
+// A sortable exercise row used inside an accordion set.
+function SortableExercise({ id, name, sets, reps, setId }) {
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id, data: { type: "exercise", setId } });
+
+	return (
+		<div
+			ref={setNodeRef}
+			style={{ transform: CSS.Transform.toString(transform), transition }}
+			class={cn(
+				"flex items-center gap-3 py-2 px-1 rounded-lg",
+				"border border-transparent",
+				isDragging
+					? "opacity-50 border-(--color-border) bg-(--color-bg)"
+					: "hover:bg-(--color-bg)",
+			)}
+		>
+			<button
+				type="button"
+				class="flex items-center justify-center w-5 h-5 shrink-0 cursor-grab active:cursor-grabbing text-(--color-muted) hover:text-(--color-text)"
+				aria-label="Drag to reorder"
+				{...listeners}
+				{...attributes}
+			>
+				<GripIcon />
+			</button>
+			<span class="flex-1 text-sm text-(--color-text)">{name}</span>
+			<span
+				class="text-xs tabular-nums"
+				style={{ color: "var(--color-muted)" }}
+			>
+				{sets}×{reps}
+			</span>
+		</div>
+	);
+}
+
+function GripIcon() {
+	return (
+		<svg
+			width="12"
+			height="12"
+			viewBox="0 0 14 14"
+			fill="none"
+			aria-hidden="true"
+		>
+			<circle cx="5" cy="3" r="1" fill="currentColor" />
+			<circle cx="9" cy="3" r="1" fill="currentColor" />
+			<circle cx="5" cy="7" r="1" fill="currentColor" />
+			<circle cx="9" cy="7" r="1" fill="currentColor" />
+			<circle cx="5" cy="11" r="1" fill="currentColor" />
+			<circle cx="9" cy="11" r="1" fill="currentColor" />
+		</svg>
+	);
+}
+
+function ExerciseSetsDemo() {
+	const {
+		sets,
+		openValues,
+		setOpenValues,
+		activeId,
+		handleDragStart,
+		handleDragOver,
+		handleDragEnd,
+	} = useSortableGroups(INITIAL_SETS);
+
+	const sensors = useSensors(
+		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+		useSensor(KeyboardSensor),
+	);
+
+	const activeExercise = activeId
+		? sets.flatMap((s) => s.exercises).find((e) => e.id === activeId)
+		: null;
+	const activeSet = activeId ? sets.find((s) => s.id === activeId) : null;
+
+	return (
+		<DndContext
+			sensors={sensors}
+			collisionDetection={closestCenter}
+			onDragStart={handleDragStart}
+			onDragOver={handleDragOver}
+			onDragEnd={handleDragEnd}
+		>
+			<SortableContext
+				items={sets.map((s) => s.id)}
+				strategy={verticalListSortingStrategy}
+			>
+				<Accordion
+					type="multiple"
+					value={openValues}
+					onValueChange={setOpenValues}
+				>
+					{sets.map((set) => (
+						<AccordionItem key={set.id} id={set.id} value={set.id}>
+							<AccordionTrigger>
+								<AccordionDragHandle />
+								<span>{set.name}</span>
+								<span
+									class="ml-auto mr-2 text-xs tabular-nums"
+									style={{ color: "var(--color-muted)" }}
+								>
+									{set.exercises.length} exercise
+									{set.exercises.length !== 1 ? "s" : ""}
+								</span>
+							</AccordionTrigger>
+							<AccordionContent>
+								<SortableContext
+									items={set.exercises.map((e) => e.id)}
+									strategy={verticalListSortingStrategy}
+								>
+									<div class="flex flex-col">
+										{set.exercises.map((ex) => (
+											<SortableExercise
+												key={ex.id}
+												id={ex.id}
+												name={ex.name}
+												sets={ex.sets}
+												reps={ex.reps}
+												setId={set.id}
+											/>
+										))}
+									</div>
+								</SortableContext>
+								{set.exercises.length === 0 && (
+									<p
+										class="text-xs py-2 text-center"
+										style={{ color: "var(--color-muted)" }}
+									>
+										Drop exercises here
+									</p>
+								)}
+							</AccordionContent>
+						</AccordionItem>
+					))}
+				</Accordion>
+			</SortableContext>
+
+			<DragOverlay>
+				{activeExercise && (
+					<div class="flex items-center gap-3 py-2 px-3 rounded-lg shadow-lg bg-(--color-surface) border border-(--color-border) text-sm text-(--color-text)">
+						<GripIcon />
+						<span>{activeExercise.name}</span>
+						<span
+							class="ml-auto text-xs tabular-nums"
+							style={{ color: "var(--color-muted)" }}
+						>
+							{activeExercise.sets}×{activeExercise.reps}
+						</span>
+					</div>
+				)}
+				{activeSet && (
+					<div class="rounded-lg px-4 py-3 shadow-lg bg-(--color-surface) border border-(--color-border) text-sm font-medium text-(--color-text)">
+						{activeSet.name}
+					</div>
+				)}
+			</DragOverlay>
+		</DndContext>
+	);
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export function DesignElements() {
 	const { route } = useLocation();
@@ -369,6 +593,53 @@ export function DesignElements() {
 				</PreviewRow>
 				<PreviewRow label="hero (text-6xl)">
 					<PageTitle class="text-6xl tracking-tight">Cove</PageTitle>
+				</PreviewRow>
+			</PageSection>
+
+			<Divider />
+
+			{/* ── Accordion ─────────────────────────────────── */}
+			<PageSection title="Accordion">
+				<PreviewRow label="basic — static items">
+					<div class="w-full">
+						<Accordion type="single">
+							<AccordionItem value="q1">
+								<AccordionTrigger>What is Cove?</AccordionTrigger>
+								<AccordionContent>
+									Cove is a personal fitness tracking app with an AI-assisted
+									workout planning interface via MCP.
+								</AccordionContent>
+							</AccordionItem>
+							<AccordionItem value="q2">
+								<AccordionTrigger>
+									How are workouts structured?
+								</AccordionTrigger>
+								<AccordionContent>
+									Workouts are composed of sets, each containing one or more
+									exercises with prescribed reps and load.
+								</AccordionContent>
+							</AccordionItem>
+							<AccordionItem value="q3">
+								<AccordionTrigger>
+									Can I track progress over time?
+								</AccordionTrigger>
+								<AccordionContent>
+									Yes — every completed workout is stored and surfaced through
+									the dashboard and MCP tools.
+								</AccordionContent>
+							</AccordionItem>
+						</Accordion>
+					</div>
+				</PreviewRow>
+
+				<PreviewRow label="sortable — exercise sets with drag &amp; drop">
+					<div class="w-full">
+						<p class="text-xs mb-3" style={{ color: "var(--color-muted)" }}>
+							Drag the grip handle on a set header to reorder sets. Drag the
+							grip on an exercise to reorder within or move between sets.
+						</p>
+						<ExerciseSetsDemo />
+					</div>
 				</PreviewRow>
 			</PageSection>
 		</main>

@@ -179,6 +179,7 @@ All interactive and reusable UI elements **must** come from `src/components/ui/`
 | `TextField` | `components/ui/TextField.jsx` | Text input; optional `label` prop; supports `disabled` and `readOnly` |
 | `Tooltip`, `TooltipTrigger`, `TooltipContent` | `components/ui/Tooltip.jsx` | Hover tooltip; wraps Radix; self-contained provider |
 | `Section`, `Row`, `Divider` | `components/ui/Section.jsx` | Page section card with title; labeled row with right-side slot; `last` prop on `Row` drops the bottom border |
+| `Accordion`, `AccordionItem`, `AccordionTrigger`, `AccordionContent`, `AccordionDragHandle` | `components/ui/Accordion.jsx` | Collapsible sections via Radix; `AccordionItem` becomes sortable when given an `id` prop (place inside `@dnd-kit/sortable` `SortableContext`); `AccordionDragHandle` auto-wires drag listeners from nearest `AccordionItem` |
 
 Supporting utilities:
 

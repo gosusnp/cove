@@ -41,6 +41,22 @@ export default defineConfig({
 				import.meta.dirname,
 				"src/__mocks__/radix-dialog.jsx",
 			),
+			"@radix-ui/react-accordion": resolve(
+				import.meta.dirname,
+				"src/__mocks__/radix-accordion.jsx",
+			),
+			"@dnd-kit/core": resolve(
+				import.meta.dirname,
+				"src/__mocks__/dnd-kit-core.jsx",
+			),
+			"@dnd-kit/sortable": resolve(
+				import.meta.dirname,
+				"src/__mocks__/dnd-kit-sortable.js",
+			),
+			"@dnd-kit/utilities": resolve(
+				import.meta.dirname,
+				"src/__mocks__/dnd-kit-utilities.js",
+			),
 		},
 		coverage: {
 			provider: "v8",

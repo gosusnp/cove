@@ -6,6 +6,37 @@
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
 
+/* ── Accordion animations ─────────────────────────── */
+@keyframes accordion-down {
+	from {
+		height: 0;
+		overflow: hidden;
+	}
+	to {
+		height: var(--radix-accordion-content-height);
+		overflow: hidden;
+	}
+}
+
+@keyframes accordion-up {
+	from {
+		height: var(--radix-accordion-content-height);
+		overflow: hidden;
+	}
+	to {
+		height: 0;
+		overflow: hidden;
+	}
+}
+
+@utility animate-accordion-down {
+	animation: accordion-down 0.2s ease-out;
+}
+
+@utility animate-accordion-up {
+	animation: accordion-up 0.2s ease-out;
+}
+
 /* ── Base reset & tokens ─────────────────────────── */
 :root {
 	--color-bg: #f5f7fa;
