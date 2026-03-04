@@ -7,15 +7,18 @@ import { AuthProvider, useAuth } from "./Auth.jsx";
 import { Nav } from "./components/Nav.jsx";
 import { Login } from "./pages/Login.jsx";
 import { Home } from "./pages/Home.jsx";
+import { Exercises } from "./pages/Exercises.jsx";
 import { Settings } from "./pages/Settings.jsx";
 import { DesignElements } from "./pages/DesignElements.jsx";
+
+const PROTECTED_ROUTES = ["/settings", "/exercises"];
 
 function Layout() {
 	const { url, route } = useLocation();
 	const { user } = useAuth();
 
 	useEffect(() => {
-		if (!user && url === "/settings") {
+		if (!user && PROTECTED_ROUTES.includes(url)) {
 			route("/login");
 		} else if (user && url === "/login") {
 			route("/");
@@ -23,7 +26,7 @@ function Layout() {
 	}, [user, url]);
 
 	// Suppress render until the redirect fires to avoid a flash of wrong content.
-	if (!user && url === "/settings") return null;
+	if (!user && PROTECTED_ROUTES.includes(url)) return null;
 	if (user && url === "/login") return null;
 
 	return (
@@ -32,6 +35,7 @@ function Layout() {
 			<Router>
 				<Route path="/login" component={Login} />
 				<Route path="/" component={Home} />
+				<Route path="/exercises" component={Exercises} />
 				<Route path="/settings" component={Settings} />
 				{import.meta.env.VITE_COVE_ENV === "dev" && (
 					<Route path="/design-elements" component={DesignElements} />

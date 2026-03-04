@@ -12,7 +12,10 @@ import {
 } from "./ui/NavigationMenu.jsx";
 import { Avatar } from "./ui/Avatar.jsx";
 
-export const NAV_ITEMS = [{ label: "Home", href: "/" }];
+export const NAV_ITEMS = [
+	{ label: "Home", href: "/" },
+	{ label: "Exercises", href: "/exercises" },
+];
 
 function initials(user) {
 	if (user.name) {

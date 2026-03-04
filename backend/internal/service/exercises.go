@@ -26,13 +26,13 @@ func normalizeName(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
-func (s *ExerciseService) List(ctx context.Context) ([]domain.ExerciseLite, error) {
+func (s *ExerciseService) List(ctx context.Context) ([]domain.Exercise, error) {
 	id, ok := domain.IdentityFromContext(ctx)
 	if !ok {
 		return nil, ErrUnauthorized
 	}
 
-	var list []domain.ExerciseLite
+	var list []domain.Exercise
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var err error
 		list, err = s.store.List(ctx, q, id.OrgID)

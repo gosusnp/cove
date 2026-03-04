@@ -37,7 +37,8 @@ func newTestExerciseService(t *testing.T) (*ExerciseService, context.Context) {
 func TestExerciseService_List(t *testing.T) {
 	t.Run("returns all exercises", func(t *testing.T) {
 		svc, ctx := newTestExerciseService(t)
-		_, _ = svc.Create(ctx, "Push-up", nil, nil, true)
+		prog := "Add 1 rep"
+		_, _ = svc.Create(ctx, "Push-up", &prog, nil, true)
 		_, _ = svc.Create(ctx, "Pull-up", nil, nil, true)
 
 		list, err := svc.List(ctx)
@@ -46,6 +47,14 @@ func TestExerciseService_List(t *testing.T) {
 		}
 		if len(list) != 2 {
 			t.Errorf("expected 2 exercises, got %d", len(list))
+		}
+
+		// Pull-up, Push-up (ordered by name)
+		if list[1].Name != "Push-up" {
+			t.Errorf("expected second exercise to be Push-up, got %q", list[1].Name)
+		}
+		if list[1].Progression == nil || *list[1].Progression != prog {
+			t.Errorf("expected progression %q, got %v", prog, list[1].Progression)
 		}
 	})
 }

@@ -18,9 +18,9 @@ func NewExerciseStore() *ExerciseStore {
 	return &ExerciseStore{}
 }
 
-func (s *ExerciseStore) List(ctx context.Context, q Querier, orgID domain.OrgID) ([]domain.ExerciseLite, error) {
+func (s *ExerciseStore) List(ctx context.Context, q Querier, orgID domain.OrgID) ([]domain.Exercise, error) {
 	rows, err := q.QueryContext(ctx, `
-		SELECT id, name 
+		SELECT id, name, progression, description, org_id, is_public, created_by, created_at, updated_by, updated_at
 		FROM exercises 
 		WHERE org_id = $1 OR is_public = true
 		ORDER BY name
@@ -30,10 +30,13 @@ func (s *ExerciseStore) List(ctx context.Context, q Querier, orgID domain.OrgID)
 	}
 	defer rows.Close()
 
-	exercises := []domain.ExerciseLite{}
+	exercises := []domain.Exercise{}
 	for rows.Next() {
-		var e domain.ExerciseLite
-		if err := rows.Scan(&e.ID, &e.Name); err != nil {
+		var e domain.Exercise
+		if err := rows.Scan(
+			&e.ID, &e.Name, &e.Progression, &e.Description, &e.OrgID, &e.IsPublic,
+			&e.CreatedBy, &e.CreatedAt, &e.UpdatedBy, &e.UpdatedAt,
+		); err != nil {
 			return nil, fmt.Errorf("scan exercise: %w", err)
 		}
 		exercises = append(exercises, e)

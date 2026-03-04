@@ -61,7 +61,9 @@ func TestExerciseStore_List(t *testing.T) {
 	t.Run("returns all exercises ordered by name", func(t *testing.T) {
 		s, db, ctx := newTestExerciseStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
-		if _, err := s.Create(ctx, db, "Push-up", nil, nil, true); err != nil {
+		prog := "Add 1 rep"
+		desc := "Bodyweight exercise"
+		if _, err := s.Create(ctx, db, "Push-up", &prog, &desc, true); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := s.Create(ctx, db, "Air Squat", nil, nil, true); err != nil {
@@ -75,8 +77,18 @@ func TestExerciseStore_List(t *testing.T) {
 		if len(exercises) != 2 {
 			t.Fatalf("expected 2 exercises, got %d", len(exercises))
 		}
-		if exercises[0].Name != "Air Squat" || exercises[1].Name != "Push-up" {
-			t.Errorf("unexpected order: %q, %q", exercises[0].Name, exercises[1].Name)
+		// Ordered by name: Air Squat, Push-up
+		if exercises[0].Name != "Air Squat" {
+			t.Errorf("expected first exercise to be Air Squat, got %q", exercises[0].Name)
+		}
+		if exercises[1].Name != "Push-up" {
+			t.Errorf("expected second exercise to be Push-up, got %q", exercises[1].Name)
+		}
+		if exercises[1].Progression == nil || *exercises[1].Progression != prog {
+			t.Errorf("expected progression %q, got %v", prog, exercises[1].Progression)
+		}
+		if exercises[1].Description == nil || *exercises[1].Description != desc {
+			t.Errorf("expected description %q, got %v", desc, exercises[1].Description)
 		}
 	})
 }
