@@ -4,7 +4,7 @@
 import { screen } from "@testing-library/preact";
 import { describe, it, expect } from "vitest";
 import { Nav } from "./Nav.jsx";
-import { withProviders } from "../test-utils.jsx";
+import { withProviders } from "../../test-utils.jsx";
 
 const MOCK_USER = { email: "jane@example.com", name: "Jane Smith" };
 

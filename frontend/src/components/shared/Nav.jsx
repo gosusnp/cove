@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { useLocation } from "preact-iso";
-import { useAuth } from "../Auth.jsx";
-import { TopBar } from "./ui/TopBar.jsx";
+import { useAuth } from "../../Auth.jsx";
+import { TopBar } from "../ui/TopBar.jsx";
 import {
 	NavigationMenu,
 	NavigationMenuBrand,
 	NavigationMenuItem,
 	NavigationMenuLink,
-} from "./ui/NavigationMenu.jsx";
-import { Avatar } from "./ui/Avatar.jsx";
+} from "../ui/NavigationMenu.jsx";
+import { Avatar } from "../ui/Avatar.jsx";
 
 export const NAV_ITEMS = [
 	{ label: "Home", href: "/" },

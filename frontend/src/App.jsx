@@ -4,7 +4,7 @@
 import { LocationProvider, Router, Route, useLocation } from "preact-iso";
 import { useEffect } from "preact/hooks";
 import { AuthProvider, useAuth } from "./Auth.jsx";
-import { Nav } from "./components/Nav.jsx";
+import { Nav } from "./components/shared/Nav.jsx";
 import { Login } from "./pages/Login.jsx";
 import { Home } from "./pages/Home.jsx";
 import { Exercises } from "./pages/Exercises.jsx";
