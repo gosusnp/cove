@@ -144,13 +144,14 @@ Every source file begins with a copyright and license header.
 ### Styling
 
 - **DO** use Tailwind utility classes for layout, spacing, and typography.
-- **DO** reference design tokens via CSS variables in `style` props or `var()` in CSS files.
-- **DON'T** hardcode color hex values in JSX — use `var(--color-*)` tokens.
+- **DO** use `cn()` from `src/lib/utils.js` for conditional classes and merging.
+- **DO** reference design tokens exclusively via CSS variables (`var(--color-*)`) in `style` props or CSS files.
+- **DON'T** hardcode color hex values, spacing, or shadows in JSX — use established tokens like `var(--color-*)`.
 - **DON'T** create new CSS variables without adding them to the `:root` block in `app.css`.
 
 ```jsx
 // DO
-<p class="text-sm" style={{ color: "var(--color-muted)" }}>
+<p class={cn("text-sm", isActive && "font-bold")} style={{ color: "var(--color-muted)" }}>
 
 // DON'T
 <p style={{ color: "#4a6491", fontSize: "14px" }}>
@@ -165,7 +166,7 @@ Every source file begins with a copyright and license header.
 
 ### UI Components (Gold Standard)
 
-All interactive and reusable UI elements must come from `src/components/ui/`. These are the gold standard primitives for the entire frontend. **Do not build one-off buttons, dialogs, inputs, or navigation elements inline.**
+All interactive and reusable UI elements **must** come from `src/components/ui/`. These are the gold standard primitives for the entire frontend. **Do not build one-off buttons, dialogs, inputs, or navigation elements inline.** Application pages and features are built by composing these primitives.
 
 | Component | File | Description |
 |---|---|---|
@@ -188,12 +189,13 @@ Supporting utilities:
 
 Rules:
 
-- **DO** use `src/components/ui/` primitives for all interactive elements.
-- **DO** extend an existing primitive (via props or a wrapper) before creating a new one.
-- **DON'T** write raw `<button>`, `<a>`-as-button, or custom modal markup outside of `ui/`.
+- **DO** use `src/components/ui/` primitives for ALL interactive and structural elements.
+- **DO** extend an existing primitive (via props or a wrapper) before even considering a new one.
+- **DON'T** write raw `<button>`, `<a>`-as-button, or custom modal/input/layout-card markup outside of `ui/`.
 - **DON'T** add a new `ui/` component without a corresponding section in `/design-elements`.
 - **DO** add a `ComponentName.test.jsx` alongside every new `ui/` component covering its core variants and interactions.
 - **DON'T** rely solely on `/design-elements` for verification — visual showcase does not replace automated tests.
+- **DON'T** reach for low-level HTML tags for components that exist in `ui/`. If you need a field, use `TextField`. If you need a section, use `Section`.
 
 The `/design-elements` route (visible when `VITE_COVE_ENV=dev`) is the live showcase for all `ui/` components. Every primitive must be represented there with all meaningful states (variants, sizes, disabled, active, etc.).
 
