@@ -91,6 +91,14 @@ func createProgramFullSchema() *jsonschema.Schema {
 				Type:        "string",
 				Description: "Name of the program.",
 			},
+			"description": {
+				Type:        "string",
+				Description: "Detailed description of the program. Optional.",
+			},
+			"is_public": {
+				Type:        "boolean",
+				Description: "Whether the program is visible to all users. Defaults to false.",
+			},
 			"sets": {
 				Type:        "array",
 				Description: "Ordered list of training sets (blocks) that make up the program.",
@@ -104,8 +112,8 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_programs",
 		Description: "List all programs",
-	}, func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, struct{}, error) {
-		list, err := programs.List()
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, struct{}, error) {
+		list, err := programs.List(ctx)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -119,10 +127,10 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_program",
 		Description: "Get a program by ID including its full set and exercise hierarchy",
-	}, func(_ context.Context, _ *mcp.CallToolRequest, params struct {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
 		ID int64 `json:"id"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		program, err := programs.GetDetail(domain.ProgramID(params.ID))
+		program, err := programs.GetDetail(ctx, domain.ProgramID(params.ID))
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -136,10 +144,12 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "create_program",
 		Description: "Create a new program",
-	}, func(_ context.Context, _ *mcp.CallToolRequest, params struct {
-		Name string `json:"name"`
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
+		Name        string  `json:"name"`
+		Description *string `json:"description,omitempty"`
+		IsPublic    bool    `json:"is_public"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		program, err := programs.Create(params.Name)
+		program, err := programs.Create(ctx, params.Name, params.Description, params.IsPublic)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -152,12 +162,14 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "update_program",
-		Description: "Update a program's name",
-	}, func(_ context.Context, _ *mcp.CallToolRequest, params struct {
-		ID   int64  `json:"id"`
-		Name string `json:"name"`
+		Description: "Update a program's name, description or visibility",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
+		ID          int64   `json:"id"`
+		Name        string  `json:"name"`
+		Description *string `json:"description,omitempty"`
+		IsPublic    bool    `json:"is_public"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		program, err := programs.Update(domain.ProgramID(params.ID), params.Name)
+		program, err := programs.Update(ctx, domain.ProgramID(params.ID), params.Name, params.Description, params.IsPublic)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -171,10 +183,10 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "delete_program",
 		Description: "Delete a program by ID",
-	}, func(_ context.Context, _ *mcp.CallToolRequest, params struct {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
 		ID int64 `json:"id"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		if err := programs.Delete(domain.ProgramID(params.ID)); err != nil {
+		if err := programs.Delete(ctx, domain.ProgramID(params.ID)); err != nil {
 			return nil, struct{}{}, err
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "deleted"}}}, struct{}{}, nil
@@ -184,11 +196,13 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 		Name:        "create_program_full",
 		Description: "Creates a complete program with all its sets and exercises in a single atomic operation. All exercise_ids must exist before calling — use list_exercises and create_exercise to prepare the exercise library first. If any part fails nothing is written.",
 		InputSchema: createProgramFullSchema(),
-	}, func(_ context.Context, _ *mcp.CallToolRequest, params struct {
-		Name string                    `json:"name"`
-		Sets []service.ProgramSetInput `json:"sets"`
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
+		Name        string                    `json:"name"`
+		Description *string                   `json:"description,omitempty"`
+		IsPublic    bool                      `json:"is_public"`
+		Sets        []service.ProgramSetInput `json:"sets"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		program, err := programs.CreateFull(params.Name, params.Sets)
+		program, err := programs.CreateFull(ctx, params.Name, params.Description, params.IsPublic, params.Sets)
 		if err != nil {
 			return nil, struct{}{}, err
 		}

@@ -29,11 +29,17 @@ func (h *ProgramHandler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 type programRequest struct {
-	Name string `json:"name"`
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+	IsPublic    bool    `json:"is_public"`
 }
 
 func (h *ProgramHandler) list(w http.ResponseWriter, r *http.Request) {
-	programs, err := h.svc.List()
+	programs, err := h.svc.List(r.Context())
+	if errors.Is(err, service.ErrUnauthorized) {
+		jsonError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -47,7 +53,11 @@ func (h *ProgramHandler) get(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	program, err := h.svc.GetDetail(id)
+	program, err := h.svc.GetDetail(r.Context(), id)
+	if errors.Is(err, service.ErrUnauthorized) {
+		jsonError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "program not found", http.StatusNotFound)
 		return
@@ -65,7 +75,11 @@ func (h *ProgramHandler) create(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	program, err := h.svc.Create(req.Name)
+	program, err := h.svc.Create(r.Context(), req.Name, req.Description, req.IsPublic)
+	if errors.Is(err, service.ErrUnauthorized) {
+		jsonError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
 		jsonError(w, ve.Error(), http.StatusBadRequest)
@@ -89,7 +103,11 @@ func (h *ProgramHandler) update(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	program, err := h.svc.Update(id, req.Name)
+	program, err := h.svc.Update(r.Context(), id, req.Name, req.Description, req.IsPublic)
+	if errors.Is(err, service.ErrUnauthorized) {
+		jsonError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
 		jsonError(w, ve.Error(), http.StatusBadRequest)
@@ -112,7 +130,11 @@ func (h *ProgramHandler) delete(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	err = h.svc.Delete(id)
+	err = h.svc.Delete(r.Context(), id)
+	if errors.Is(err, service.ErrUnauthorized) {
+		jsonError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "program not found", http.StatusNotFound)
 		return

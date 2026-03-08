@@ -48,7 +48,7 @@ func NewTestApp(t *testing.T) *TestApp {
 
 	// Stores
 	exStore := store.NewExerciseStore()
-	_ = store.NewProgramStore(database)
+	_ = store.NewProgramStore()
 	psStore := store.NewProgramSetStore(database)
 	peStore := store.NewProgramExerciseStore(database)
 	uStore := store.NewUserStore()
@@ -183,12 +183,29 @@ func (a *TestApp) SeedExerciseForUser(ctx context.Context, name string, progress
 	return ex
 }
 
-// SeedProgram creates a program and returns it.
+// SeedProgram creates a public program.
 func (a *TestApp) SeedProgram(name string) *domain.ProgramLite {
 	a.T.Helper()
-	p, err := a.Programs.Create(name)
+	u, o := a.SeedUserWithOrg("system@test.com", "system-sub")
+	id := &domain.Identity{UserID: u, OrgID: o}
+	ctx := domain.NewContext(context.Background(), id)
+
+	p, err := a.Programs.Create(ctx, name, nil, true)
 	if err != nil {
 		a.T.Fatalf("seed program: %v", err)
+	}
+	return p
+}
+
+// SeedProgramForUser creates a program owned by the user's org.
+func (a *TestApp) SeedProgramForUser(ctx context.Context, name string, userID domain.UserID, orgID domain.OrgID) *domain.ProgramLite {
+	a.T.Helper()
+	id := &domain.Identity{UserID: userID, OrgID: orgID}
+	authCtx := domain.NewContext(ctx, id)
+
+	p, err := a.Programs.Create(authCtx, name, nil, false)
+	if err != nil {
+		a.T.Fatalf("seed program for user: %v", err)
 	}
 	return p
 }

@@ -6,6 +6,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -29,37 +30,36 @@ func newProgramExerciseFixture(t *testing.T) programExerciseFixture {
 	// Seed user/org for required fields
 	uID := domain.UserID{UUID: uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe01")}
 	oID := domain.OrgID{UUID: uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe02")}
-	_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'test@test.com', 'sub')`, uID)
-	_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'test-org')`, oID)
-	_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID)
+	_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'test@test.com', 'sub') ON CONFLICT DO NOTHING`, uID)
+	_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'test-org') ON CONFLICT DO NOTHING`, oID)
+	_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin') ON CONFLICT DO NOTHING`, oID, uID)
+
+	// Set session variables for RLS
+	_, err := db.Exec(fmt.Sprintf("SELECT set_config('app.current_org_id', '%s', false), set_config('app.current_user_id', '%s', false)", oID, uID))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	ctx := domain.NewContext(context.Background(), &domain.Identity{
 		UserID: uID,
 		OrgID:  oID,
 	})
 
-	tx, err := db.BeginTx(ctx, nil)
+	var pID int64
+	err = db.QueryRowContext(ctx, `INSERT INTO programs (name, org_id, created_by) VALUES ($1, $2, $3) RETURNING id`, "Test Program", oID, uID).Scan(&pID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = tx.Rollback() })
 
-	q := NewScopedQuerier(tx, oID.String(), uID.String())
+	var psID int64
+	err = db.QueryRowContext(ctx, `INSERT INTO program_sets (program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id`, pID, nil, 1, nil, nil).Scan(&psID)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	p, err := NewProgramStore(db).Create("Test Program")
+	// Create exercise using ExerciseStore (which uses its own connection but we set session on db)
+	e, err := NewExerciseStore().Create(ctx, db, "Pull-up", nil, nil, true)
 	if err != nil {
-		t.Fatal(err)
-	}
-	ps, err := NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Create exercise with identity context and scoped querier
-	e, err := NewExerciseStore().Create(ctx, q, "Pull-up", nil, nil, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := tx.Commit(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -67,8 +67,8 @@ func newProgramExerciseFixture(t *testing.T) programExerciseFixture {
 		store:      NewProgramExerciseStore(db),
 		ctx:        ctx,
 		db:         NewScopedQuerier(db, oID.String(), uID.String()),
-		programID:  p.ID,
-		setID:      ps.ID,
+		programID:  domain.ProgramID(pID),
+		setID:      psID,
 		exerciseID: e.ID,
 	}
 }
@@ -95,46 +95,39 @@ func TestProgramExerciseStore_List(t *testing.T) {
 		// Seed user/org for required fields
 		uID := domain.UserID{UUID: uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe07")}
 		oID := domain.OrgID{UUID: uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe08")}
-		_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'test4@test.com', 'sub4')`, uID)
-		_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'test-org4')`, oID)
-		_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID)
+		_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'test4@test.com', 'sub4') ON CONFLICT DO NOTHING`, uID)
+		_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'test-org4') ON CONFLICT DO NOTHING`, oID)
+		_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin') ON CONFLICT DO NOTHING`, oID, uID)
+
+		// Set session variables for RLS
+		_, _ = db.Exec(fmt.Sprintf("SELECT set_config('app.current_org_id', '%s', false), set_config('app.current_user_id', '%s', false)", oID, uID))
 
 		ctx := domain.NewContext(context.Background(), &domain.Identity{
 			UserID: uID,
 			OrgID:  oID,
 		})
 
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer func() { _ = tx.Rollback() }()
+		var pID int64
+		_ = db.QueryRowContext(ctx, `INSERT INTO programs (name, org_id, created_by) VALUES ($1, $2, $3) RETURNING id`, "Program", oID, uID).Scan(&pID)
+		var psID1, psID2 int64
+		_ = db.QueryRowContext(ctx, `INSERT INTO program_sets (program_id, rounds) VALUES ($1, 1) RETURNING id`, pID).Scan(&psID1)
+		_ = db.QueryRowContext(ctx, `INSERT INTO program_sets (program_id, rounds) VALUES ($1, 1) RETURNING id`, pID).Scan(&psID2)
 
-		q := NewScopedQuerier(tx, oID.String(), uID.String())
-
-		p, _ := NewProgramStore(db).Create("Program")
-		set1, _ := NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
-		set2, _ := NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
-		// Create exercise with identity context and scoped transaction
-		e, _ := NewExerciseStore().Create(ctx, q, "Pull-up", nil, nil, true)
-
-		if err := tx.Commit(); err != nil {
-			t.Fatal(err)
-		}
+		e, _ := NewExerciseStore().Create(ctx, db, "Pull-up", nil, nil, true)
 
 		pes := NewProgramExerciseStore(db)
 
-		if _, err := pes.Create(set1.ID, e.ID, nil, nil, nil, nil, nil); err != nil {
+		if _, err := pes.Create(psID1, e.ID, nil, nil, nil, nil, nil); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := pes.Create(set1.ID, e.ID, nil, nil, nil, nil, nil); err != nil {
+		if _, err := pes.Create(psID1, e.ID, nil, nil, nil, nil, nil); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := pes.Create(set2.ID, e.ID, nil, nil, nil, nil, nil); err != nil {
+		if _, err := pes.Create(psID2, e.ID, nil, nil, nil, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 
-		exercises, err := pes.List(set1.ID)
+		exercises, err := pes.List(psID1)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -167,41 +160,34 @@ func TestProgramExerciseStore_Get(t *testing.T) {
 		// Seed user/org for required fields
 		uID := domain.UserID{UUID: uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe05")}
 		oID := domain.OrgID{UUID: uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe06")}
-		_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'test3@test.com', 'sub3')`, uID)
-		_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'test-org3')`, oID)
-		_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID)
+		_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'test3@test.com', 'sub3') ON CONFLICT DO NOTHING`, uID)
+		_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'test-org3') ON CONFLICT DO NOTHING`, oID)
+		_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin') ON CONFLICT DO NOTHING`, oID, uID)
+
+		// Set session variables for RLS
+		_, _ = db.Exec(fmt.Sprintf("SELECT set_config('app.current_org_id', '%s', false), set_config('app.current_user_id', '%s', false)", oID, uID))
 
 		ctx := domain.NewContext(context.Background(), &domain.Identity{
 			UserID: uID,
 			OrgID:  oID,
 		})
 
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer func() { _ = tx.Rollback() }()
+		var pID int64
+		_ = db.QueryRowContext(ctx, `INSERT INTO programs (name, org_id, created_by) VALUES ($1, $2, $3) RETURNING id`, "Program", oID, uID).Scan(&pID)
+		var psID1, psID2 int64
+		_ = db.QueryRowContext(ctx, `INSERT INTO program_sets (program_id, rounds) VALUES ($1, 1) RETURNING id`, pID).Scan(&psID1)
+		_ = db.QueryRowContext(ctx, `INSERT INTO program_sets (program_id, rounds) VALUES ($1, 1) RETURNING id`, pID).Scan(&psID2)
 
-		q := NewScopedQuerier(tx, oID.String(), uID.String())
-
-		p, _ := NewProgramStore(db).Create("Program")
-		set1, _ := NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
-		set2, _ := NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
-		// Create exercise with identity context and scoped transaction
-		e, _ := NewExerciseStore().Create(ctx, q, "Pull-up", nil, nil, true)
-
-		if err := tx.Commit(); err != nil {
-			t.Fatal(err)
-		}
+		e, _ := NewExerciseStore().Create(ctx, db, "Pull-up", nil, nil, true)
 
 		pes := NewProgramExerciseStore(db)
 
-		created, err := pes.Create(set1.ID, e.ID, nil, nil, nil, nil, nil)
+		created, err := pes.Create(psID1, e.ID, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		_, err = pes.Get(set2.ID, created.ID)
+		_, err = pes.Get(psID2, created.ID)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -255,42 +241,35 @@ func TestProgramExerciseStore_Update(t *testing.T) {
 		// Seed user/org for required fields
 		uID := domain.UserID{UUID: uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe03")}
 		oID := domain.OrgID{UUID: uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe04")}
-		_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'test2@test.com', 'sub2')`, uID)
-		_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'test-org2')`, oID)
-		_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID)
+		_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'test2@test.com', 'sub2') ON CONFLICT DO NOTHING`, uID)
+		_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'test-org2') ON CONFLICT DO NOTHING`, oID)
+		_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin') ON CONFLICT DO NOTHING`, oID, uID)
+
+		// Set session variables for RLS
+		_, _ = db.Exec(fmt.Sprintf("SELECT set_config('app.current_org_id', '%s', false), set_config('app.current_user_id', '%s', false)", oID, uID))
 
 		ctx := domain.NewContext(context.Background(), &domain.Identity{
 			UserID: uID,
 			OrgID:  oID,
 		})
 
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer func() { _ = tx.Rollback() }()
+		var pID int64
+		_ = db.QueryRowContext(ctx, `INSERT INTO programs (name, org_id, created_by) VALUES ($1, $2, $3) RETURNING id`, "Program", oID, uID).Scan(&pID)
+		var psID int64
+		_ = db.QueryRowContext(ctx, `INSERT INTO program_sets (program_id, rounds) VALUES ($1, 1) RETURNING id`, pID).Scan(&psID)
 
-		q := NewScopedQuerier(tx, oID.String(), uID.String())
-
-		p, _ := NewProgramStore(db).Create("Program")
-		ps, _ := NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
-		// Create exercise with identity context and scoped transaction
-		e1, _ := NewExerciseStore().Create(ctx, q, "Pull-up", nil, nil, true)
-		e2, _ := NewExerciseStore().Create(ctx, q, "Push-up", nil, nil, true)
-
-		if err := tx.Commit(); err != nil {
-			t.Fatal(err)
-		}
+		e1, _ := NewExerciseStore().Create(ctx, db, "Pull-up", nil, nil, true)
+		e2, _ := NewExerciseStore().Create(ctx, db, "Push-up", nil, nil, true)
 
 		pes := NewProgramExerciseStore(db)
 
-		created, err := pes.Create(ps.ID, e1.ID, nil, nil, nil, nil, nil)
+		created, err := pes.Create(psID, e1.ID, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		reps := 12
 
-		updated, err := pes.Update(ps.ID, created.ID, e2.ID, nil, &reps, nil, nil, nil)
+		updated, err := pes.Update(psID, created.ID, e2.ID, nil, &reps, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

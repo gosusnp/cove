@@ -4,6 +4,7 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -39,100 +40,145 @@ type ProgramService struct {
 }
 
 func NewProgramService(db *sql.DB) *ProgramService {
-	return &ProgramService{db: db, store: store.NewProgramStore(db)}
+	return &ProgramService{db: db, store: store.NewProgramStore()}
 }
 
-func (s *ProgramService) List() ([]domain.ProgramLite, error) {
-	return s.store.List()
-}
-
-func (s *ProgramService) GetDetail(id domain.ProgramID) (*domain.Program, error) {
-	p, err := s.store.GetDetail(id)
-	if errors.Is(err, store.ErrNotFound) {
-		return nil, ErrNotFound
+func (s *ProgramService) List(ctx context.Context) ([]domain.ProgramLite, error) {
+	id, ok := domain.IdentityFromContext(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
 	}
-	return p, err
-}
 
-func (s *ProgramService) Create(name string) (*domain.ProgramLite, error) {
-	if name == "" {
-		return nil, &ValidationError{Msg: "name is required"}
-	}
-	return s.store.Create(name)
-}
-
-func (s *ProgramService) Update(id domain.ProgramID, name string) (*domain.ProgramLite, error) {
-	if name == "" {
-		return nil, &ValidationError{Msg: "name is required"}
-	}
-	p, err := s.store.Update(id, name)
-	if errors.Is(err, store.ErrNotFound) {
-		return nil, ErrNotFound
-	}
-	return p, err
-}
-
-func (s *ProgramService) Delete(id domain.ProgramID) error {
-	if err := s.store.Delete(id); err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			return ErrNotFound
-		}
+	var list []domain.ProgramLite
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		var err error
+		list, err = s.store.List(ctx, q, id.OrgID)
 		return err
-	}
-	return nil
+	})
+	return list, err
 }
 
-func (s *ProgramService) CreateFull(name string, sets []ProgramSetInput) (*domain.ProgramLite, error) {
+func (s *ProgramService) GetDetail(ctx context.Context, id domain.ProgramID) (*domain.Program, error) {
+	idInfo, ok := domain.IdentityFromContext(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
+	}
+
+	var p *domain.Program
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		var err error
+		p, err = s.store.GetDetail(ctx, q, idInfo.OrgID, id)
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return p, err
+}
+
+func (s *ProgramService) Create(ctx context.Context, name string, description *string, isPublic bool) (*domain.ProgramLite, error) {
+	name = normalizeName(name)
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
 	}
 
-	if err := s.validateExerciseIDs(sets); err != nil {
+	var p *domain.ProgramLite
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		var err error
+		p, err = s.store.Create(ctx, q, name, description, isPublic)
+		return err
+	})
+	return p, err
+}
+
+func (s *ProgramService) Update(ctx context.Context, id domain.ProgramID, name string, description *string, isPublic bool) (*domain.ProgramLite, error) {
+	name = normalizeName(name)
+	if name == "" {
+		return nil, &ValidationError{Msg: "name is required"}
+	}
+
+	idInfo, ok := domain.IdentityFromContext(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
+	}
+
+	var p *domain.ProgramLite
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		var err error
+		p, err = s.store.Update(ctx, q, idInfo.OrgID, id, name, description, isPublic)
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return p, err
+}
+
+func (s *ProgramService) Delete(ctx context.Context, id domain.ProgramID) error {
+	idInfo, ok := domain.IdentityFromContext(ctx)
+	if !ok {
+		return ErrUnauthorized
+	}
+
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		return s.store.Delete(ctx, q, idInfo.OrgID, id)
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return ErrNotFound
+	}
+	return err
+}
+
+func (s *ProgramService) CreateFull(ctx context.Context, name string, description *string, isPublic bool, sets []ProgramSetInput) (*domain.ProgramLite, error) {
+	name = normalizeName(name)
+	if name == "" {
+		return nil, &ValidationError{Msg: "name is required"}
+	}
+
+	if err := s.validateExerciseIDs(ctx, sets); err != nil {
 		return nil, err
 	}
 
-	tx, err := s.db.Begin()
-	if err != nil {
-		return nil, fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback() //nolint:errcheck
-
-	var programID domain.ProgramID
-	if err := tx.QueryRow(`INSERT INTO programs (name) VALUES ($1) RETURNING id`, name).Scan(&programID); err != nil {
-		return nil, fmt.Errorf("create program: %w", err)
-	}
-
-	for _, set := range sets {
-		if set.Rounds < 1 {
-			set.Rounds = 1
-		}
-		var setID int64
-		if err := tx.QueryRow(
-			`INSERT INTO program_sets (program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-			programID, set.Name, set.Rounds, set.IntraSetRestSeconds, set.SortOrder,
-		).Scan(&setID); err != nil {
-			return nil, fmt.Errorf("create program set: %w", err)
+	var programLite *domain.ProgramLite
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		var programID domain.ProgramID
+		if err := q.QueryRowContext(ctx, `INSERT INTO programs (name, description, is_public) VALUES ($1, $2, $3) RETURNING id`, name, description, isPublic).Scan(&programID); err != nil {
+			return fmt.Errorf("create program: %w", err)
 		}
 
-		for _, ex := range set.Exercises {
-			_, err := tx.Exec(
-				`INSERT INTO program_exercises (program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-				setID, ex.ExerciseID, ex.Laterality, ex.TargetReps, ex.TargetDurationSeconds, ex.TargetWeightKg, ex.SortOrder,
-			)
-			if err != nil {
-				return nil, fmt.Errorf("create program exercise: %w", err)
+		for _, set := range sets {
+			if set.Rounds < 1 {
+				set.Rounds = 1
+			}
+			var setID int64
+			if err := q.QueryRowContext(ctx,
+				`INSERT INTO program_sets (program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+				programID, set.Name, set.Rounds, set.IntraSetRestSeconds, set.SortOrder,
+			).Scan(&setID); err != nil {
+				return fmt.Errorf("create program set: %w", err)
+			}
+
+			for _, ex := range set.Exercises {
+				_, err := q.ExecContext(ctx,
+					`INSERT INTO program_exercises (program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+					setID, ex.ExerciseID, ex.Laterality, ex.TargetReps, ex.TargetDurationSeconds, ex.TargetWeightKg, ex.SortOrder,
+				)
+				if err != nil {
+					return fmt.Errorf("create program exercise: %w", err)
+				}
 			}
 		}
-	}
 
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit: %w", err)
-	}
+		idInfo, _ := domain.IdentityFromContext(ctx)
+		var err error
+		programLite, err = s.store.Get(ctx, q, idInfo.OrgID, programID)
+		return err
+	})
 
-	return &domain.ProgramLite{ID: programID, Name: name}, nil
+	return programLite, err
 }
 
-func (s *ProgramService) validateExerciseIDs(sets []ProgramSetInput) error {
+func (s *ProgramService) validateExerciseIDs(ctx context.Context, sets []ProgramSetInput) error {
 	// Collect unique IDs preserving insertion order for deterministic error messages.
 	seen := map[domain.ExerciseID]bool{}
 	var ids []domain.ExerciseID
@@ -148,14 +194,21 @@ func (s *ProgramService) validateExerciseIDs(sets []ProgramSetInput) error {
 		return nil
 	}
 
-	// Single query to fetch all existing IDs.
-	placeholders := make([]string, len(ids))
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = id
+	idInfo, ok := domain.IdentityFromContext(ctx)
+	if !ok {
+		return ErrUnauthorized
 	}
-	rows, err := s.db.Query(`SELECT id FROM exercises WHERE id IN (`+strings.Join(placeholders, ",")+`)`, args...)
+
+	// Single query to fetch all existing IDs.
+	// We must also check that the user has access to these exercises.
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids)+1)
+	args[0] = idInfo.OrgID
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args[i+1] = id
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id FROM exercises WHERE (org_id = $1 OR is_public = true) AND id IN (`+strings.Join(placeholders, ",")+`)`, args...)
 	if err != nil {
 		return fmt.Errorf("check exercises: %w", err)
 	}
@@ -175,7 +228,7 @@ func (s *ProgramService) validateExerciseIDs(sets []ProgramSetInput) error {
 
 	for _, id := range ids {
 		if !found[id] {
-			return &ValidationError{Msg: fmt.Sprintf("exercise_id %d not found", id)}
+			return &ValidationError{Msg: fmt.Sprintf("exercise_id %d not found or access denied", id)}
 		}
 	}
 	return nil

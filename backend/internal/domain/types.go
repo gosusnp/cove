@@ -15,15 +15,24 @@ type ProgramID IntID[struct{ program struct{} }]
 
 // ProgramLite is a trimmed version of a program.
 type ProgramLite struct {
-	ID   ProgramID `json:"id"`
-	Name string    `json:"name"`
+	ID       ProgramID `json:"id"`
+	Name     string    `json:"name"`
+	OrgID    OrgID     `json:"org_id"`
+	IsPublic bool      `json:"is_public"`
 }
 
 // Program is the complete program hierarchy.
 type Program struct {
-	ID   ProgramID    `json:"id"`
-	Name string       `json:"name"`
-	Sets []ProgramSet `json:"sets"`
+	ID          ProgramID    `json:"id"`
+	Name        string       `json:"name"`
+	Description *string      `json:"description,omitempty"`
+	OrgID       OrgID        `json:"org_id"`
+	IsPublic    bool         `json:"is_public"`
+	CreatedBy   UserID       `json:"created_by"`
+	CreatedAt   time.Time    `json:"created_at"`
+	UpdatedBy   *UserID      `json:"updated_by,omitempty"`
+	UpdatedAt   time.Time    `json:"updated_at"`
+	Sets        []ProgramSet `json:"sets"`
 }
 
 type ProgramSet struct {

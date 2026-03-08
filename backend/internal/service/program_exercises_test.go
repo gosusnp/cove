@@ -35,11 +35,16 @@ func newTestProgramExerciseService(t *testing.T) programExerciseFixture {
 		OrgID:  orgID,
 	})
 
-	p, err := store.NewProgramStore(db).Create("Test Program")
+	// Set session variables for RLS
+	_, _ = db.Exec(`SELECT set_config('app.current_org_id', $1, false), set_config('app.current_user_id', $2, false)`, orgID.String(), user.ID.String())
+
+	var pID int64
+	err := db.QueryRowContext(ctx, `INSERT INTO programs (name, org_id, created_by) VALUES ($1, $2, $3) RETURNING id`, "Test Program", orgID, user.ID).Scan(&pID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ps, err := store.NewProgramSetStore(db).Create(p.ID, nil, 1, nil, nil)
+	var psID int64
+	err = db.QueryRowContext(ctx, `INSERT INTO program_sets (program_id, rounds) VALUES ($1, 1) RETURNING id`, pID).Scan(&psID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +70,7 @@ func newTestProgramExerciseService(t *testing.T) programExerciseFixture {
 	return programExerciseFixture{
 		svc:        NewProgramExerciseService(store.NewProgramExerciseStore(db)),
 		ctx:        ctx,
-		setID:      ps.ID,
+		setID:      psID,
 		exerciseID: e.ID,
 	}
 }

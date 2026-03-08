@@ -4,9 +4,11 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
 	"github.com/gosusnp/cove/backend/internal/testutil"
@@ -15,11 +17,22 @@ import (
 func newTestProgramSetService(t *testing.T) (*ProgramSetService, domain.ProgramID) {
 	t.Helper()
 	db := testutil.NewDB(t)
-	p, err := store.NewProgramStore(db).Create("Test Program")
+
+	// Seed user and org for required fields
+	uID := uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe01")
+	oID := uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe02")
+	_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'test@test.com', 'sub') ON CONFLICT DO NOTHING`, uID)
+	_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'test-org') ON CONFLICT DO NOTHING`, oID)
+
+	// Set session variables for RLS
+	_, _ = db.Exec(`SELECT set_config('app.current_org_id', $1, false), set_config('app.current_user_id', $2, false)`, oID.String(), uID.String())
+
+	var pID int64
+	err := db.QueryRowContext(context.Background(), `INSERT INTO programs (name, org_id, created_by) VALUES ($1, $2, $3) RETURNING id`, "Test Program", oID, uID).Scan(&pID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewProgramSetService(store.NewProgramSetStore(db)), p.ID
+	return NewProgramSetService(store.NewProgramSetStore(db)), domain.ProgramID(pID)
 }
 
 func TestProgramSetService_List(t *testing.T) {

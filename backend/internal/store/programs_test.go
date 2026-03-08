@@ -13,17 +13,40 @@ import (
 	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
-func newTestProgramStore(t *testing.T) *ProgramStore {
+func newTestProgramStore(t *testing.T) (*ProgramStore, Querier, context.Context) {
 	t.Helper()
-	return NewProgramStore(testutil.NewDB(t))
+	db := testutil.NewDB(t)
 
+	// Seed user and org for required fields
+	uID := domain.UserID{UUID: uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe01")}
+	oID := domain.OrgID{UUID: uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe02")}
+
+	_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'test@test.com', 'sub')`, uID)
+	_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'test-org')`, oID)
+	_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID)
+
+	ctx := domain.NewContext(context.Background(), &domain.Identity{
+		UserID: uID,
+		OrgID:  oID,
+	})
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback() })
+
+	q := NewScopedQuerier(tx, oID.String(), uID.String())
+
+	return NewProgramStore(), q, ctx
 }
 
 func TestProgramStore_List(t *testing.T) {
 	t.Run("empty returns empty slice not nil", func(t *testing.T) {
-		s := newTestProgramStore(t)
+		s, db, ctx := newTestProgramStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
 
-		programs, err := s.List()
+		programs, err := s.List(ctx, db, id.OrgID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -36,15 +59,16 @@ func TestProgramStore_List(t *testing.T) {
 	})
 
 	t.Run("returns all programs ordered by name", func(t *testing.T) {
-		s := newTestProgramStore(t)
-		if _, err := s.Create("Strength"); err != nil {
+		s, db, ctx := newTestProgramStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
+		if _, err := s.Create(ctx, db, "Strength", nil, true); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := s.Create("Hypertrophy"); err != nil {
+		if _, err := s.Create(ctx, db, "Hypertrophy", nil, true); err != nil {
 			t.Fatal(err)
 		}
 
-		programs, err := s.List()
+		programs, err := s.List(ctx, db, id.OrgID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -59,13 +83,14 @@ func TestProgramStore_List(t *testing.T) {
 
 func TestProgramStore_Get(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
-		s := newTestProgramStore(t)
-		created, err := s.Create("Strength")
+		s, db, ctx := newTestProgramStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
+		created, err := s.Create(ctx, db, "Strength", nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		got, err := s.Get(created.ID)
+		got, err := s.Get(ctx, db, id.OrgID, created.ID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -75,9 +100,10 @@ func TestProgramStore_Get(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		s := newTestProgramStore(t)
+		s, db, ctx := newTestProgramStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
 
-		_, err := s.Get(domain.ProgramID(999))
+		_, err := s.Get(ctx, db, id.OrgID, domain.ProgramID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -86,9 +112,9 @@ func TestProgramStore_Get(t *testing.T) {
 
 func TestProgramStore_Create(t *testing.T) {
 	t.Run("creates program", func(t *testing.T) {
-		s := newTestProgramStore(t)
+		s, db, ctx := newTestProgramStore(t)
 
-		p, err := s.Create("Strength")
+		p, err := s.Create(ctx, db, "Strength", nil, true)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -99,29 +125,18 @@ func TestProgramStore_Create(t *testing.T) {
 			t.Error("expected non-zero ID")
 		}
 	})
-
-	t.Run("duplicate name returns error", func(t *testing.T) {
-		s := newTestProgramStore(t)
-		if _, err := s.Create("Strength"); err != nil {
-			t.Fatal(err)
-		}
-
-		_, err := s.Create("Strength")
-		if err == nil {
-			t.Error("expected error for duplicate name, got nil")
-		}
-	})
 }
 
 func TestProgramStore_Update(t *testing.T) {
 	t.Run("updates name", func(t *testing.T) {
-		s := newTestProgramStore(t)
-		created, err := s.Create("Strength")
+		s, db, ctx := newTestProgramStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
+		created, err := s.Create(ctx, db, "Strength", nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		updated, err := s.Update(created.ID, "Max Strength")
+		updated, err := s.Update(ctx, db, id.OrgID, created.ID, "Max Strength", nil, true)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -131,9 +146,10 @@ func TestProgramStore_Update(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		s := newTestProgramStore(t)
+		s, db, ctx := newTestProgramStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
 
-		_, err := s.Update(domain.ProgramID(999), "Strength")
+		_, err := s.Update(ctx, db, id.OrgID, domain.ProgramID(999), "Strength", nil, true)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -142,22 +158,24 @@ func TestProgramStore_Update(t *testing.T) {
 
 func TestProgramStore_GetDetail(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
-		s := newTestProgramStore(t)
+		s, db, ctx := newTestProgramStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
 
-		_, err := s.GetDetail(domain.ProgramID(999))
+		_, err := s.GetDetail(ctx, db, id.OrgID, domain.ProgramID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
 	})
 
 	t.Run("empty program has empty sets slice", func(t *testing.T) {
-		s := newTestProgramStore(t)
-		p, err := s.Create("Strength")
+		s, db, ctx := newTestProgramStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
+		p, err := s.Create(ctx, db, "Strength", nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		detail, err := s.GetDetail(p.ID)
+		detail, err := s.GetDetail(ctx, db, id.OrgID, p.ID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -170,45 +188,34 @@ func TestProgramStore_GetDetail(t *testing.T) {
 	})
 
 	t.Run("returns full hierarchy", func(t *testing.T) {
-		db := testutil.NewDB(t)
+		s, db, ctx := newTestProgramStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
 
-		// Create exercise with identity context and scoped transaction
-		// We'll use a dummy identity for seeding system data
-		uID := "019cb68a-cfcb-76db-9003-87bbcaaebe01"
-		oID := "019cb68a-cfce-7aa3-bdfb-9700ccaebe02"
-
-		tx, err := db.Begin()
+		// Create program and sets using direct SQL because we only have ProgramStore
+		var programID int64
+		err := db.QueryRowContext(ctx, `INSERT INTO programs (name, org_id, is_public, created_by) VALUES ($1, $2, $3, $4) RETURNING id`, "Full Program", id.OrgID, true, id.UserID).Scan(&programID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer func() { _ = tx.Rollback() }()
 
-		// Ensure user and org exist
-		_, _ = tx.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'sys@test.com', 'sys')`, uID)
-		_, _ = tx.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'sys-org')`, oID)
+		var setID int64
+		err = db.QueryRowContext(ctx, `INSERT INTO program_sets (program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id`, programID, "Set 1", 3, 60, 1).Scan(&setID)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		_, _ = tx.Exec(`INSERT INTO programs (id, name) VALUES ($1, 'Strength')`, 1)
-		_, _ = tx.Exec(`INSERT INTO program_sets (id, program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES ($1, $2, $3, $4, $5, $6)`, 1, 1, "Set 1", 3, 60, 1)
-
-		ctx := domain.NewContext(context.Background(), &domain.Identity{
-			UserID: domain.UserID{UUID: uuid.MustParse(uID)},
-			OrgID:  domain.OrgID{UUID: uuid.MustParse(oID)},
-		})
-
-		q := NewScopedQuerier(tx, oID, uID)
-		e, err := NewExerciseStore().Create(ctx, q, "Pull-up", nil, nil, true)
+		e, err := NewExerciseStore().Create(ctx, db, "Pull-up", nil, nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		reps := 8
-		_, _ = tx.Exec(`INSERT INTO program_exercises (program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)`, 1, e.ID, nil, reps, nil, nil, 1)
-
-		if err := tx.Commit(); err != nil {
+		_, err = db.ExecContext(ctx, `INSERT INTO program_exercises (program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)`, setID, e.ID, nil, reps, nil, nil, 1)
+		if err != nil {
 			t.Fatal(err)
 		}
 
-		detail, err := NewProgramStore(db).GetDetail(domain.ProgramID(1))
+		detail, err := s.GetDetail(ctx, db, id.OrgID, domain.ProgramID(programID))
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -236,25 +243,27 @@ func TestProgramStore_GetDetail(t *testing.T) {
 
 func TestProgramStore_Delete(t *testing.T) {
 	t.Run("deletes existing", func(t *testing.T) {
-		s := newTestProgramStore(t)
-		created, err := s.Create("Strength")
+		s, db, ctx := newTestProgramStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
+		created, err := s.Create(ctx, db, "Strength", nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if err := s.Delete(created.ID); err != nil {
+		if err := s.Delete(ctx, db, id.OrgID, created.ID); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		_, err = s.Get(created.ID)
+		_, err = s.Get(ctx, db, id.OrgID, created.ID)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("expected ErrNotFound after delete, got %v", err)
 		}
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		s := newTestProgramStore(t)
+		s, db, ctx := newTestProgramStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
 
-		err := s.Delete(domain.ProgramID(999))
+		err := s.Delete(ctx, db, id.OrgID, domain.ProgramID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}

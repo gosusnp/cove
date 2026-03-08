@@ -4,12 +4,39 @@
 package store
 
 import (
+	"context"
+	"database/sql"
 	"errors"
+	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/testutil"
 )
+
+func seedProgram(t *testing.T, db *sql.DB, name string) domain.ProgramID {
+	t.Helper()
+	uID := uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe01")
+	oID := uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe02")
+
+	// Ensure user and org exist
+	_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'test@test.com', 'sub') ON CONFLICT DO NOTHING`, uID)
+	_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'test-org') ON CONFLICT DO NOTHING`, oID)
+
+	// Set session variables for RLS
+	_, err := db.Exec(fmt.Sprintf("SELECT set_config('app.current_org_id', '%s', false), set_config('app.current_user_id', '%s', false)", oID, uID))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var id int64
+	err = db.QueryRowContext(context.Background(), `INSERT INTO programs (name, org_id, created_by) VALUES ($1, $2, $3) RETURNING id`, name, oID, uID).Scan(&id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return domain.ProgramID(id)
+}
 
 func newTestProgramSetStore(t *testing.T) (*ProgramSetStore, domain.ProgramID) {
 	t.Helper()
@@ -17,11 +44,8 @@ func newTestProgramSetStore(t *testing.T) (*ProgramSetStore, domain.ProgramID) {
 	ps := NewProgramSetStore(db)
 
 	// create a parent program for tests
-	p, err := NewProgramStore(db).Create("Test Program")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return ps, p.ID
+	pID := seedProgram(t, db, "Test Program")
+	return ps, pID
 }
 
 func TestProgramSetStore_List(t *testing.T) {
@@ -43,20 +67,20 @@ func TestProgramSetStore_List(t *testing.T) {
 	t.Run("returns sets for program only", func(t *testing.T) {
 		db := testutil.NewDB(t)
 		ps := NewProgramSetStore(db)
-		p1, _ := NewProgramStore(db).Create("Program 1")
-		p2, _ := NewProgramStore(db).Create("Program 2")
+		p1 := seedProgram(t, db, "Program 1")
+		p2 := seedProgram(t, db, "Program 2")
 
-		if _, err := ps.Create(p1.ID, nil, 1, nil, nil); err != nil {
+		if _, err := ps.Create(p1, nil, 1, nil, nil); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := ps.Create(p1.ID, nil, 1, nil, nil); err != nil {
+		if _, err := ps.Create(p1, nil, 1, nil, nil); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := ps.Create(p2.ID, nil, 1, nil, nil); err != nil {
+		if _, err := ps.Create(p2, nil, 1, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 
-		sets, err := ps.List(p1.ID)
+		sets, err := ps.List(p1)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -95,15 +119,15 @@ func TestProgramSetStore_Get(t *testing.T) {
 	t.Run("wrong program returns not found", func(t *testing.T) {
 		db := testutil.NewDB(t)
 		ps := NewProgramSetStore(db)
-		p1, _ := NewProgramStore(db).Create("Program 1")
-		p2, _ := NewProgramStore(db).Create("Program 2")
+		p1 := seedProgram(t, db, "Program 1")
+		p2 := seedProgram(t, db, "Program 2")
 
-		created, err := ps.Create(p1.ID, nil, 1, nil, nil)
+		created, err := ps.Create(p1, nil, 1, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		_, err = ps.Get(p2.ID, created.ID)
+		_, err = ps.Get(p2, created.ID)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
