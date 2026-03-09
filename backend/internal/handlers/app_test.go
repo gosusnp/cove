@@ -67,14 +67,14 @@ func NewTestApp(t *testing.T) *TestApp {
 
 	// Stores
 	exStore := store.NewExerciseStore()
-	peStore := store.NewProgramExerciseStore(database)
+	peStore := store.NewProgramExerciseStore()
 	uStore := store.NewUserStore()
 	oStore := store.NewOrgStore()
 
 	// Services
 	exSvc := service.NewExerciseService(database, exStore)
 	pSvc := service.NewProgramService(database)
-	peSvc := service.NewProgramExerciseService(peStore)
+	peSvc := service.NewProgramExerciseService(database, peStore)
 	uSvc := service.NewUserService(database, uStore, oStore)
 
 	// Create system user for raw mux auth
@@ -265,7 +265,21 @@ func (a *TestApp) SeedProgramSet(programID domain.ProgramID, rounds int) *store.
 // SeedProgramExercise adds an exercise to a set.
 func (a *TestApp) SeedProgramExercise(setID int64, exerciseID domain.ExerciseID) *store.ProgramExercise {
 	a.T.Helper()
-	pe, err := a.ProgramExercises.Create(setID, exerciseID, nil, nil, nil, nil, nil)
+
+	// Find program ID to get owner identity
+	var programID domain.ProgramID
+	err := a.DB.QueryRow(`SELECT program_id FROM program_sets WHERE id = $1`, setID).Scan(&programID)
+	if err != nil {
+		a.T.Fatalf("get program ID for set %d: %v", setID, err)
+	}
+
+	identity := a.programOwners[programID]
+	if identity == nil {
+		a.T.Fatalf("no owner recorded for program %v", programID)
+	}
+	ctx := domain.NewContext(context.Background(), identity)
+
+	pe, err := a.ProgramExercises.Create(ctx, setID, exerciseID, nil, nil, nil, nil, nil)
 	if err != nil {
 		a.T.Fatalf("seed program exercise: %v", err)
 	}

@@ -43,7 +43,7 @@ func (h *ProgramExerciseHandler) list(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid set id", http.StatusBadRequest)
 		return
 	}
-	exercises, err := h.svc.List(setID)
+	exercises, err := h.svc.List(r.Context(), setID)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -62,7 +62,7 @@ func (h *ProgramExerciseHandler) get(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	pe, err := h.svc.Get(setID, id)
+	pe, err := h.svc.Get(r.Context(), setID, id)
 	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "program exercise not found", http.StatusNotFound)
 		return
@@ -85,10 +85,14 @@ func (h *ProgramExerciseHandler) create(w http.ResponseWriter, r *http.Request) 
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	pe, err := h.svc.Create(setID, req.ExerciseID, req.Laterality, req.TargetReps, req.TargetDurationSeconds, req.TargetWeightKg, req.SortOrder)
+	pe, err := h.svc.Create(r.Context(), setID, req.ExerciseID, req.Laterality, req.TargetReps, req.TargetDurationSeconds, req.TargetWeightKg, req.SortOrder)
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
 		jsonError(w, ve.Error(), http.StatusBadRequest)
+		return
+	}
+	if errors.Is(err, service.ErrNotFound) {
+		jsonError(w, "program set not found", http.StatusNotFound)
 		return
 	}
 	if err != nil {
@@ -114,7 +118,7 @@ func (h *ProgramExerciseHandler) update(w http.ResponseWriter, r *http.Request) 
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	pe, err := h.svc.Update(setID, id, req.ExerciseID, req.Laterality, req.TargetReps, req.TargetDurationSeconds, req.TargetWeightKg, req.SortOrder)
+	pe, err := h.svc.Update(r.Context(), setID, id, req.ExerciseID, req.Laterality, req.TargetReps, req.TargetDurationSeconds, req.TargetWeightKg, req.SortOrder)
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
 		jsonError(w, ve.Error(), http.StatusBadRequest)
@@ -142,7 +146,7 @@ func (h *ProgramExerciseHandler) delete(w http.ResponseWriter, r *http.Request) 
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	err = h.svc.Delete(setID, id)
+	err = h.svc.Delete(r.Context(), setID, id)
 	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "program exercise not found", http.StatusNotFound)
 		return

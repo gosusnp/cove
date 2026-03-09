@@ -32,7 +32,7 @@ func newTestAPIHandler(t *testing.T) http.Handler {
 		Exercises:        service.NewExerciseService(database, store.NewExerciseStore()),
 		Programs:         pSvc,
 		ProgramSets:      service.NewProgramSetService(pSvc),
-		ProgramExercises: service.NewProgramExerciseService(store.NewProgramExerciseStore(database)),
+		ProgramExercises: service.NewProgramExerciseService(database, store.NewProgramExerciseStore()),
 	}
 	return NewAPIHandler(userStore, userSvc, svcs)
 }

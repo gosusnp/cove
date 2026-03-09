@@ -4,6 +4,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
@@ -148,7 +150,8 @@ func TestProgramExerciseHandler_Update(t *testing.T) {
 		}
 
 		// Verify change
-		got, _ := app.ProgramExercises.Get(ps.ID, pe.ID)
+		ctx := domain.NewContext(context.Background(), app.programOwners[p.ID])
+		got, _ := app.ProgramExercises.Get(ctx, ps.ID, pe.ID)
 		if got.Laterality == nil || *got.Laterality != "updated notes" {
 			t.Errorf("got laterality %v, want 'updated notes'", got.Laterality)
 		}
@@ -187,7 +190,8 @@ func TestProgramExerciseHandler_Delete(t *testing.T) {
 		}
 
 		// Verify gone
-		_, err := app.ProgramExercises.Get(ps.ID, pe.ID)
+		ctx := domain.NewContext(context.Background(), app.programOwners[p.ID])
+		_, err := app.ProgramExercises.Get(ctx, ps.ID, pe.ID)
 		if err == nil {
 			t.Error("expected error getting deleted program exercise")
 		}
