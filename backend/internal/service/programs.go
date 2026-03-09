@@ -244,7 +244,7 @@ func (s *ProgramService) CreateFull(ctx context.Context, name string, descriptio
 
 		idInfo, _ := domain.IdentityFromContext(ctx)
 		if len(sets) > 0 {
-			if err := s.store.SyncSetsJSON(ctx, q, idInfo.OrgID, programID); err != nil {
+			if err := s.store.SyncProgramJSON(ctx, q, idInfo.OrgID, programID); err != nil {
 				return err
 			}
 		}

@@ -204,11 +204,6 @@ func TestProgramStore_GetDetail(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Sync the denormalized JSONB so GetDetail can find the set.
-		if err := s.SyncSetsJSON(ctx, db, id.OrgID, domain.ProgramID(programID)); err != nil {
-			t.Fatal(err)
-		}
-
 		e, err := NewExerciseStore().Create(ctx, db, "Pull-up", nil, nil, true)
 		if err != nil {
 			t.Fatal(err)
@@ -217,6 +212,11 @@ func TestProgramStore_GetDetail(t *testing.T) {
 		reps := 8
 		_, err = db.ExecContext(ctx, `INSERT INTO program_exercises (program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)`, setID, e.ID, nil, reps, nil, nil, 1)
 		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Sync the denormalized JSONB after exercises are inserted so GetDetail can read the full hierarchy.
+		if err := s.SyncProgramJSON(ctx, db, id.OrgID, domain.ProgramID(programID)); err != nil {
 			t.Fatal(err)
 		}
 
@@ -325,12 +325,12 @@ func TestProgramStore_DeleteSet(t *testing.T) {
 	})
 }
 
-func TestProgramStore_SyncSetsJSON(t *testing.T) {
+func TestProgramStore_SyncProgramJSON(t *testing.T) {
 	t.Run("not found for missing program", func(t *testing.T) {
 		s, db, ctx := newTestProgramStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
 
-		err := s.SyncSetsJSON(ctx, db, id.OrgID, domain.ProgramID(999))
+		err := s.SyncProgramJSON(ctx, db, id.OrgID, domain.ProgramID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -340,7 +340,7 @@ func TestProgramStore_SyncSetsJSON(t *testing.T) {
 		s, programID, ctx2, q2 := seedTwoOrgs(t)
 		o2ID := domain.OrgID{UUID: uuid.MustParse("019cb68a-0000-0000-0000-000000000004")}
 
-		err := s.SyncSetsJSON(ctx2, q2, o2ID, programID)
+		err := s.SyncProgramJSON(ctx2, q2, o2ID, programID)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}

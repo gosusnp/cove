@@ -13,13 +13,26 @@ import (
 	"github.com/gosusnp/cove/backend/internal/domain"
 )
 
+// jsonProgramExercise is the internal representation for JSONB serialization of program exercises.
+type jsonProgramExercise struct {
+	ID                    int64             `json:"id"`
+	ExerciseID            domain.ExerciseID `json:"exercise_id"`
+	Name                  string            `json:"name"`
+	Laterality            *string           `json:"laterality,omitempty"`
+	TargetReps            *int              `json:"reps,omitempty"`
+	TargetDurationSeconds *int              `json:"duration_s,omitempty"`
+	TargetWeightKg        *float64          `json:"weight_kg,omitempty"`
+	SortOrder             *int              `json:"sort_order,omitempty"`
+}
+
 // jsonProgramSet is the internal representation for JSONB serialization of program sets.
 type jsonProgramSet struct {
-	ID                  int64   `json:"id"`
-	Name                *string `json:"name,omitempty"`
-	Rounds              int     `json:"rounds"`
-	IntraSetRestSeconds *int    `json:"rest_s,omitempty"`
-	SortOrder           *int    `json:"sort_order,omitempty"`
+	ID                  int64                 `json:"id"`
+	Name                *string               `json:"name,omitempty"`
+	Rounds              int                   `json:"rounds"`
+	IntraSetRestSeconds *int                  `json:"rest_s,omitempty"`
+	SortOrder           *int                  `json:"sort_order,omitempty"`
+	Exercises           []jsonProgramExercise `json:"exercises"`
 }
 
 type ProgramStore struct{}
@@ -99,8 +112,7 @@ func (s *ProgramStore) Update(ctx context.Context, q Querier, orgID domain.OrgID
 	return s.Get(ctx, q, orgID, id)
 }
 
-// GetDetail returns the full program hierarchy: sets with their exercises.
-// Sets are read from the denormalized programs.sets JSONB column; exercises are joined from program_exercises.
+// GetDetail returns the full program hierarchy: sets with their exercises, all read from the denormalized programs.sets JSONB column.
 func (s *ProgramStore) GetDetail(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID) (*domain.Program, error) {
 	var p domain.Program
 	var setsJSON []byte
@@ -126,7 +138,6 @@ func (s *ProgramStore) GetDetail(ctx context.Context, q Querier, orgID domain.Or
 		return nil, fmt.Errorf("unmarshal sets: %w", err)
 	}
 
-	setIndex := map[int64]int{}
 	for _, r := range rawSets {
 		sd := domain.ProgramSet{
 			ID:                  r.ID,
@@ -136,46 +147,26 @@ func (s *ProgramStore) GetDetail(ctx context.Context, q Querier, orgID domain.Or
 			SortOrder:           r.SortOrder,
 			Exercises:           []domain.ProgramExercise{},
 		}
-		setIndex[r.ID] = len(p.Sets)
-		p.Sets = append(p.Sets, sd)
-	}
-
-	if len(p.Sets) == 0 {
-		return &p, nil
-	}
-
-	exRows, err := q.QueryContext(ctx,
-		`SELECT pe.id, pe.program_set_id, pe.exercise_id, e.name, pe.laterality, pe.target_reps, pe.target_duration_seconds, pe.target_weight_kg, pe.sort_order
-		 FROM program_exercises pe
-		 JOIN exercises e ON e.id = pe.exercise_id
-		 JOIN program_sets ps ON ps.id = pe.program_set_id
-		 WHERE ps.program_id = $1
-		 ORDER BY pe.program_set_id, pe.sort_order, pe.id`,
-		id,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("get program exercises: %w", err)
-	}
-	defer exRows.Close()
-
-	for exRows.Next() {
-		var ped domain.ProgramExercise
-		var setID int64
-		if err := exRows.Scan(&ped.ID, &setID, &ped.ExerciseID, &ped.Name, &ped.Laterality, &ped.TargetReps, &ped.TargetDurationSeconds, &ped.TargetWeightKg, &ped.SortOrder); err != nil {
-			return nil, fmt.Errorf("scan program exercise: %w", err)
+		for _, ex := range r.Exercises {
+			sd.Exercises = append(sd.Exercises, domain.ProgramExercise{
+				ID:                    ex.ID,
+				ExerciseID:            ex.ExerciseID,
+				Name:                  ex.Name,
+				Laterality:            ex.Laterality,
+				TargetReps:            ex.TargetReps,
+				TargetDurationSeconds: ex.TargetDurationSeconds,
+				TargetWeightKg:        ex.TargetWeightKg,
+				SortOrder:             ex.SortOrder,
+			})
 		}
-		idx := setIndex[setID]
-		p.Sets[idx].Exercises = append(p.Sets[idx].Exercises, ped)
-	}
-	if err := exRows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate program exercises: %w", err)
+		p.Sets = append(p.Sets, sd)
 	}
 
 	return &p, nil
 }
 
-// SyncSetsJSON rebuilds the programs.sets JSONB column from the program_sets table.
-func (s *ProgramStore) SyncSetsJSON(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID) error {
+// SyncProgramJSON rebuilds the programs.sets JSONB column from the program_sets and program_exercises tables.
+func (s *ProgramStore) SyncProgramJSON(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID) error {
 	res, err := q.ExecContext(ctx, `
 		UPDATE programs SET sets = (
 			SELECT COALESCE(jsonb_agg(
@@ -184,7 +175,24 @@ func (s *ProgramStore) SyncSetsJSON(ctx context.Context, q Querier, orgID domain
 					'name', ps.name,
 					'rounds', ps.rounds,
 					'rest_s', ps.intra_set_rest_seconds,
-					'sort_order', ps.sort_order
+					'sort_order', ps.sort_order,
+					'exercises', (
+						SELECT COALESCE(jsonb_agg(
+							jsonb_build_object(
+								'id', pe.id,
+								'exercise_id', pe.exercise_id,
+								'name', e.name,
+								'laterality', pe.laterality,
+								'reps', pe.target_reps,
+								'duration_s', pe.target_duration_seconds,
+								'weight_kg', pe.target_weight_kg,
+								'sort_order', pe.sort_order
+							) ORDER BY pe.sort_order NULLS LAST, pe.id
+						), '[]'::jsonb)
+						FROM program_exercises pe
+						JOIN exercises e ON e.id = pe.exercise_id
+						WHERE pe.program_set_id = ps.id
+					)
 				) ORDER BY ps.sort_order NULLS LAST, ps.id
 			), '[]'::jsonb)
 			FROM program_sets ps WHERE ps.program_id = $1
@@ -192,11 +200,11 @@ func (s *ProgramStore) SyncSetsJSON(ctx context.Context, q Querier, orgID domain
 		WHERE id = $1 AND org_id = $2
 	`, programID, orgID)
 	if err != nil {
-		return fmt.Errorf("sync sets json: %w", err)
+		return fmt.Errorf("sync program json: %w", err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("sync sets json rows affected: %w", err)
+		return fmt.Errorf("sync program json rows affected: %w", err)
 	}
 	if n == 0 {
 		return ErrNotFound
@@ -266,7 +274,7 @@ func (s *ProgramStore) CreateSet(ctx context.Context, q Querier, orgID domain.Or
 	if err != nil {
 		return nil, fmt.Errorf("create program set: %w", err)
 	}
-	if err := s.SyncSetsJSON(ctx, q, orgID, programID); err != nil {
+	if err := s.SyncProgramJSON(ctx, q, orgID, programID); err != nil {
 		return nil, err
 	}
 	return &ProgramSet{
@@ -297,7 +305,7 @@ func (s *ProgramStore) UpdateSet(ctx context.Context, q Querier, orgID domain.Or
 	if n == 0 {
 		return nil, ErrNotFound
 	}
-	if err := s.SyncSetsJSON(ctx, q, orgID, programID); err != nil {
+	if err := s.SyncProgramJSON(ctx, q, orgID, programID); err != nil {
 		return nil, err
 	}
 	return &ProgramSet{
@@ -327,7 +335,7 @@ func (s *ProgramStore) DeleteSet(ctx context.Context, q Querier, orgID domain.Or
 	if n == 0 {
 		return ErrNotFound
 	}
-	return s.SyncSetsJSON(ctx, q, orgID, programID)
+	return s.SyncProgramJSON(ctx, q, orgID, programID)
 }
 
 func (s *ProgramStore) Delete(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID) error {
