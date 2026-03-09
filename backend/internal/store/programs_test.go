@@ -204,6 +204,11 @@ func TestProgramStore_GetDetail(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		// Sync the denormalized JSONB so GetDetail can find the set.
+		if err := s.SyncSetsJSON(ctx, db, id.OrgID, domain.ProgramID(programID)); err != nil {
+			t.Fatal(err)
+		}
+
 		e, err := NewExerciseStore().Create(ctx, db, "Pull-up", nil, nil, true)
 		if err != nil {
 			t.Fatal(err)
@@ -237,6 +242,107 @@ func TestProgramStore_GetDetail(t *testing.T) {
 		}
 		if detail.Sets[0].Exercises[0].TargetReps == nil || *detail.Sets[0].Exercises[0].TargetReps != 8 {
 			t.Errorf("got target_reps %v, want 8", detail.Sets[0].Exercises[0].TargetReps)
+		}
+	})
+}
+
+// seedTwoOrgs seeds two users/orgs, creates a program owned by org1, and returns a
+// store, the program ID, and a committed ScopedQuerier for org2 ready for cross-org attempts.
+func seedTwoOrgs(t *testing.T) (s *ProgramStore, programID domain.ProgramID, ctx2 context.Context, q2 Querier) {
+	t.Helper()
+	db := testutil.NewDB(t)
+
+	u1ID := domain.UserID{UUID: uuid.MustParse("019cb68a-0000-0000-0000-000000000001")}
+	o1ID := domain.OrgID{UUID: uuid.MustParse("019cb68a-0000-0000-0000-000000000002")}
+	u2ID := domain.UserID{UUID: uuid.MustParse("019cb68a-0000-0000-0000-000000000003")}
+	o2ID := domain.OrgID{UUID: uuid.MustParse("019cb68a-0000-0000-0000-000000000004")}
+
+	_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'u1@test.com', 'sub1')`, u1ID)
+	_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'u2@test.com', 'sub2')`, u2ID)
+	_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'org1')`, o1ID)
+	_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'org2')`, o2ID)
+	_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, o1ID, u1ID)
+	_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, o2ID, u2ID)
+
+	ctx1 := domain.NewContext(context.Background(), &domain.Identity{UserID: u1ID, OrgID: o1ID})
+	tx1, err := db.BeginTx(ctx1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ps := NewProgramStore()
+	p, err := ps.Create(ctx1, NewScopedQuerier(tx1, o1ID.String(), u1ID.String()), "Org1 Program", nil, false)
+	if err != nil {
+		_ = tx1.Rollback()
+		t.Fatal(err)
+	}
+	if err := tx1.Commit(); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx2 = domain.NewContext(context.Background(), &domain.Identity{UserID: u2ID, OrgID: o2ID})
+	tx2, err := db.BeginTx(ctx2, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx2.Rollback() })
+
+	return ps, p.ID, ctx2, NewScopedQuerier(tx2, o2ID.String(), u2ID.String())
+}
+
+func TestProgramStore_CreateSet(t *testing.T) {
+	t.Run("cannot create set in another org's program", func(t *testing.T) {
+		s, programID, ctx2, q2 := seedTwoOrgs(t)
+		o2ID := domain.OrgID{UUID: uuid.MustParse("019cb68a-0000-0000-0000-000000000004")}
+
+		_, err := s.CreateSet(ctx2, q2, o2ID, programID, nil, 1, nil, nil)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func TestProgramStore_UpdateSet(t *testing.T) {
+	t.Run("cannot update set in another org's program", func(t *testing.T) {
+		s, programID, ctx2, q2 := seedTwoOrgs(t)
+		o2ID := domain.OrgID{UUID: uuid.MustParse("019cb68a-0000-0000-0000-000000000004")}
+
+		_, err := s.UpdateSet(ctx2, q2, o2ID, programID, 999, nil, 1, nil, nil)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func TestProgramStore_DeleteSet(t *testing.T) {
+	t.Run("cannot delete set in another org's program", func(t *testing.T) {
+		s, programID, ctx2, q2 := seedTwoOrgs(t)
+		o2ID := domain.OrgID{UUID: uuid.MustParse("019cb68a-0000-0000-0000-000000000004")}
+
+		err := s.DeleteSet(ctx2, q2, o2ID, programID, 999)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func TestProgramStore_SyncSetsJSON(t *testing.T) {
+	t.Run("not found for missing program", func(t *testing.T) {
+		s, db, ctx := newTestProgramStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
+
+		err := s.SyncSetsJSON(ctx, db, id.OrgID, domain.ProgramID(999))
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("not found for wrong org", func(t *testing.T) {
+		s, programID, ctx2, q2 := seedTwoOrgs(t)
+		o2ID := domain.OrgID{UUID: uuid.MustParse("019cb68a-0000-0000-0000-000000000004")}
+
+		err := s.SyncSetsJSON(ctx2, q2, o2ID, programID)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
 		}
 	})
 }

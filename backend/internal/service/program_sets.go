@@ -4,56 +4,36 @@
 package service
 
 import (
-	"errors"
+	"context"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
 type ProgramSetService struct {
-	store *store.ProgramSetStore
+	programs *ProgramService
 }
 
-func NewProgramSetService(s *store.ProgramSetStore) *ProgramSetService {
-	return &ProgramSetService{store: s}
+func NewProgramSetService(programs *ProgramService) *ProgramSetService {
+	return &ProgramSetService{programs: programs}
 }
 
-func (s *ProgramSetService) List(programID domain.ProgramID) ([]store.ProgramSet, error) {
-	return s.store.List(programID)
+func (s *ProgramSetService) List(ctx context.Context, programID domain.ProgramID) ([]store.ProgramSet, error) {
+	return s.programs.ListSets(ctx, programID)
 }
 
-func (s *ProgramSetService) Get(programID domain.ProgramID, id int64) (*store.ProgramSet, error) {
-	ps, err := s.store.Get(programID, id)
-	if errors.Is(err, store.ErrNotFound) {
-		return nil, ErrNotFound
-	}
-	return ps, err
+func (s *ProgramSetService) Get(ctx context.Context, programID domain.ProgramID, id int64) (*store.ProgramSet, error) {
+	return s.programs.GetSet(ctx, programID, id)
 }
 
-func (s *ProgramSetService) Create(programID domain.ProgramID, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*store.ProgramSet, error) {
-	if rounds < 1 {
-		rounds = 1
-	}
-	return s.store.Create(programID, name, rounds, intraSetRestSeconds, sortOrder)
+func (s *ProgramSetService) Create(ctx context.Context, programID domain.ProgramID, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*store.ProgramSet, error) {
+	return s.programs.CreateSet(ctx, programID, name, rounds, intraSetRestSeconds, sortOrder)
 }
 
-func (s *ProgramSetService) Update(programID domain.ProgramID, id int64, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*store.ProgramSet, error) {
-	if rounds < 1 {
-		rounds = 1
-	}
-	ps, err := s.store.Update(programID, id, name, rounds, intraSetRestSeconds, sortOrder)
-	if errors.Is(err, store.ErrNotFound) {
-		return nil, ErrNotFound
-	}
-	return ps, err
+func (s *ProgramSetService) Update(ctx context.Context, programID domain.ProgramID, id int64, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*store.ProgramSet, error) {
+	return s.programs.UpdateSet(ctx, programID, id, name, rounds, intraSetRestSeconds, sortOrder)
 }
 
-func (s *ProgramSetService) Delete(programID domain.ProgramID, id int64) error {
-	if err := s.store.Delete(programID, id); err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			return ErrNotFound
-		}
-		return err
-	}
-	return nil
+func (s *ProgramSetService) Delete(ctx context.Context, programID domain.ProgramID, id int64) error {
+	return s.programs.DeleteSet(ctx, programID, id)
 }

@@ -114,6 +114,79 @@ func (s *ProgramService) Update(ctx context.Context, id domain.ProgramID, name s
 	return p, err
 }
 
+func (s *ProgramService) ListSets(ctx context.Context, programID domain.ProgramID) ([]store.ProgramSet, error) {
+	var sets []store.ProgramSet
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		idInfo, _ := domain.IdentityFromContext(ctx)
+		var err error
+		sets, err = s.store.ListSets(ctx, q, idInfo.OrgID, programID)
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return sets, err
+}
+
+func (s *ProgramService) GetSet(ctx context.Context, programID domain.ProgramID, id int64) (*store.ProgramSet, error) {
+	var ps *store.ProgramSet
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		idInfo, _ := domain.IdentityFromContext(ctx)
+		var err error
+		ps, err = s.store.GetSet(ctx, q, idInfo.OrgID, programID, id)
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return ps, err
+}
+
+func (s *ProgramService) CreateSet(ctx context.Context, programID domain.ProgramID, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*store.ProgramSet, error) {
+	if rounds < 1 {
+		rounds = 1
+	}
+	var ps *store.ProgramSet
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		idInfo, _ := domain.IdentityFromContext(ctx)
+		var err error
+		ps, err = s.store.CreateSet(ctx, q, idInfo.OrgID, programID, name, rounds, intraSetRestSeconds, sortOrder)
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return ps, err
+}
+
+func (s *ProgramService) UpdateSet(ctx context.Context, programID domain.ProgramID, id int64, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*store.ProgramSet, error) {
+	if rounds < 1 {
+		rounds = 1
+	}
+	var ps *store.ProgramSet
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		idInfo, _ := domain.IdentityFromContext(ctx)
+		var err error
+		ps, err = s.store.UpdateSet(ctx, q, idInfo.OrgID, programID, id, name, rounds, intraSetRestSeconds, sortOrder)
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return ps, err
+}
+
+func (s *ProgramService) DeleteSet(ctx context.Context, programID domain.ProgramID, id int64) error {
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		idInfo, _ := domain.IdentityFromContext(ctx)
+		return s.store.DeleteSet(ctx, q, idInfo.OrgID, programID, id)
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return ErrNotFound
+	}
+	return err
+}
+
 func (s *ProgramService) Delete(ctx context.Context, id domain.ProgramID) error {
 	idInfo, ok := domain.IdentityFromContext(ctx)
 	if !ok {
@@ -170,6 +243,11 @@ func (s *ProgramService) CreateFull(ctx context.Context, name string, descriptio
 		}
 
 		idInfo, _ := domain.IdentityFromContext(ctx)
+		if len(sets) > 0 {
+			if err := s.store.SyncSetsJSON(ctx, q, idInfo.OrgID, programID); err != nil {
+				return err
+			}
+		}
 		var err error
 		programLite, err = s.store.Get(ctx, q, idInfo.OrgID, programID)
 		return err

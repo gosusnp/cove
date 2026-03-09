@@ -13,10 +13,10 @@ import (
 )
 
 type ProgramSetHandler struct {
-	svc *service.ProgramSetService
+	svc *service.ProgramService
 }
 
-func NewProgramSetHandler(s *service.ProgramSetService) *ProgramSetHandler {
+func NewProgramSetHandler(s *service.ProgramService) *ProgramSetHandler {
 	return &ProgramSetHandler{svc: s}
 }
 
@@ -41,7 +41,11 @@ func (h *ProgramSetHandler) list(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid program id", http.StatusBadRequest)
 		return
 	}
-	sets, err := h.svc.List(programID)
+	sets, err := h.svc.ListSets(r.Context(), programID)
+	if errors.Is(err, service.ErrNotFound) {
+		jsonError(w, "program not found", http.StatusNotFound)
+		return
+	}
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -60,7 +64,7 @@ func (h *ProgramSetHandler) get(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	ps, err := h.svc.Get(programID, id)
+	ps, err := h.svc.GetSet(r.Context(), programID, id)
 	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "program set not found", http.StatusNotFound)
 		return
@@ -83,7 +87,11 @@ func (h *ProgramSetHandler) create(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	ps, err := h.svc.Create(programID, req.Name, req.Rounds, req.IntraSetRestSeconds, req.SortOrder)
+	ps, err := h.svc.CreateSet(r.Context(), programID, req.Name, req.Rounds, req.IntraSetRestSeconds, req.SortOrder)
+	if errors.Is(err, service.ErrNotFound) {
+		jsonError(w, "program not found", http.StatusNotFound)
+		return
+	}
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -107,7 +115,7 @@ func (h *ProgramSetHandler) update(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	ps, err := h.svc.Update(programID, id, req.Name, req.Rounds, req.IntraSetRestSeconds, req.SortOrder)
+	ps, err := h.svc.UpdateSet(r.Context(), programID, id, req.Name, req.Rounds, req.IntraSetRestSeconds, req.SortOrder)
 	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "program set not found", http.StatusNotFound)
 		return
@@ -130,7 +138,7 @@ func (h *ProgramSetHandler) delete(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	err = h.svc.Delete(programID, id)
+	err = h.svc.DeleteSet(r.Context(), programID, id)
 	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "program set not found", http.StatusNotFound)
 		return

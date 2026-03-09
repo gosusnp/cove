@@ -21,23 +21,42 @@ import (
 	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
+// programSetHelper provides ctx-free access to program set operations for tests,
+// using the stored identity of the program owner.
+type programSetHelper struct {
+	app *TestApp
+}
+
+func (h *programSetHelper) Get(programID domain.ProgramID, id int64) (*store.ProgramSet, error) {
+	identity := h.app.programOwners[programID]
+	if identity == nil {
+		return nil, store.ErrNotFound
+	}
+	ctx := domain.NewContext(context.Background(), identity)
+	return h.app.Programs.GetSet(ctx, programID, id)
+}
+
 // TestApp encapsulates the entire application stack for integration testing.
 type TestApp struct {
 	T      *testing.T
 	DB     *sql.DB
 	Mux    http.Handler // Fully wired /api handler with OAuth
-	RawMux http.Handler // Raw mux without /api prefix or OAuth
+	RawMux http.Handler // Raw mux with OAuth (no /api prefix)
 
 	// Services
 	Exercises        *service.ExerciseService
 	Programs         *service.ProgramService
-	ProgramSets      *service.ProgramSetService
+	ProgramSets      *programSetHelper
 	ProgramExercises *service.ProgramExerciseService
 	Users            *service.UserService
 
 	// Stores (for direct seeding/verification)
 	UserStore *store.UserStore
 	OrgStore  *store.OrgStore
+
+	// Internal
+	programOwners map[domain.ProgramID]*domain.Identity
+	systemToken   string
 }
 
 // NewTestApp creates a fully wired application with a fresh, migrated database.
@@ -48,8 +67,6 @@ func NewTestApp(t *testing.T) *TestApp {
 
 	// Stores
 	exStore := store.NewExerciseStore()
-	_ = store.NewProgramStore()
-	psStore := store.NewProgramSetStore(database)
 	peStore := store.NewProgramExerciseStore(database)
 	uStore := store.NewUserStore()
 	oStore := store.NewOrgStore()
@@ -57,34 +74,48 @@ func NewTestApp(t *testing.T) *TestApp {
 	// Services
 	exSvc := service.NewExerciseService(database, exStore)
 	pSvc := service.NewProgramService(database)
-	psSvc := service.NewProgramSetService(psStore)
 	peSvc := service.NewProgramExerciseService(peStore)
 	uSvc := service.NewUserService(database, uStore, oStore)
+
+	// Create system user for raw mux auth
+	sysUser, _, err := uSvc.GetOrCreate(context.Background(), domain.Email("system@test.com"), domain.GoogleSub("system-sub"))
+	if err != nil {
+		t.Fatalf("create system user: %v", err)
+	}
+	sysToken, _, err := uSvc.CreateSession(context.Background(), sysUser.ID, "127.0.0.1", "test-agent", "Test OS")
+	if err != nil {
+		t.Fatalf("create system session: %v", err)
+	}
 
 	// Handlers & Mux
 	apiMux := http.NewServeMux()
 	NewExerciseHandler(exSvc).RegisterRoutes(apiMux)
 	NewProgramHandler(pSvc).RegisterRoutes(apiMux)
-	NewProgramSetHandler(psSvc).RegisterRoutes(apiMux)
+	NewProgramSetHandler(pSvc).RegisterRoutes(apiMux)
 	NewProgramExerciseHandler(peSvc).RegisterRoutes(apiMux)
 	NewUserHandler(uSvc).RegisterRoutes(apiMux)
 
 	// Apply OAuth middleware with /api prefix as in server.go
 	handler := http.StripPrefix("/api", middleware.OAuth(uSvc, apiMux))
+	// Raw mux has OAuth but no /api prefix; DoRaw auto-injects system token
+	rawHandler := middleware.OAuth(uSvc, apiMux)
 
-	return &TestApp{
+	app := &TestApp{
 		T:                t,
 		DB:               database,
 		Mux:              handler,
-		RawMux:           apiMux,
+		RawMux:           rawHandler,
 		Exercises:        exSvc,
 		Programs:         pSvc,
-		ProgramSets:      psSvc,
 		ProgramExercises: peSvc,
 		Users:            uSvc,
 		UserStore:        uStore,
 		OrgStore:         oStore,
+		programOwners:    make(map[domain.ProgramID]*domain.Identity),
+		systemToken:      sysToken,
 	}
+	app.ProgramSets = &programSetHelper{app: app}
+	return app
 }
 
 // Do executes an HTTP request against the app's mux and returns the recorder.
@@ -95,9 +126,13 @@ func (a *TestApp) Do(r *http.Request) *httptest.ResponseRecorder {
 	return w
 }
 
-// DoRaw executes an HTTP request against the app's raw mux (no OAuth, no /api prefix) and returns the recorder.
+// DoRaw executes an HTTP request against the app's raw mux (no /api prefix) and returns the recorder.
+// It automatically injects the system Bearer token if no Authorization header is set.
 func (a *TestApp) DoRaw(r *http.Request) *httptest.ResponseRecorder {
 	a.T.Helper()
+	if r.Header.Get("Authorization") == "" {
+		r.Header.Set("Authorization", "Bearer "+a.systemToken)
+	}
 	w := httptest.NewRecorder()
 	a.RawMux.ServeHTTP(w, r)
 	return w
@@ -183,7 +218,7 @@ func (a *TestApp) SeedExerciseForUser(ctx context.Context, name string, progress
 	return ex
 }
 
-// SeedProgram creates a public program.
+// SeedProgram creates a public program and records the owner identity.
 func (a *TestApp) SeedProgram(name string) *domain.ProgramLite {
 	a.T.Helper()
 	u, o := a.SeedUserWithOrg("system@test.com", "system-sub")
@@ -194,10 +229,11 @@ func (a *TestApp) SeedProgram(name string) *domain.ProgramLite {
 	if err != nil {
 		a.T.Fatalf("seed program: %v", err)
 	}
+	a.programOwners[p.ID] = id
 	return p
 }
 
-// SeedProgramForUser creates a program owned by the user's org.
+// SeedProgramForUser creates a program owned by the user's org and records the owner identity.
 func (a *TestApp) SeedProgramForUser(ctx context.Context, name string, userID domain.UserID, orgID domain.OrgID) *domain.ProgramLite {
 	a.T.Helper()
 	id := &domain.Identity{UserID: userID, OrgID: orgID}
@@ -207,13 +243,19 @@ func (a *TestApp) SeedProgramForUser(ctx context.Context, name string, userID do
 	if err != nil {
 		a.T.Fatalf("seed program for user: %v", err)
 	}
+	a.programOwners[p.ID] = id
 	return p
 }
 
-// SeedProgramSet creates a set for a program.
+// SeedProgramSet creates a set for a program using the program owner's identity.
 func (a *TestApp) SeedProgramSet(programID domain.ProgramID, rounds int) *store.ProgramSet {
 	a.T.Helper()
-	ps, err := a.ProgramSets.Create(programID, nil, rounds, nil, nil)
+	identity := a.programOwners[programID]
+	if identity == nil {
+		a.T.Fatalf("no owner recorded for program %v; call SeedProgram or SeedProgramForUser first", programID)
+	}
+	ctx := domain.NewContext(context.Background(), identity)
+	ps, err := a.Programs.CreateSet(ctx, programID, nil, rounds, nil, nil)
 	if err != nil {
 		a.T.Fatalf("seed program set: %v", err)
 	}
