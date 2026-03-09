@@ -187,6 +187,79 @@ func (s *ProgramService) DeleteSet(ctx context.Context, programID domain.Program
 	return err
 }
 
+func (s *ProgramService) ListExercises(ctx context.Context, programID domain.ProgramID, setID int64) ([]store.ProgramExercise, error) {
+	var list []store.ProgramExercise
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		idInfo, _ := domain.IdentityFromContext(ctx)
+		var err error
+		list, err = s.store.ListExercises(ctx, q, idInfo.OrgID, programID, setID)
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return list, err
+}
+
+func (s *ProgramService) GetExercise(ctx context.Context, programID domain.ProgramID, setID, id int64) (*store.ProgramExercise, error) {
+	var pe *store.ProgramExercise
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		idInfo, _ := domain.IdentityFromContext(ctx)
+		var err error
+		pe, err = s.store.GetExercise(ctx, q, idInfo.OrgID, programID, setID, id)
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return pe, err
+}
+
+func (s *ProgramService) CreateExercise(ctx context.Context, programID domain.ProgramID, setID int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*store.ProgramExercise, error) {
+	if exerciseID == 0 {
+		return nil, &ValidationError{Msg: "exercise_id is required"}
+	}
+	var pe *store.ProgramExercise
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		idInfo, _ := domain.IdentityFromContext(ctx)
+		var err error
+		pe, err = s.store.CreateExercise(ctx, q, idInfo.OrgID, programID, setID, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder)
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return pe, err
+}
+
+func (s *ProgramService) UpdateExercise(ctx context.Context, programID domain.ProgramID, setID, id int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*store.ProgramExercise, error) {
+	if exerciseID == 0 {
+		return nil, &ValidationError{Msg: "exercise_id is required"}
+	}
+	var pe *store.ProgramExercise
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		idInfo, _ := domain.IdentityFromContext(ctx)
+		var err error
+		pe, err = s.store.UpdateExercise(ctx, q, idInfo.OrgID, programID, setID, id, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder)
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return pe, err
+}
+
+func (s *ProgramService) DeleteExercise(ctx context.Context, programID domain.ProgramID, setID, id int64) error {
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		idInfo, _ := domain.IdentityFromContext(ctx)
+		return s.store.DeleteExercise(ctx, q, idInfo.OrgID, programID, setID, id)
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return ErrNotFound
+	}
+	return err
+}
+
 func (s *ProgramService) Delete(ctx context.Context, id domain.ProgramID) error {
 	idInfo, ok := domain.IdentityFromContext(ctx)
 	if !ok {

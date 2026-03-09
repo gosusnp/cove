@@ -67,14 +67,13 @@ func NewTestApp(t *testing.T) *TestApp {
 
 	// Stores
 	exStore := store.NewExerciseStore()
-	peStore := store.NewProgramExerciseStore()
 	uStore := store.NewUserStore()
 	oStore := store.NewOrgStore()
 
 	// Services
 	exSvc := service.NewExerciseService(database, exStore)
 	pSvc := service.NewProgramService(database)
-	peSvc := service.NewProgramExerciseService(database, peStore)
+	peSvc := service.NewProgramExerciseService(pSvc)
 	uSvc := service.NewUserService(database, uStore, oStore)
 
 	// Create system user for raw mux auth
@@ -92,7 +91,7 @@ func NewTestApp(t *testing.T) *TestApp {
 	NewExerciseHandler(exSvc).RegisterRoutes(apiMux)
 	NewProgramHandler(pSvc).RegisterRoutes(apiMux)
 	NewProgramSetHandler(pSvc).RegisterRoutes(apiMux)
-	NewProgramExerciseHandler(peSvc).RegisterRoutes(apiMux)
+	NewProgramExerciseHandler(pSvc).RegisterRoutes(apiMux)
 	NewUserHandler(uSvc).RegisterRoutes(apiMux)
 
 	// Apply OAuth middleware with /api prefix as in server.go
@@ -279,7 +278,7 @@ func (a *TestApp) SeedProgramExercise(setID int64, exerciseID domain.ExerciseID)
 	}
 	ctx := domain.NewContext(context.Background(), identity)
 
-	pe, err := a.ProgramExercises.Create(ctx, setID, exerciseID, nil, nil, nil, nil, nil)
+	pe, err := a.ProgramExercises.Create(ctx, programID, setID, exerciseID, nil, nil, nil, nil, nil)
 	if err != nil {
 		a.T.Fatalf("seed program exercise: %v", err)
 	}

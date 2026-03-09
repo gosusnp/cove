@@ -68,7 +68,7 @@ func main() {
 		Exercises:        service.NewExerciseService(database, store.NewExerciseStore()),
 		Programs:         pSvc,
 		ProgramSets:      service.NewProgramSetService(pSvc),
-		ProgramExercises: service.NewProgramExerciseService(database, store.NewProgramExerciseStore()),
+		ProgramExercises: service.NewProgramExerciseService(pSvc),
 	}
 
 	mux := http.NewServeMux()

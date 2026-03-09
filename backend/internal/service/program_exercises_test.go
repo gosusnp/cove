@@ -16,6 +16,7 @@ import (
 type programExerciseFixture struct {
 	svc        *ProgramExerciseService
 	ctx        context.Context
+	programID  domain.ProgramID
 	setID      int64
 	exerciseID domain.ExerciseID
 }
@@ -38,7 +39,7 @@ func newTestProgramExerciseService(t *testing.T) programExerciseFixture {
 	// Set session variables for RLS
 	_, _ = db.Exec(`SELECT set_config('app.current_org_id', $1, false), set_config('app.current_user_id', $2, false)`, orgID.String(), user.ID.String())
 
-	var pID int64
+	var pID domain.ProgramID
 	err := db.QueryRowContext(ctx, `INSERT INTO programs (name, org_id, created_by) VALUES ($1, $2, $3) RETURNING id`, "Test Program", orgID, user.ID).Scan(&pID)
 	if err != nil {
 		t.Fatal(err)
@@ -67,9 +68,11 @@ func newTestProgramExerciseService(t *testing.T) programExerciseFixture {
 		t.Fatal(err)
 	}
 
+	pSvc := NewProgramService(db)
 	return programExerciseFixture{
-		svc:        NewProgramExerciseService(db, store.NewProgramExerciseStore()),
+		svc:        NewProgramExerciseService(pSvc),
 		ctx:        ctx,
+		programID:  pID,
 		setID:      psID,
 		exerciseID: e.ID,
 	}
@@ -78,9 +81,9 @@ func newTestProgramExerciseService(t *testing.T) programExerciseFixture {
 func TestProgramExerciseService_List(t *testing.T) {
 	t.Run("returns all exercises for set", func(t *testing.T) {
 		f := newTestProgramExerciseService(t)
-		_, _ = f.svc.Create(f.ctx, f.setID, f.exerciseID, nil, nil, nil, nil, nil)
+		_, _ = f.svc.Create(f.ctx, f.programID, f.setID, f.exerciseID, nil, nil, nil, nil, nil)
 
-		list, err := f.svc.List(f.ctx, f.setID)
+		list, err := f.svc.List(f.ctx, f.programID, f.setID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -93,9 +96,9 @@ func TestProgramExerciseService_List(t *testing.T) {
 func TestProgramExerciseService_Get(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
 		f := newTestProgramExerciseService(t)
-		created, _ := f.svc.Create(f.ctx, f.setID, f.exerciseID, nil, nil, nil, nil, nil)
+		created, _ := f.svc.Create(f.ctx, f.programID, f.setID, f.exerciseID, nil, nil, nil, nil, nil)
 
-		got, err := f.svc.Get(f.ctx, f.setID, created.ID)
+		got, err := f.svc.Get(f.ctx, f.programID, f.setID, created.ID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -106,7 +109,7 @@ func TestProgramExerciseService_Get(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		f := newTestProgramExerciseService(t)
-		_, err := f.svc.Get(f.ctx, f.setID, 999)
+		_, err := f.svc.Get(f.ctx, f.programID, f.setID, 999)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -117,7 +120,7 @@ func TestProgramExerciseService_Create(t *testing.T) {
 	t.Run("invalid exercise_id returns ValidationError", func(t *testing.T) {
 		f := newTestProgramExerciseService(t)
 
-		_, err := f.svc.Create(f.ctx, f.setID, 0, nil, nil, nil, nil, nil)
+		_, err := f.svc.Create(f.ctx, f.programID, f.setID, 0, nil, nil, nil, nil, nil)
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("got %v, want ValidationError", err)
@@ -126,7 +129,7 @@ func TestProgramExerciseService_Create(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		f := newTestProgramExerciseService(t)
-		pe, err := f.svc.Create(f.ctx, f.setID, f.exerciseID, nil, nil, nil, nil, nil)
+		pe, err := f.svc.Create(f.ctx, f.programID, f.setID, f.exerciseID, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -139,9 +142,9 @@ func TestProgramExerciseService_Create(t *testing.T) {
 func TestProgramExerciseService_Update(t *testing.T) {
 	t.Run("invalid exercise_id returns ValidationError", func(t *testing.T) {
 		f := newTestProgramExerciseService(t)
-		pe, _ := f.svc.Create(f.ctx, f.setID, f.exerciseID, nil, nil, nil, nil, nil)
+		pe, _ := f.svc.Create(f.ctx, f.programID, f.setID, f.exerciseID, nil, nil, nil, nil, nil)
 
-		_, err := f.svc.Update(f.ctx, f.setID, pe.ID, 0, nil, nil, nil, nil, nil)
+		_, err := f.svc.Update(f.ctx, f.programID, f.setID, pe.ID, 0, nil, nil, nil, nil, nil)
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("got %v, want ValidationError", err)
@@ -151,7 +154,7 @@ func TestProgramExerciseService_Update(t *testing.T) {
 	t.Run("not found returns ErrNotFound", func(t *testing.T) {
 		f := newTestProgramExerciseService(t)
 
-		_, err := f.svc.Update(f.ctx, f.setID, 999, f.exerciseID, nil, nil, nil, nil, nil)
+		_, err := f.svc.Update(f.ctx, f.programID, f.setID, 999, f.exerciseID, nil, nil, nil, nil, nil)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -161,12 +164,12 @@ func TestProgramExerciseService_Update(t *testing.T) {
 func TestProgramExerciseService_Delete(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		f := newTestProgramExerciseService(t)
-		created, _ := f.svc.Create(f.ctx, f.setID, f.exerciseID, nil, nil, nil, nil, nil)
+		created, _ := f.svc.Create(f.ctx, f.programID, f.setID, f.exerciseID, nil, nil, nil, nil, nil)
 
-		if err := f.svc.Delete(f.ctx, f.setID, created.ID); err != nil {
+		if err := f.svc.Delete(f.ctx, f.programID, f.setID, created.ID); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		_, err := f.svc.Get(f.ctx, f.setID, created.ID)
+		_, err := f.svc.Get(f.ctx, f.programID, f.setID, created.ID)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("expected ErrNotFound, got %v", err)
 		}
@@ -175,7 +178,7 @@ func TestProgramExerciseService_Delete(t *testing.T) {
 	t.Run("not found returns ErrNotFound", func(t *testing.T) {
 		f := newTestProgramExerciseService(t)
 
-		err := f.svc.Delete(f.ctx, f.setID, 999)
+		err := f.svc.Delete(f.ctx, f.programID, f.setID, 999)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}

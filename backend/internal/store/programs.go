@@ -338,6 +338,159 @@ func (s *ProgramStore) DeleteSet(ctx context.Context, q Querier, orgID domain.Or
 	return s.SyncProgramJSON(ctx, q, orgID, programID)
 }
 
+// CreateExercise inserts a new row into program_exercises and syncs the programs.sets JSONB column.
+func (s *ProgramStore) CreateExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*ProgramExercise, error) {
+	var id int64
+	err := q.QueryRowContext(ctx,
+		`INSERT INTO program_exercises (program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order)
+		 SELECT $1, $2, $3, $4, $5, $6, $7
+		 WHERE EXISTS (
+		 	SELECT 1 FROM program_sets ps
+		 	JOIN programs p ON p.id = ps.program_id
+		 	WHERE ps.id = $1 AND ps.program_id = $8 AND p.org_id = $9
+		 )
+		 RETURNING id`,
+		setID, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder, programID, orgID,
+	).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("create program exercise: %w", err)
+	}
+	if err := s.SyncProgramJSON(ctx, q, orgID, programID); err != nil {
+		return nil, err
+	}
+	return &ProgramExercise{
+		ID:                    id,
+		ProgramSetID:          setID,
+		ExerciseID:            exerciseID,
+		Laterality:            laterality,
+		TargetReps:            targetReps,
+		TargetDurationSeconds: targetDurationSeconds,
+		TargetWeightKg:        targetWeightKg,
+		SortOrder:             sortOrder,
+	}, nil
+}
+
+// UpdateExercise updates an existing program_exercises row and syncs the programs.sets JSONB column.
+func (s *ProgramStore) UpdateExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID, id int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*ProgramExercise, error) {
+	res, err := q.ExecContext(ctx,
+		`UPDATE program_exercises pe
+		 SET exercise_id = $1, laterality = $2, target_reps = $3, target_duration_seconds = $4, target_weight_kg = $5, sort_order = $6
+		 FROM program_sets ps
+		 JOIN programs p ON p.id = ps.program_id
+		 WHERE pe.id = $7 AND pe.program_set_id = $8
+		   AND pe.program_set_id = ps.id
+		   AND ps.program_id = $9
+		   AND p.org_id = $10`,
+		exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder, id, setID, programID, orgID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("update program exercise: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return nil, ErrNotFound
+	}
+	if err := s.SyncProgramJSON(ctx, q, orgID, programID); err != nil {
+		return nil, err
+	}
+	return &ProgramExercise{
+		ID:                    id,
+		ProgramSetID:          setID,
+		ExerciseID:            exerciseID,
+		Laterality:            laterality,
+		TargetReps:            targetReps,
+		TargetDurationSeconds: targetDurationSeconds,
+		TargetWeightKg:        targetWeightKg,
+		SortOrder:             sortOrder,
+	}, nil
+}
+
+// DeleteExercise removes a program_exercises row and syncs the programs.sets JSONB column.
+func (s *ProgramStore) DeleteExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID, id int64) error {
+	res, err := q.ExecContext(ctx,
+		`DELETE FROM program_exercises pe
+		 USING program_sets ps, programs p
+		 WHERE pe.id = $1 AND pe.program_set_id = $2
+		   AND pe.program_set_id = ps.id
+		   AND ps.program_id = $3
+		   AND ps.program_id = p.id
+		   AND p.org_id = $4`,
+		id, setID, programID, orgID,
+	)
+	if err != nil {
+		return fmt.Errorf("delete program exercise: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return s.SyncProgramJSON(ctx, q, orgID, programID)
+}
+
+// GetExercise reads a single exercise from the denormalized JSONB column.
+func (s *ProgramStore) GetExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID, id int64) (*ProgramExercise, error) {
+	exercises, err := s.ListExercises(ctx, q, orgID, programID, setID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range exercises {
+		if exercises[i].ID == id {
+			return &exercises[i], nil
+		}
+	}
+	return nil, ErrNotFound
+}
+
+// ListExercises reads all exercises for a set from the denormalized JSONB column.
+func (s *ProgramStore) ListExercises(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID int64) ([]ProgramExercise, error) {
+	var setsJSON []byte
+	err := q.QueryRowContext(ctx, `
+		SELECT COALESCE(sets, '[]'::jsonb) FROM programs
+		WHERE id = $1 AND (org_id = $2 OR is_public = true)
+	`, programID, orgID).Scan(&setsJSON)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("list exercises: %w", err)
+	}
+
+	var rawSets []jsonProgramSet
+	if err := json.Unmarshal(setsJSON, &rawSets); err != nil {
+		return nil, fmt.Errorf("unmarshal sets: %w", err)
+	}
+
+	for _, rs := range rawSets {
+		if rs.ID != setID {
+			continue
+		}
+		exercises := make([]ProgramExercise, len(rs.Exercises))
+		for i, ex := range rs.Exercises {
+			exercises[i] = ProgramExercise{
+				ID:                    ex.ID,
+				ProgramSetID:          setID,
+				ExerciseID:            ex.ExerciseID,
+				Laterality:            ex.Laterality,
+				TargetReps:            ex.TargetReps,
+				TargetDurationSeconds: ex.TargetDurationSeconds,
+				TargetWeightKg:        ex.TargetWeightKg,
+				SortOrder:             ex.SortOrder,
+			}
+		}
+		return exercises, nil
+	}
+	return nil, ErrNotFound
+}
+
 func (s *ProgramStore) Delete(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID) error {
 	res, err := q.ExecContext(ctx, `DELETE FROM programs WHERE id = $1 AND org_id = $2`, id, orgID)
 	if err != nil {
