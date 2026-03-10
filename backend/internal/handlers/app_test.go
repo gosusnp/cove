@@ -55,7 +55,7 @@ func NewTestApp(t *testing.T) *TestApp {
 
 	// Services
 	exSvc := service.NewExerciseService(database, exStore)
-	pSvc := service.NewProgramService(database)
+	pSvc := service.NewProgramService(database, exSvc)
 	uSvc := service.NewUserService(database, uStore, oStore)
 
 	// Create system user for raw mux auth

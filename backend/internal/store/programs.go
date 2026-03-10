@@ -17,7 +17,7 @@ import (
 type JSONProgramExercise struct {
 	ID                    int64             `json:"id"`
 	ExerciseID            domain.ExerciseID `json:"exercise_id"`
-	Name                  string            `json:"name"`
+	NameSnapshot          string            `json:"name_snapshot"`
 	Laterality            *string           `json:"laterality,omitempty"`
 	TargetReps            *int              `json:"reps,omitempty"`
 	TargetDurationSeconds *int              `json:"duration_s,omitempty"`
@@ -154,7 +154,7 @@ func (s *ProgramStore) GetDetail(ctx context.Context, q Querier, orgID domain.Or
 			sd.Exercises = append(sd.Exercises, domain.ProgramExercise{
 				ID:                    ex.ID,
 				ExerciseID:            ex.ExerciseID,
-				Name:                  ex.Name,
+				Name:                  ex.NameSnapshot,
 				Laterality:            ex.Laterality,
 				TargetReps:            ex.TargetReps,
 				TargetDurationSeconds: ex.TargetDurationSeconds,
@@ -412,21 +412,11 @@ func (s *ProgramStore) DeleteSet(ctx context.Context, q Querier, orgID domain.Or
 }
 
 // CreateExercise appends a new exercise to the target set in the programs.sets JSONB column.
-func (s *ProgramStore) CreateExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64) (*ProgramExercise, error) {
+// nameSnapshot is written once and never updated; callers are responsible for resolving it
+// via ExerciseService before calling this method.
+func (s *ProgramStore) CreateExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID int64, exerciseID domain.ExerciseID, nameSnapshot string, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64) (*ProgramExercise, error) {
 	if err := s.lockProgram(ctx, q, orgID, programID); err != nil {
 		return nil, err
-	}
-
-	// Look up exercise name.
-	var exerciseName string
-	if err := q.QueryRowContext(ctx,
-		`SELECT name FROM exercises WHERE id = $1`,
-		exerciseID,
-	).Scan(&exerciseName); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
-		}
-		return nil, fmt.Errorf("get exercise name: %w", err)
 	}
 
 	sets, err := s.readSets(ctx, q, programID)
@@ -454,7 +444,7 @@ func (s *ProgramStore) CreateExercise(ctx context.Context, q Querier, orgID doma
 	newEx := jsonProgramExercise{
 		ID:                    id,
 		ExerciseID:            exerciseID,
-		Name:                  exerciseName,
+		NameSnapshot:          nameSnapshot,
 		Laterality:            laterality,
 		TargetReps:            targetReps,
 		TargetDurationSeconds: targetDurationSeconds,
@@ -481,21 +471,10 @@ func (s *ProgramStore) CreateExercise(ctx context.Context, q Querier, orgID doma
 }
 
 // UpdateExercise updates an existing exercise in the programs.sets JSONB column.
+// name_snapshot is never mutated on update; the existing value is preserved.
 func (s *ProgramStore) UpdateExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID, id int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64) (*ProgramExercise, error) {
 	if err := s.lockProgram(ctx, q, orgID, programID); err != nil {
 		return nil, err
-	}
-
-	// Look up exercise name.
-	var exerciseName string
-	if err := q.QueryRowContext(ctx,
-		`SELECT name FROM exercises WHERE id = $1`,
-		exerciseID,
-	).Scan(&exerciseName); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
-		}
-		return nil, fmt.Errorf("get exercise name: %w", err)
 	}
 
 	sets, err := s.readSets(ctx, q, programID)
@@ -513,7 +492,7 @@ func (s *ProgramStore) UpdateExercise(ctx context.Context, q Querier, orgID doma
 				sets[i].Exercises[j] = jsonProgramExercise{
 					ID:                    id,
 					ExerciseID:            exerciseID,
-					Name:                  exerciseName,
+					NameSnapshot:          ex.NameSnapshot,
 					Laterality:            laterality,
 					TargetReps:            targetReps,
 					TargetDurationSeconds: targetDurationSeconds,

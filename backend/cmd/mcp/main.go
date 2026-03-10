@@ -24,9 +24,10 @@ func main() {
 	database := db.Open(dbURL)
 	defer database.Close()
 
-	pSvc := service.NewProgramService(database)
+	exSvc := service.NewExerciseService(database, store.NewExerciseStore())
+	pSvc := service.NewProgramService(database, exSvc)
 	svcs := covemcp.Services{
-		Exercises: service.NewExerciseService(database, store.NewExerciseStore()),
+		Exercises: exSvc,
 		Programs:  pSvc,
 	}
 

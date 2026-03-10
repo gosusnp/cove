@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -31,7 +32,7 @@ func newTestProgramService(t *testing.T) (*ProgramService, context.Context) {
 		OrgID:  oID,
 	})
 
-	return NewProgramService(db), ctx
+	return NewProgramService(db, NewExerciseService(db, store.NewExerciseStore())), ctx
 }
 
 func TestProgramService_List(t *testing.T) {
@@ -366,6 +367,102 @@ func TestProgramService_Exercises(t *testing.T) {
 		_, err = svc.GetExercise(ctx, p.ID, ps.ID, pe.ID)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("expected ErrNotFound after delete, got %v", err)
+		}
+	})
+}
+
+func TestProgramService_NameResolution(t *testing.T) {
+	t.Run("GetDetail uses live exercise name", func(t *testing.T) {
+		svc, ctx := newTestProgramService(t)
+		exSvc := NewExerciseService(svc.db, store.NewExerciseStore())
+		e, _ := exSvc.Create(ctx, "Squat", nil, nil, true)
+
+		p, _ := svc.Create(ctx, "Test", nil, true)
+		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
+		if _, err := svc.CreateExercise(ctx, p.ID, ps.ID, e.ID, nil, nil, nil, nil); err != nil {
+			t.Fatal(err)
+		}
+
+		detail, err := svc.GetDetail(ctx, p.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := detail.Sets[0].Exercises[0].Name; got != "Squat" {
+			t.Errorf("got name %q, want %q", got, "Squat")
+		}
+	})
+
+	t.Run("GetDetail falls back to name_snapshot for inaccessible exercise", func(t *testing.T) {
+		svc, ctx := newTestProgramService(t)
+		id, _ := domain.IdentityFromContext(ctx)
+
+		// Seed a private exercise for a second org (invisible to org1) using raw SQL.
+		uID2 := domain.UserID{UUID: uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe02")}
+		oID2 := domain.OrgID{UUID: uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe03")}
+		_, _ = svc.db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'u2@fallback.test', 'sub-fb2')`, uID2)
+		_, _ = svc.db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'fallback-org2')`, oID2)
+		_, _ = svc.db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID2, uID2)
+		ctx2 := domain.NewContext(t.Context(), &domain.Identity{UserID: uID2, OrgID: oID2})
+
+		exSvc2 := NewExerciseService(svc.db, store.NewExerciseStore())
+		e, _ := exSvc2.Create(ctx2, "Deadlift", nil, nil, false)
+
+		// Create program for org1 and seed the exercise reference via store (bypasses visibility).
+		p, _ := svc.Create(ctx, "Test", nil, true)
+		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
+
+		pStore := store.NewProgramStore()
+		if err := withScopedTx(ctx, svc.db, func(q store.Querier) error {
+			_, err := pStore.CreateExercise(t.Context(), q, id.OrgID, p.ID, ps.ID, e.ID, "Deadlift", nil, nil, nil, nil)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		detail, err := svc.GetDetail(ctx, p.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := detail.Sets[0].Exercises[0].Name; got != "Deadlift" {
+			t.Errorf("got fallback name %q, want %q", got, "Deadlift")
+		}
+	})
+
+	t.Run("CreateExercise rejects inaccessible exercise_id", func(t *testing.T) {
+		svc, ctx := newTestProgramService(t)
+		p, _ := svc.Create(ctx, "Test", nil, true)
+		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
+
+		_, err := svc.CreateExercise(ctx, p.ID, ps.ID, domain.ExerciseID(999), nil, nil, nil, nil)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("name_snapshot preserved on UpdateExercise", func(t *testing.T) {
+		svc, ctx := newTestProgramService(t)
+		exSvc := NewExerciseService(svc.db, store.NewExerciseStore())
+		e, _ := exSvc.Create(ctx, "Bench Press", nil, nil, true)
+
+		p, _ := svc.Create(ctx, "Test", nil, true)
+		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
+		pe, _ := svc.CreateExercise(ctx, p.ID, ps.ID, e.ID, nil, nil, nil, nil)
+
+		reps := 5
+		if _, err := svc.UpdateExercise(ctx, p.ID, ps.ID, pe.ID, e.ID, nil, &reps, nil, nil); err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify snapshot is preserved by reading the JSONB directly.
+		var setsJSON []byte
+		if err := svc.db.QueryRow(`SELECT sets FROM programs WHERE id = $1`, p.ID).Scan(&setsJSON); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(setsJSON), `"name_snapshot"`) {
+			t.Error("name_snapshot field missing from JSONB after update")
+		}
+		if !strings.Contains(string(setsJSON), "Bench Press") {
+			t.Errorf("name_snapshot value lost after update; json: %s", setsJSON)
 		}
 	})
 }
