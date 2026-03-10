@@ -44,6 +44,41 @@ func (s *ExerciseStore) List(ctx context.Context, q Querier, orgID domain.OrgID)
 	return exercises, rows.Err()
 }
 
+func (s *ExerciseStore) ListByIDs(ctx context.Context, q Querier, orgID domain.OrgID, ids []domain.ExerciseID) ([]domain.Exercise, error) {
+	if len(ids) == 0 {
+		return []domain.Exercise{}, nil
+	}
+
+	intIDs := make([]int64, len(ids))
+	for i, id := range ids {
+		intIDs[i] = int64(id)
+	}
+
+	rows, err := q.QueryContext(ctx, `
+		SELECT id, name, progression, description, org_id, is_public, created_by, created_at, updated_by, updated_at
+		FROM exercises 
+		WHERE id = ANY($1) AND (org_id = $2 OR is_public = true)
+		ORDER BY name
+	`, intIDs, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("list exercises by ids: %w", err)
+	}
+	defer rows.Close()
+
+	exercises := []domain.Exercise{}
+	for rows.Next() {
+		var e domain.Exercise
+		if err := rows.Scan(
+			&e.ID, &e.Name, &e.Progression, &e.Description, &e.OrgID, &e.IsPublic,
+			&e.CreatedBy, &e.CreatedAt, &e.UpdatedBy, &e.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan exercise: %w", err)
+		}
+		exercises = append(exercises, e)
+	}
+	return exercises, rows.Err()
+}
+
 func (s *ExerciseStore) Get(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ExerciseID) (*domain.Exercise, error) {
 	var e domain.Exercise
 	err := q.QueryRowContext(ctx, `

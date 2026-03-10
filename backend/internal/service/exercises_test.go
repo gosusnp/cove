@@ -59,6 +59,49 @@ func TestExerciseService_List(t *testing.T) {
 	})
 }
 
+func TestExerciseService_GetByIDs(t *testing.T) {
+	t.Run("returns found and computes missing", func(t *testing.T) {
+		svc, ctx := newTestExerciseService(t)
+		e1, _ := svc.Create(ctx, "A", nil, nil, true)
+		e2, _ := svc.Create(ctx, "B", nil, nil, true)
+		_, _ = svc.Create(ctx, "C", nil, nil, true)
+
+		result, err := svc.GetByIDs(ctx, []domain.ExerciseID{e1.ID, e2.ID, domain.ExerciseID(99999)})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result.Found) != 2 {
+			t.Errorf("expected 2 found, got %d", len(result.Found))
+		}
+		if result.Found[0].Name != "A" || result.Found[1].Name != "B" {
+			t.Errorf("got %v, want A and B", result.Found)
+		}
+		if len(result.Missing) != 1 || result.Missing[0] != domain.ExerciseID(99999) {
+			t.Errorf("got missing %v, want [99999]", result.Missing)
+		}
+	})
+
+	t.Run("RLS: excludes exercises from other orgs", func(t *testing.T) {
+		svc1, ctx1 := newTestExerciseService(t)
+		svc2, ctx2 := newTestExerciseService(t)
+
+		// Create a private exercise belonging to org2
+		e, _ := svc2.Create(ctx2, "Org2 Secret", nil, nil, false)
+
+		// Org1 requests that ID — should appear in Missing
+		result, err := svc1.GetByIDs(ctx1, []domain.ExerciseID{e.ID})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result.Found) != 0 {
+			t.Errorf("expected 0 found (cross-org private), got %d", len(result.Found))
+		}
+		if len(result.Missing) != 1 {
+			t.Errorf("expected 1 missing, got %d", len(result.Missing))
+		}
+	})
+}
+
 func TestExerciseService_Get(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
 		svc, ctx := newTestExerciseService(t)

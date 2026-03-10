@@ -41,6 +41,44 @@ func (s *ExerciseService) List(ctx context.Context) ([]domain.Exercise, error) {
 	return list, err
 }
 
+// ExerciseResolution is the result of a bulk ID lookup.
+// Found contains exercises that were visible to the caller.
+// Missing contains IDs that were not found or excluded by visibility rules.
+type ExerciseResolution struct {
+	Found   []domain.Exercise   `json:"found"`
+	Missing []domain.ExerciseID `json:"missing"`
+}
+
+func (s *ExerciseService) GetByIDs(ctx context.Context, ids []domain.ExerciseID) (ExerciseResolution, error) {
+	identity, ok := domain.IdentityFromContext(ctx)
+	if !ok {
+		return ExerciseResolution{}, ErrUnauthorized
+	}
+
+	var list []domain.Exercise
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		var err error
+		list, err = s.store.ListByIDs(ctx, q, identity.OrgID, ids)
+		return err
+	})
+	if err != nil {
+		return ExerciseResolution{}, err
+	}
+
+	foundSet := make(map[domain.ExerciseID]struct{}, len(list))
+	for _, e := range list {
+		foundSet[e.ID] = struct{}{}
+	}
+	missing := []domain.ExerciseID{}
+	for _, id := range ids {
+		if _, ok := foundSet[id]; !ok {
+			missing = append(missing, id)
+		}
+	}
+
+	return ExerciseResolution{Found: list, Missing: missing}, nil
+}
+
 func (s *ExerciseService) Get(ctx context.Context, id domain.ExerciseID) (*domain.Exercise, error) {
 	identity, ok := domain.IdentityFromContext(ctx)
 	if !ok {

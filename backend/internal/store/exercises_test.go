@@ -93,6 +93,45 @@ func TestExerciseStore_List(t *testing.T) {
 	})
 }
 
+func TestExerciseStore_ListByIDs(t *testing.T) {
+	t.Run("empty returns empty slice", func(t *testing.T) {
+		s, db, ctx := newTestExerciseStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
+
+		exercises, err := s.ListByIDs(ctx, db, id.OrgID, []domain.ExerciseID{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if exercises == nil {
+			t.Fatal("expected empty slice, got nil")
+		}
+		if len(exercises) != 0 {
+			t.Errorf("expected 0 exercises, got %d", len(exercises))
+		}
+	})
+
+	t.Run("returns only specified exercises", func(t *testing.T) {
+		s, db, ctx := newTestExerciseStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
+
+		e1, _ := s.Create(ctx, db, "A", nil, nil, true)
+		e2, _ := s.Create(ctx, db, "B", nil, nil, true)
+		_, _ = s.Create(ctx, db, "C", nil, nil, true)
+
+		ids := []domain.ExerciseID{e1.ID, e2.ID}
+		exercises, err := s.ListByIDs(ctx, db, id.OrgID, ids)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(exercises) != 2 {
+			t.Fatalf("expected 2 exercises, got %d", len(exercises))
+		}
+		if exercises[0].Name != "A" || exercises[1].Name != "B" {
+			t.Errorf("got %v, want exercises A and B", exercises)
+		}
+	})
+}
+
 func TestExerciseStore_Get(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
 		s, db, ctx := newTestExerciseStore(t)
