@@ -192,15 +192,16 @@ func TestProgramStore_GetDetail(t *testing.T) {
 		s, db, ctx := newTestProgramStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
 
-		// Create program and sets using direct SQL because we only have ProgramStore
-		var programID int64
-		err := db.QueryRowContext(ctx, `INSERT INTO programs (name, org_id, is_public, created_by) VALUES ($1, $2, $3, $4) RETURNING id`, "Full Program", id.OrgID, true, id.UserID).Scan(&programID)
+		p, err := s.Create(ctx, db, "Full Program", nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		const setID int64 = 1
-		if _, err = db.ExecContext(ctx, `INSERT INTO program_sets (id, program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES ($1, $2, $3, $4, $5, $6)`, setID, programID, "Set 1", 3, 60, 1); err != nil {
+		setName := "Set 1"
+		restSecs := 60
+		sortOrder := 1
+		ps, err := s.CreateSet(ctx, db, id.OrgID, p.ID, &setName, 3, &restSecs, &sortOrder)
+		if err != nil {
 			t.Fatal(err)
 		}
 
@@ -210,17 +211,12 @@ func TestProgramStore_GetDetail(t *testing.T) {
 		}
 
 		reps := 8
-		_, err = db.ExecContext(ctx, `INSERT INTO program_exercises (id, program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order) VALUES (1, $1, $2, $3, $4, $5, $6, $7)`, setID, e.ID, nil, reps, nil, nil, 1)
+		_, err = s.CreateExercise(ctx, db, id.OrgID, p.ID, ps.ID, e.ID, nil, &reps, nil, nil, &sortOrder)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		// Sync the denormalized JSONB after exercises are inserted so GetDetail can read the full hierarchy.
-		if err := s.SyncProgramJSON(ctx, db, id.OrgID, domain.ProgramID(programID)); err != nil {
-			t.Fatal(err)
-		}
-
-		detail, err := s.GetDetail(ctx, db, id.OrgID, domain.ProgramID(programID))
+		detail, err := s.GetDetail(ctx, db, id.OrgID, p.ID)
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -390,28 +386,6 @@ func TestProgramStore_DeleteSet(t *testing.T) {
 		o2ID := domain.OrgID{UUID: uuid.MustParse("019cb68a-0000-0000-0000-000000000004")}
 
 		err := s.DeleteSet(ctx2, q2, o2ID, programID, 999)
-		if !errors.Is(err, ErrNotFound) {
-			t.Errorf("got %v, want ErrNotFound", err)
-		}
-	})
-}
-
-func TestProgramStore_SyncProgramJSON(t *testing.T) {
-	t.Run("not found for missing program", func(t *testing.T) {
-		s, db, ctx := newTestProgramStore(t)
-		id, _ := domain.IdentityFromContext(ctx)
-
-		err := s.SyncProgramJSON(ctx, db, id.OrgID, domain.ProgramID(999))
-		if !errors.Is(err, ErrNotFound) {
-			t.Errorf("got %v, want ErrNotFound", err)
-		}
-	})
-
-	t.Run("not found for wrong org", func(t *testing.T) {
-		s, programID, ctx2, q2 := seedTwoOrgs(t)
-		o2ID := domain.OrgID{UUID: uuid.MustParse("019cb68a-0000-0000-0000-000000000004")}
-
-		err := s.SyncProgramJSON(ctx2, q2, o2ID, programID)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}

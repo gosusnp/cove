@@ -116,7 +116,7 @@ func TestProgramHandler_Get(t *testing.T) {
 		p := app.SeedProgramForUser(t.Context(), "Strength", uID, oID)
 		ps := app.SeedProgramSet(p.ID, 3)
 		e := app.SeedExercise("Pull-up", nil)
-		app.SeedProgramExercise(ps.ID, e.ID)
+		app.SeedProgramExercise(p.ID, ps.ID, e.ID)
 
 		r := app.AuthRequest(http.MethodGet, fmt.Sprintf("/api/programs/%d", p.ID), nil, uID)
 		w := app.Do(r)

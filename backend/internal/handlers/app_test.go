@@ -262,15 +262,8 @@ func (a *TestApp) SeedProgramSet(programID domain.ProgramID, rounds int) *store.
 }
 
 // SeedProgramExercise adds an exercise to a set.
-func (a *TestApp) SeedProgramExercise(setID int64, exerciseID domain.ExerciseID) *store.ProgramExercise {
+func (a *TestApp) SeedProgramExercise(programID domain.ProgramID, setID int64, exerciseID domain.ExerciseID) *store.ProgramExercise {
 	a.T.Helper()
-
-	// Find program ID to get owner identity
-	var programID domain.ProgramID
-	err := a.DB.QueryRow(`SELECT program_id FROM program_sets WHERE id = $1`, setID).Scan(&programID)
-	if err != nil {
-		a.T.Fatalf("get program ID for set %d: %v", setID, err)
-	}
 
 	identity := a.programOwners[programID]
 	if identity == nil {

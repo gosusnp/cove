@@ -43,8 +43,8 @@ func TestProgramExerciseHandler_List(t *testing.T) {
 		p := app.SeedProgram("Test")
 		ps := app.SeedProgramSet(p.ID, 1)
 		e := app.SeedExercise("Pull-up", nil)
-		app.SeedProgramExercise(ps.ID, e.ID)
-		app.SeedProgramExercise(ps.ID, e.ID)
+		app.SeedProgramExercise(p.ID, ps.ID, e.ID)
+		app.SeedProgramExercise(p.ID, ps.ID, e.ID)
 
 		url := fmt.Sprintf("/programs/%d/sets/%d/exercises", p.ID, ps.ID)
 		r := httptest.NewRequest(http.MethodGet, url, nil)
@@ -69,7 +69,7 @@ func TestProgramExerciseHandler_Get(t *testing.T) {
 		p := app.SeedProgram("Test")
 		ps := app.SeedProgramSet(p.ID, 1)
 		e := app.SeedExercise("Pull-up", nil)
-		pe := app.SeedProgramExercise(ps.ID, e.ID)
+		pe := app.SeedProgramExercise(p.ID, ps.ID, e.ID)
 
 		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/%d", p.ID, ps.ID, pe.ID)
 		r := httptest.NewRequest(http.MethodGet, url, nil)
@@ -138,7 +138,7 @@ func TestProgramExerciseHandler_Update(t *testing.T) {
 		p := app.SeedProgram("Test")
 		ps := app.SeedProgramSet(p.ID, 1)
 		e := app.SeedExercise("Pull-up", nil)
-		pe := app.SeedProgramExercise(ps.ID, e.ID)
+		pe := app.SeedProgramExercise(p.ID, ps.ID, e.ID)
 
 		body := fmt.Sprintf(`{"exercise_id": %d, "laterality": "updated notes"}`, e.ID)
 		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/%d", p.ID, ps.ID, pe.ID)
@@ -179,7 +179,7 @@ func TestProgramExerciseHandler_Delete(t *testing.T) {
 		p := app.SeedProgram("Test")
 		ps := app.SeedProgramSet(p.ID, 1)
 		e := app.SeedExercise("Pull-up", nil)
-		pe := app.SeedProgramExercise(ps.ID, e.ID)
+		pe := app.SeedProgramExercise(p.ID, ps.ID, e.ID)
 
 		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/%d", p.ID, ps.ID, pe.ID)
 		r := httptest.NewRequest(http.MethodDelete, url, nil)

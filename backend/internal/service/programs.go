@@ -32,8 +32,8 @@ type ProgramSetInput struct {
 }
 
 // ProgramService holds a direct *sql.DB reference in addition to the store
-// because CreateFull requires a transaction that spans programs, program_sets,
-// and program_exercises. Other services only need their own store.
+// because all write operations require a transaction with a FOR UPDATE lock on
+// the programs row. Other services only need their own store.
 type ProgramService struct {
 	db    *sql.DB
 	store *store.ProgramStore
@@ -281,17 +281,20 @@ func (s *ProgramService) CreateFull(ctx context.Context, name string, descriptio
 		return nil, &ValidationError{Msg: "name is required"}
 	}
 
-	if err := s.validateExerciseIDs(ctx, sets); err != nil {
+	exerciseNames, err := s.validateAndFetchExerciseNames(ctx, sets)
+	if err != nil {
 		return nil, err
 	}
 
 	var programLite *domain.ProgramLite
-	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+	err = withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var programID domain.ProgramID
 		if err := q.QueryRowContext(ctx, `INSERT INTO programs (name, description, is_public) VALUES ($1, $2, $3) RETURNING id`, name, description, isPublic).Scan(&programID); err != nil {
 			return fmt.Errorf("create program: %w", err)
 		}
 
+		// Build the sets JSONB structure directly without going through the dropped tables.
+		jsonSets := make([]store.JSONProgramSet, 0, len(sets))
 		var nextSetID int64 = 1
 		for _, set := range sets {
 			if set.Rounds < 1 {
@@ -299,32 +302,37 @@ func (s *ProgramService) CreateFull(ctx context.Context, name string, descriptio
 			}
 			setID := nextSetID
 			nextSetID++
-			if _, err := q.ExecContext(ctx,
-				`INSERT INTO program_sets (id, program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES ($1, $2, $3, $4, $5, $6)`,
-				setID, programID, set.Name, set.Rounds, set.IntraSetRestSeconds, set.SortOrder,
-			); err != nil {
-				return fmt.Errorf("create program set: %w", err)
-			}
 
+			jsonExercises := make([]store.JSONProgramExercise, 0, len(set.Exercises))
 			var nextExID int64 = 1
 			for _, ex := range set.Exercises {
-				exID := nextExID
+				jsonExercises = append(jsonExercises, store.JSONProgramExercise{
+					ID:                    nextExID,
+					ExerciseID:            ex.ExerciseID,
+					Name:                  exerciseNames[ex.ExerciseID],
+					Laterality:            ex.Laterality,
+					TargetReps:            ex.TargetReps,
+					TargetDurationSeconds: ex.TargetDurationSeconds,
+					TargetWeightKg:        ex.TargetWeightKg,
+					SortOrder:             ex.SortOrder,
+				})
 				nextExID++
-				if _, err := q.ExecContext(ctx,
-					`INSERT INTO program_exercises (id, program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-					exID, setID, ex.ExerciseID, ex.Laterality, ex.TargetReps, ex.TargetDurationSeconds, ex.TargetWeightKg, ex.SortOrder,
-				); err != nil {
-					return fmt.Errorf("create program exercise: %w", err)
-				}
 			}
+			jsonSets = append(jsonSets, store.JSONProgramSet{
+				ID:                  setID,
+				Name:                set.Name,
+				Rounds:              set.Rounds,
+				IntraSetRestSeconds: set.IntraSetRestSeconds,
+				SortOrder:           set.SortOrder,
+				Exercises:           jsonExercises,
+			})
+		}
+
+		if err := s.store.WriteSetsForNewProgram(ctx, q, programID, jsonSets); err != nil {
+			return err
 		}
 
 		idInfo, _ := domain.IdentityFromContext(ctx)
-		if len(sets) > 0 {
-			if err := s.store.SyncProgramJSON(ctx, q, idInfo.OrgID, programID); err != nil {
-				return err
-			}
-		}
 		var err error
 		programLite, err = s.store.Get(ctx, q, idInfo.OrgID, programID)
 		return err
@@ -333,7 +341,9 @@ func (s *ProgramService) CreateFull(ctx context.Context, name string, descriptio
 	return programLite, err
 }
 
-func (s *ProgramService) validateExerciseIDs(ctx context.Context, sets []ProgramSetInput) error {
+// validateAndFetchExerciseNames validates that all referenced exercise IDs are accessible
+// and returns a map from ExerciseID to name for use when building JSONB sets.
+func (s *ProgramService) validateAndFetchExerciseNames(ctx context.Context, sets []ProgramSetInput) (map[domain.ExerciseID]string, error) {
 	// Collect unique IDs preserving insertion order for deterministic error messages.
 	seen := map[domain.ExerciseID]bool{}
 	var ids []domain.ExerciseID
@@ -346,16 +356,15 @@ func (s *ProgramService) validateExerciseIDs(ctx context.Context, sets []Program
 		}
 	}
 	if len(ids) == 0 {
-		return nil
+		return map[domain.ExerciseID]string{}, nil
 	}
 
 	idInfo, ok := domain.IdentityFromContext(ctx)
 	if !ok {
-		return ErrUnauthorized
+		return nil, ErrUnauthorized
 	}
 
-	// Single query to fetch all existing IDs.
-	// We must also check that the user has access to these exercises.
+	// Single query to fetch all accessible IDs and names.
 	placeholders := make([]string, len(ids))
 	args := make([]any, len(ids)+1)
 	args[0] = idInfo.OrgID
@@ -363,28 +372,29 @@ func (s *ProgramService) validateExerciseIDs(ctx context.Context, sets []Program
 		placeholders[i] = fmt.Sprintf("$%d", i+2)
 		args[i+1] = id
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT id FROM exercises WHERE (org_id = $1 OR is_public = true) AND id IN (`+strings.Join(placeholders, ",")+`)`, args...)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name FROM exercises WHERE (org_id = $1 OR is_public = true) AND id IN (`+strings.Join(placeholders, ",")+`)`, args...)
 	if err != nil {
-		return fmt.Errorf("check exercises: %w", err)
+		return nil, fmt.Errorf("check exercises: %w", err)
 	}
 	defer rows.Close()
 
-	found := map[domain.ExerciseID]bool{}
+	names := map[domain.ExerciseID]string{}
 	for rows.Next() {
 		var id domain.ExerciseID
-		if err := rows.Scan(&id); err != nil {
-			return fmt.Errorf("scan exercise id: %w", err)
+		var name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return nil, fmt.Errorf("scan exercise: %w", err)
 		}
-		found[id] = true
+		names[id] = name
 	}
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("iterate exercises: %w", err)
+		return nil, fmt.Errorf("iterate exercises: %w", err)
 	}
 
 	for _, id := range ids {
-		if !found[id] {
-			return &ValidationError{Msg: fmt.Sprintf("exercise_id %d not found or access denied", id)}
+		if _, ok := names[id]; !ok {
+			return nil, &ValidationError{Msg: fmt.Sprintf("exercise_id %d not found or access denied", id)}
 		}
 	}
-	return nil
+	return names, nil
 }
