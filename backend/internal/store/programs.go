@@ -259,18 +259,91 @@ func (s *ProgramStore) GetSet(ctx context.Context, q Querier, orgID domain.OrgID
 	return nil, ErrNotFound
 }
 
-// CreateSet inserts a new row into program_sets and syncs the programs.sets JSONB column.
-func (s *ProgramStore) CreateSet(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*ProgramSet, error) {
-	var id int64
+// lockProgram acquires a FOR UPDATE row lock on the programs row and verifies ownership.
+// It returns ErrNotFound if the row does not exist or belongs to a different org.
+// All write operations that mutate program_sets or program_exercises must call this first
+// to serialize concurrent mutations to the same program.
+func (s *ProgramStore) lockProgram(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID) error {
+	var id domain.ProgramID
 	err := q.QueryRowContext(ctx,
-		`INSERT INTO program_sets (program_id, name, rounds, intra_set_rest_seconds, sort_order)
-		 SELECT $1, $3, $4, $5, $6 FROM programs WHERE id = $1 AND org_id = $2
-		 RETURNING id`,
-		programID, orgID, name, rounds, intraSetRestSeconds, sortOrder,
+		`SELECT id FROM programs WHERE id = $1 AND org_id = $2 FOR UPDATE`,
+		programID, orgID,
 	).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
+		return ErrNotFound
 	}
+	if err != nil {
+		return fmt.Errorf("lock program: %w", err)
+	}
+	return nil
+}
+
+// nextSetID reads the programs.sets JSONB column and returns max(set.id) + 1.
+// Must be called inside a transaction after lockProgram.
+func (s *ProgramStore) nextSetID(ctx context.Context, q Querier, programID domain.ProgramID) (int64, error) {
+	var setsJSON []byte
+	if err := q.QueryRowContext(ctx,
+		`SELECT COALESCE(sets, '[]'::jsonb) FROM programs WHERE id = $1`,
+		programID,
+	).Scan(&setsJSON); err != nil {
+		return 0, fmt.Errorf("read sets for id: %w", err)
+	}
+	var raw []jsonProgramSet
+	if err := json.Unmarshal(setsJSON, &raw); err != nil {
+		return 0, fmt.Errorf("unmarshal sets for id: %w", err)
+	}
+	var maxID int64
+	for _, r := range raw {
+		if r.ID > maxID {
+			maxID = r.ID
+		}
+	}
+	return maxID + 1, nil
+}
+
+// nextExerciseID reads the programs.sets JSONB column and returns max(exercise.id) + 1
+// across all exercises in the target set.
+// Must be called inside a transaction after lockProgram.
+func (s *ProgramStore) nextExerciseID(ctx context.Context, q Querier, programID domain.ProgramID, setID int64) (int64, error) {
+	var setsJSON []byte
+	if err := q.QueryRowContext(ctx,
+		`SELECT COALESCE(sets, '[]'::jsonb) FROM programs WHERE id = $1`,
+		programID,
+	).Scan(&setsJSON); err != nil {
+		return 0, fmt.Errorf("read sets for exercise id: %w", err)
+	}
+	var raw []jsonProgramSet
+	if err := json.Unmarshal(setsJSON, &raw); err != nil {
+		return 0, fmt.Errorf("unmarshal sets for exercise id: %w", err)
+	}
+	var maxID int64
+	for _, r := range raw {
+		if r.ID != setID {
+			continue
+		}
+		for _, ex := range r.Exercises {
+			if ex.ID > maxID {
+				maxID = ex.ID
+			}
+		}
+	}
+	return maxID + 1, nil
+}
+
+// CreateSet inserts a new row into program_sets and syncs the programs.sets JSONB column.
+func (s *ProgramStore) CreateSet(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*ProgramSet, error) {
+	if err := s.lockProgram(ctx, q, orgID, programID); err != nil {
+		return nil, err
+	}
+	id, err := s.nextSetID(ctx, q, programID)
+	if err != nil {
+		return nil, err
+	}
+	_, err = q.ExecContext(ctx,
+		`INSERT INTO program_sets (id, program_id, name, rounds, intra_set_rest_seconds, sort_order)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		id, programID, name, rounds, intraSetRestSeconds, sortOrder,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("create program set: %w", err)
 	}
@@ -289,11 +362,13 @@ func (s *ProgramStore) CreateSet(ctx context.Context, q Querier, orgID domain.Or
 
 // UpdateSet updates an existing program set row and syncs the programs.sets JSONB column.
 func (s *ProgramStore) UpdateSet(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, id int64, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*ProgramSet, error) {
+	if err := s.lockProgram(ctx, q, orgID, programID); err != nil {
+		return nil, err
+	}
 	res, err := q.ExecContext(ctx,
 		`UPDATE program_sets SET name = $1, rounds = $2, intra_set_rest_seconds = $3, sort_order = $4
-		 WHERE id = $5 AND program_id = $6
-		   AND EXISTS (SELECT 1 FROM programs WHERE id = $6 AND org_id = $7)`,
-		name, rounds, intraSetRestSeconds, sortOrder, id, programID, orgID,
+		 WHERE id = $5 AND program_id = $6`,
+		name, rounds, intraSetRestSeconds, sortOrder, id, programID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("update program set: %w", err)
@@ -320,10 +395,12 @@ func (s *ProgramStore) UpdateSet(ctx context.Context, q Querier, orgID domain.Or
 
 // DeleteSet removes a program set row and syncs the programs.sets JSONB column.
 func (s *ProgramStore) DeleteSet(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, id int64) error {
+	if err := s.lockProgram(ctx, q, orgID, programID); err != nil {
+		return err
+	}
 	res, err := q.ExecContext(ctx,
-		`DELETE FROM program_sets WHERE id = $1 AND program_id = $2
-		  AND EXISTS (SELECT 1 FROM programs WHERE id = $2 AND org_id = $3)`,
-		id, programID, orgID,
+		`DELETE FROM program_sets WHERE id = $1 AND program_id = $2`,
+		id, programID,
 	)
 	if err != nil {
 		return fmt.Errorf("delete program set: %w", err)
@@ -340,21 +417,29 @@ func (s *ProgramStore) DeleteSet(ctx context.Context, q Querier, orgID domain.Or
 
 // CreateExercise inserts a new row into program_exercises and syncs the programs.sets JSONB column.
 func (s *ProgramStore) CreateExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*ProgramExercise, error) {
-	var id int64
-	err := q.QueryRowContext(ctx,
-		`INSERT INTO program_exercises (program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order)
-		 SELECT $1, $2, $3, $4, $5, $6, $7
-		 WHERE EXISTS (
-		 	SELECT 1 FROM program_sets ps
-		 	JOIN programs p ON p.id = ps.program_id
-		 	WHERE ps.id = $1 AND ps.program_id = $8 AND p.org_id = $9
-		 )
-		 RETURNING id`,
-		setID, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder, programID, orgID,
-	).Scan(&id)
-	if errors.Is(err, sql.ErrNoRows) {
+	if err := s.lockProgram(ctx, q, orgID, programID); err != nil {
+		return nil, err
+	}
+	// Verify the target set belongs to this program.
+	var exists bool
+	if err := q.QueryRowContext(ctx,
+		`SELECT EXISTS (SELECT 1 FROM program_sets WHERE id = $1 AND program_id = $2)`,
+		setID, programID,
+	).Scan(&exists); err != nil {
+		return nil, fmt.Errorf("check set exists: %w", err)
+	}
+	if !exists {
 		return nil, ErrNotFound
 	}
+	id, err := s.nextExerciseID(ctx, q, programID, setID)
+	if err != nil {
+		return nil, err
+	}
+	_, err = q.ExecContext(ctx,
+		`INSERT INTO program_exercises (id, program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		id, setID, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("create program exercise: %w", err)
 	}
@@ -375,16 +460,13 @@ func (s *ProgramStore) CreateExercise(ctx context.Context, q Querier, orgID doma
 
 // UpdateExercise updates an existing program_exercises row and syncs the programs.sets JSONB column.
 func (s *ProgramStore) UpdateExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID, id int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*ProgramExercise, error) {
+	if err := s.lockProgram(ctx, q, orgID, programID); err != nil {
+		return nil, err
+	}
 	res, err := q.ExecContext(ctx,
-		`UPDATE program_exercises pe
-		 SET exercise_id = $1, laterality = $2, target_reps = $3, target_duration_seconds = $4, target_weight_kg = $5, sort_order = $6
-		 FROM program_sets ps
-		 JOIN programs p ON p.id = ps.program_id
-		 WHERE pe.id = $7 AND pe.program_set_id = $8
-		   AND pe.program_set_id = ps.id
-		   AND ps.program_id = $9
-		   AND p.org_id = $10`,
-		exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder, id, setID, programID, orgID,
+		`UPDATE program_exercises SET exercise_id = $1, laterality = $2, target_reps = $3, target_duration_seconds = $4, target_weight_kg = $5, sort_order = $6
+		 WHERE id = $7 AND program_set_id = $8`,
+		exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder, id, setID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("update program exercise: %w", err)
@@ -413,15 +495,12 @@ func (s *ProgramStore) UpdateExercise(ctx context.Context, q Querier, orgID doma
 
 // DeleteExercise removes a program_exercises row and syncs the programs.sets JSONB column.
 func (s *ProgramStore) DeleteExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID, id int64) error {
+	if err := s.lockProgram(ctx, q, orgID, programID); err != nil {
+		return err
+	}
 	res, err := q.ExecContext(ctx,
-		`DELETE FROM program_exercises pe
-		 USING program_sets ps, programs p
-		 WHERE pe.id = $1 AND pe.program_set_id = $2
-		   AND pe.program_set_id = ps.id
-		   AND ps.program_id = $3
-		   AND ps.program_id = p.id
-		   AND p.org_id = $4`,
-		id, setID, programID, orgID,
+		`DELETE FROM program_exercises WHERE id = $1 AND program_set_id = $2`,
+		id, setID,
 	)
 	if err != nil {
 		return fmt.Errorf("delete program exercise: %w", err)

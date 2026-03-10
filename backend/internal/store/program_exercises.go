@@ -74,24 +74,39 @@ func (s *ProgramExerciseStore) Get(ctx context.Context, q Querier, orgID domain.
 }
 
 func (s *ProgramExerciseStore) Create(ctx context.Context, q Querier, orgID domain.OrgID, programSetID int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*ProgramExercise, error) {
-	var id int64
-	// We use a subquery to ensure the program set belongs to the org
-	err := q.QueryRowContext(ctx,
-		`INSERT INTO program_exercises (program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order)
-		 SELECT $1, $2, $3, $4, $5, $6, $7
-		 WHERE EXISTS (
+	// Verify the program set belongs to the org.
+	var exists bool
+	if err := q.QueryRowContext(ctx,
+		`SELECT EXISTS (
 		 	SELECT 1 FROM program_sets ps
 		 	JOIN programs p ON p.id = ps.program_id
-		 	WHERE ps.id = $1 AND p.org_id = $8
-		 )
-		 RETURNING id`,
-		programSetID, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder, orgID,
-	).Scan(&id)
-
-	if errors.Is(err, sql.ErrNoRows) {
-		// Could mean program set not found or not owned by org
+		 	WHERE ps.id = $1 AND p.org_id = $2
+		 )`,
+		programSetID, orgID,
+	).Scan(&exists); err != nil {
+		return nil, fmt.Errorf("check program set: %w", err)
+	}
+	if !exists {
 		return nil, ErrNotFound
 	}
+
+	// Generate a globally unique ID across all program_exercises for this set's program.
+	var id int64
+	if err := q.QueryRowContext(ctx,
+		`SELECT COALESCE(MAX(pe.id), 0) + 1
+		 FROM program_exercises pe
+		 JOIN program_sets ps ON ps.id = pe.program_set_id
+		 WHERE ps.program_id = (SELECT program_id FROM program_sets WHERE id = $1)`,
+		programSetID,
+	).Scan(&id); err != nil {
+		return nil, fmt.Errorf("next exercise id: %w", err)
+	}
+
+	_, err := q.ExecContext(ctx,
+		`INSERT INTO program_exercises (id, program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		id, programSetID, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("create program exercise: %w", err)
 	}

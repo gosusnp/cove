@@ -292,24 +292,28 @@ func (s *ProgramService) CreateFull(ctx context.Context, name string, descriptio
 			return fmt.Errorf("create program: %w", err)
 		}
 
+		var nextSetID int64 = 1
 		for _, set := range sets {
 			if set.Rounds < 1 {
 				set.Rounds = 1
 			}
-			var setID int64
-			if err := q.QueryRowContext(ctx,
-				`INSERT INTO program_sets (program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-				programID, set.Name, set.Rounds, set.IntraSetRestSeconds, set.SortOrder,
-			).Scan(&setID); err != nil {
+			setID := nextSetID
+			nextSetID++
+			if _, err := q.ExecContext(ctx,
+				`INSERT INTO program_sets (id, program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES ($1, $2, $3, $4, $5, $6)`,
+				setID, programID, set.Name, set.Rounds, set.IntraSetRestSeconds, set.SortOrder,
+			); err != nil {
 				return fmt.Errorf("create program set: %w", err)
 			}
 
+			var nextExID int64 = 1
 			for _, ex := range set.Exercises {
-				_, err := q.ExecContext(ctx,
-					`INSERT INTO program_exercises (program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-					setID, ex.ExerciseID, ex.Laterality, ex.TargetReps, ex.TargetDurationSeconds, ex.TargetWeightKg, ex.SortOrder,
-				)
-				if err != nil {
+				exID := nextExID
+				nextExID++
+				if _, err := q.ExecContext(ctx,
+					`INSERT INTO program_exercises (id, program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+					exID, setID, ex.ExerciseID, ex.Laterality, ex.TargetReps, ex.TargetDurationSeconds, ex.TargetWeightKg, ex.SortOrder,
+				); err != nil {
 					return fmt.Errorf("create program exercise: %w", err)
 				}
 			}

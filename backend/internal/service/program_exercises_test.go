@@ -44,8 +44,8 @@ func newTestProgramExerciseService(t *testing.T) programExerciseFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var psID int64
-	err = db.QueryRowContext(ctx, `INSERT INTO program_sets (program_id, rounds) VALUES ($1, 1) RETURNING id`, pID).Scan(&psID)
+	const psID int64 = 1
+	_, err = db.ExecContext(ctx, `INSERT INTO program_sets (id, program_id, rounds) VALUES ($1, $2, 1)`, psID, pID)
 	if err != nil {
 		t.Fatal(err)
 	}

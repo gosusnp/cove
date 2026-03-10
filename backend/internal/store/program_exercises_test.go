@@ -55,8 +55,8 @@ func newProgramExerciseFixture(t *testing.T) programExerciseFixture {
 		t.Fatal(err)
 	}
 
-	var psID int64
-	err = sq.QueryRowContext(ctx, `INSERT INTO program_sets (program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id`, pID, nil, 1, nil, nil).Scan(&psID)
+	const psID int64 = 1
+	_, err = sq.ExecContext(ctx, `INSERT INTO program_sets (id, program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES ($1, $2, $3, $4, $5, $6)`, psID, pID, nil, 1, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,8 +98,8 @@ func TestProgramExerciseStore_List(t *testing.T) {
 	t.Run("returns exercises for set only", func(t *testing.T) {
 		f := newProgramExerciseFixture(t)
 		// Add another set to the same program
-		var psID2 int64
-		_ = f.db.QueryRowContext(f.ctx, `INSERT INTO program_sets (program_id, rounds) VALUES ($1, 1) RETURNING id`, f.programID).Scan(&psID2)
+		const psID2 int64 = 2
+		_, _ = f.db.ExecContext(f.ctx, `INSERT INTO program_sets (id, program_id, rounds) VALUES ($1, $2, 1)`, psID2, f.programID)
 
 		if _, err := f.store.Create(f.ctx, f.db, f.orgID, f.setID, f.exerciseID, nil, nil, nil, nil, nil); err != nil {
 			t.Fatal(err)
@@ -142,8 +142,8 @@ func TestProgramExerciseStore_Get(t *testing.T) {
 	t.Run("wrong set returns not found", func(t *testing.T) {
 		f := newProgramExerciseFixture(t)
 		// Add another set
-		var psID2 int64
-		_ = f.db.QueryRowContext(f.ctx, `INSERT INTO program_sets (program_id, rounds) VALUES ($1, 1) RETURNING id`, f.programID).Scan(&psID2)
+		const psID2 int64 = 2
+		_, _ = f.db.ExecContext(f.ctx, `INSERT INTO program_sets (id, program_id, rounds) VALUES ($1, $2, 1)`, psID2, f.programID)
 
 		created, err := f.store.Create(f.ctx, f.db, f.orgID, f.setID, f.exerciseID, nil, nil, nil, nil, nil)
 		if err != nil {
@@ -218,8 +218,8 @@ func TestProgramExerciseStore_Create(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var otherPSID int64
-		err = otherSq.QueryRowContext(f.ctx, `INSERT INTO program_sets (program_id, rounds) VALUES ($1, 1) RETURNING id`, otherPID).Scan(&otherPSID)
+		const otherPSID int64 = 100
+		_, err = otherSq.ExecContext(f.ctx, `INSERT INTO program_sets (id, program_id, rounds) VALUES ($1, $2, 1)`, otherPSID, otherPID)
 		if err != nil {
 			t.Fatal(err)
 		}

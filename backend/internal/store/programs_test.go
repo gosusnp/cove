@@ -6,6 +6,7 @@ package store
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -198,9 +199,8 @@ func TestProgramStore_GetDetail(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		var setID int64
-		err = db.QueryRowContext(ctx, `INSERT INTO program_sets (program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id`, programID, "Set 1", 3, 60, 1).Scan(&setID)
-		if err != nil {
+		const setID int64 = 1
+		if _, err = db.ExecContext(ctx, `INSERT INTO program_sets (id, program_id, name, rounds, intra_set_rest_seconds, sort_order) VALUES ($1, $2, $3, $4, $5, $6)`, setID, programID, "Set 1", 3, 60, 1); err != nil {
 			t.Fatal(err)
 		}
 
@@ -210,7 +210,7 @@ func TestProgramStore_GetDetail(t *testing.T) {
 		}
 
 		reps := 8
-		_, err = db.ExecContext(ctx, `INSERT INTO program_exercises (program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)`, setID, e.ID, nil, reps, nil, nil, 1)
+		_, err = db.ExecContext(ctx, `INSERT INTO program_exercises (id, program_set_id, exercise_id, laterality, target_reps, target_duration_seconds, target_weight_kg, sort_order) VALUES (1, $1, $2, $3, $4, $5, $6, $7)`, setID, e.ID, nil, reps, nil, nil, 1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -297,6 +297,77 @@ func TestProgramStore_CreateSet(t *testing.T) {
 		_, err := s.CreateSet(ctx2, q2, o2ID, programID, nil, 1, nil, nil)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("concurrent creates produce distinct IDs", func(t *testing.T) {
+		db := testutil.NewDB(t)
+
+		uID := domain.UserID{UUID: uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe01")}
+		oID := domain.OrgID{UUID: uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe02")}
+
+		_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'conc@test.com', 'sub-conc')`, uID)
+		_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'conc-org')`, oID)
+		_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID)
+
+		// Create a program outside any concurrent transaction.
+		ctx := domain.NewContext(context.Background(), &domain.Identity{UserID: uID, OrgID: oID})
+		setupTx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		q := NewScopedQuerier(setupTx, oID.String(), uID.String())
+		ps := NewProgramStore()
+		p, err := ps.Create(ctx, q, "Concurrent Program", nil, false)
+		if err != nil {
+			_ = setupTx.Rollback()
+			t.Fatal(err)
+		}
+		if err := setupTx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+		programID := p.ID
+
+		const n = 5
+		ids := make([]int64, n)
+		errs := make([]error, n)
+
+		var wg sync.WaitGroup
+		wg.Add(n)
+		for i := 0; i < n; i++ {
+			i := i
+			go func() {
+				defer wg.Done()
+				tx, err := db.BeginTx(ctx, nil)
+				if err != nil {
+					errs[i] = err
+					return
+				}
+				q := NewScopedQuerier(tx, oID.String(), uID.String())
+				set, err := ps.CreateSet(ctx, q, oID, programID, nil, 3, nil, nil)
+				if err != nil {
+					_ = tx.Rollback()
+					errs[i] = err
+					return
+				}
+				ids[i] = set.ID
+				errs[i] = tx.Commit()
+			}()
+		}
+		wg.Wait()
+
+		for i, err := range errs {
+			if err != nil {
+				t.Errorf("goroutine %d: %v", i, err)
+			}
+		}
+
+		seen := make(map[int64]bool)
+		for _, id := range ids {
+			if seen[id] {
+				t.Errorf("duplicate set ID %d produced by concurrent creates", id)
+			}
+			seen[id] = true
 		}
 	})
 }
