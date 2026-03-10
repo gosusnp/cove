@@ -256,7 +256,7 @@ func TestProgramService_Sets(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
 		p, _ := svc.Create(ctx, "Test", nil, true)
 
-		ps, err := svc.CreateSet(ctx, p.ID, nil, 0, nil, nil)
+		ps, err := svc.CreateSet(ctx, p.ID, nil, 0, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -268,9 +268,9 @@ func TestProgramService_Sets(t *testing.T) {
 	t.Run("UpdateSet defaults rounds", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
 		p, _ := svc.Create(ctx, "Test", nil, true)
-		ps, _ := svc.CreateSet(ctx, p.ID, nil, 3, nil, nil)
+		ps, _ := svc.CreateSet(ctx, p.ID, nil, 3, nil)
 
-		updated, err := svc.UpdateSet(ctx, p.ID, ps.ID, nil, -5, nil, nil)
+		updated, err := svc.UpdateSet(ctx, p.ID, ps.ID, nil, -5, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -290,7 +290,7 @@ func TestProgramService_Sets(t *testing.T) {
 		}
 
 		// Create
-		ps, _ := svc.CreateSet(ctx, p.ID, nil, 3, nil, nil)
+		ps, _ := svc.CreateSet(ctx, p.ID, nil, 3, nil)
 
 		// Get found
 		got, err := svc.GetSet(ctx, p.ID, ps.ID)
@@ -319,9 +319,9 @@ func TestProgramService_Exercises(t *testing.T) {
 	t.Run("CreateExercise validation", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
 		p, _ := svc.Create(ctx, "Test", nil, true)
-		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil, nil)
+		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
 
-		_, err := svc.CreateExercise(ctx, p.ID, ps.ID, 0, nil, nil, nil, nil, nil)
+		_, err := svc.CreateExercise(ctx, p.ID, ps.ID, 0, nil, nil, nil, nil)
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("got %v, want ValidationError", err)
@@ -331,14 +331,14 @@ func TestProgramService_Exercises(t *testing.T) {
 	t.Run("Exercise CRUD found and not found", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
 		p, _ := svc.Create(ctx, "Test", nil, true)
-		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil, nil)
+		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
 
 		// Seed an exercise to reference
 		exSvc := NewExerciseService(svc.db, store.NewExerciseStore())
 		e, _ := exSvc.Create(ctx, "Squat", nil, nil, true)
 
 		// Create
-		pe, err := svc.CreateExercise(ctx, p.ID, ps.ID, e.ID, nil, nil, nil, nil, nil)
+		pe, err := svc.CreateExercise(ctx, p.ID, ps.ID, e.ID, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -351,7 +351,7 @@ func TestProgramService_Exercises(t *testing.T) {
 
 		// Update
 		reps := 10
-		updated, err := svc.UpdateExercise(ctx, p.ID, ps.ID, pe.ID, e.ID, nil, &reps, nil, nil, nil)
+		updated, err := svc.UpdateExercise(ctx, p.ID, ps.ID, pe.ID, e.ID, nil, &reps, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

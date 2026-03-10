@@ -21,9 +21,8 @@ func registerProgramSetTools(server *mcp.Server, svc *service.ProgramService) {
 		Name                *string `json:"name,omitempty"`
 		Rounds              int     `json:"rounds"`
 		IntraSetRestSeconds *int    `json:"rest_s,omitempty"`
-		SortOrder           *int    `json:"sort_order,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		ps, err := svc.CreateSet(ctx, domain.ProgramID(params.ProgramID), params.Name, params.Rounds, params.IntraSetRestSeconds, params.SortOrder)
+		ps, err := svc.CreateSet(ctx, domain.ProgramID(params.ProgramID), params.Name, params.Rounds, params.IntraSetRestSeconds)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -43,9 +42,8 @@ func registerProgramSetTools(server *mcp.Server, svc *service.ProgramService) {
 		Name                *string `json:"name,omitempty"`
 		Rounds              int     `json:"rounds"`
 		IntraSetRestSeconds *int    `json:"rest_s,omitempty"`
-		SortOrder           *int    `json:"sort_order,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		ps, err := svc.UpdateSet(ctx, domain.ProgramID(params.ProgramID), params.ID, params.Name, params.Rounds, params.IntraSetRestSeconds, params.SortOrder)
+		ps, err := svc.UpdateSet(ctx, domain.ProgramID(params.ProgramID), params.ID, params.Name, params.Rounds, params.IntraSetRestSeconds)
 		if err != nil {
 			return nil, struct{}{}, err
 		}

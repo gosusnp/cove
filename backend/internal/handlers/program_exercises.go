@@ -34,7 +34,6 @@ type programExerciseRequest struct {
 	TargetReps            *int              `json:"reps,omitempty"`
 	TargetDurationSeconds *int              `json:"duration_s,omitempty"`
 	TargetWeightKg        *float64          `json:"weight_kg,omitempty"`
-	SortOrder             *int              `json:"sort_order,omitempty"`
 }
 
 func (h *ProgramExerciseHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -104,7 +103,7 @@ func (h *ProgramExerciseHandler) create(w http.ResponseWriter, r *http.Request) 
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	pe, err := h.svc.CreateExercise(r.Context(), programID, setID, req.ExerciseID, req.Laterality, req.TargetReps, req.TargetDurationSeconds, req.TargetWeightKg, req.SortOrder)
+	pe, err := h.svc.CreateExercise(r.Context(), programID, setID, req.ExerciseID, req.Laterality, req.TargetReps, req.TargetDurationSeconds, req.TargetWeightKg)
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
 		jsonError(w, ve.Error(), http.StatusBadRequest)
@@ -142,7 +141,7 @@ func (h *ProgramExerciseHandler) update(w http.ResponseWriter, r *http.Request) 
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	pe, err := h.svc.UpdateExercise(r.Context(), programID, setID, id, req.ExerciseID, req.Laterality, req.TargetReps, req.TargetDurationSeconds, req.TargetWeightKg, req.SortOrder)
+	pe, err := h.svc.UpdateExercise(r.Context(), programID, setID, id, req.ExerciseID, req.Laterality, req.TargetReps, req.TargetDurationSeconds, req.TargetWeightKg)
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
 		jsonError(w, ve.Error(), http.StatusBadRequest)

@@ -32,7 +32,6 @@ type programSetRequest struct {
 	Name                *string `json:"name,omitempty"`
 	Rounds              int     `json:"rounds"`
 	IntraSetRestSeconds *int    `json:"rest_s,omitempty"`
-	SortOrder           *int    `json:"sort_order,omitempty"`
 }
 
 func (h *ProgramSetHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +86,7 @@ func (h *ProgramSetHandler) create(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	ps, err := h.svc.CreateSet(r.Context(), programID, req.Name, req.Rounds, req.IntraSetRestSeconds, req.SortOrder)
+	ps, err := h.svc.CreateSet(r.Context(), programID, req.Name, req.Rounds, req.IntraSetRestSeconds)
 	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "program not found", http.StatusNotFound)
 		return
@@ -115,7 +114,7 @@ func (h *ProgramSetHandler) update(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	ps, err := h.svc.UpdateSet(r.Context(), programID, id, req.Name, req.Rounds, req.IntraSetRestSeconds, req.SortOrder)
+	ps, err := h.svc.UpdateSet(r.Context(), programID, id, req.Name, req.Rounds, req.IntraSetRestSeconds)
 	if errors.Is(err, service.ErrNotFound) {
 		jsonError(w, "program set not found", http.StatusNotFound)
 		return

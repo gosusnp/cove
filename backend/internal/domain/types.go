@@ -40,7 +40,6 @@ type ProgramSet struct {
 	Name                *string           `json:"name,omitempty"`
 	Rounds              int               `json:"rounds"`
 	IntraSetRestSeconds *int              `json:"rest_s,omitempty"`
-	SortOrder           *int              `json:"sort_order,omitempty"`
 	Exercises           []ProgramExercise `json:"exercises"`
 }
 
@@ -52,7 +51,6 @@ type ProgramExercise struct {
 	TargetReps            *int       `json:"reps,omitempty"`
 	TargetDurationSeconds *int       `json:"duration_s,omitempty"`
 	TargetWeightKg        *float64   `json:"weight_kg,omitempty"`
-	SortOrder             *int       `json:"sort_order,omitempty"`
 }
 
 // -----------------------------------------------------------------------------

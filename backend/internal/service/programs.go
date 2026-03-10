@@ -20,14 +20,12 @@ type ProgramExerciseInput struct {
 	TargetReps            *int              `json:"reps,omitempty"`
 	TargetDurationSeconds *int              `json:"duration_s,omitempty"`
 	TargetWeightKg        *float64          `json:"weight_kg,omitempty"`
-	SortOrder             *int              `json:"sort_order,omitempty"`
 }
 
 type ProgramSetInput struct {
 	Name                *string                `json:"name,omitempty"`
 	Rounds              int                    `json:"rounds"`
 	IntraSetRestSeconds *int                   `json:"rest_s,omitempty"`
-	SortOrder           *int                   `json:"sort_order,omitempty"`
 	Exercises           []ProgramExerciseInput `json:"exercises"`
 }
 
@@ -142,7 +140,7 @@ func (s *ProgramService) GetSet(ctx context.Context, programID domain.ProgramID,
 	return ps, err
 }
 
-func (s *ProgramService) CreateSet(ctx context.Context, programID domain.ProgramID, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*store.ProgramSet, error) {
+func (s *ProgramService) CreateSet(ctx context.Context, programID domain.ProgramID, name *string, rounds int, intraSetRestSeconds *int) (*store.ProgramSet, error) {
 	if rounds < 1 {
 		rounds = 1
 	}
@@ -150,7 +148,7 @@ func (s *ProgramService) CreateSet(ctx context.Context, programID domain.Program
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		idInfo, _ := domain.IdentityFromContext(ctx)
 		var err error
-		ps, err = s.store.CreateSet(ctx, q, idInfo.OrgID, programID, name, rounds, intraSetRestSeconds, sortOrder)
+		ps, err = s.store.CreateSet(ctx, q, idInfo.OrgID, programID, name, rounds, intraSetRestSeconds)
 		return err
 	})
 	if errors.Is(err, store.ErrNotFound) {
@@ -159,7 +157,7 @@ func (s *ProgramService) CreateSet(ctx context.Context, programID domain.Program
 	return ps, err
 }
 
-func (s *ProgramService) UpdateSet(ctx context.Context, programID domain.ProgramID, id int64, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*store.ProgramSet, error) {
+func (s *ProgramService) UpdateSet(ctx context.Context, programID domain.ProgramID, id int64, name *string, rounds int, intraSetRestSeconds *int) (*store.ProgramSet, error) {
 	if rounds < 1 {
 		rounds = 1
 	}
@@ -167,7 +165,7 @@ func (s *ProgramService) UpdateSet(ctx context.Context, programID domain.Program
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		idInfo, _ := domain.IdentityFromContext(ctx)
 		var err error
-		ps, err = s.store.UpdateSet(ctx, q, idInfo.OrgID, programID, id, name, rounds, intraSetRestSeconds, sortOrder)
+		ps, err = s.store.UpdateSet(ctx, q, idInfo.OrgID, programID, id, name, rounds, intraSetRestSeconds)
 		return err
 	})
 	if errors.Is(err, store.ErrNotFound) {
@@ -215,7 +213,7 @@ func (s *ProgramService) GetExercise(ctx context.Context, programID domain.Progr
 	return pe, err
 }
 
-func (s *ProgramService) CreateExercise(ctx context.Context, programID domain.ProgramID, setID int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*store.ProgramExercise, error) {
+func (s *ProgramService) CreateExercise(ctx context.Context, programID domain.ProgramID, setID int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64) (*store.ProgramExercise, error) {
 	if exerciseID == 0 {
 		return nil, &ValidationError{Msg: "exercise_id is required"}
 	}
@@ -223,7 +221,7 @@ func (s *ProgramService) CreateExercise(ctx context.Context, programID domain.Pr
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		idInfo, _ := domain.IdentityFromContext(ctx)
 		var err error
-		pe, err = s.store.CreateExercise(ctx, q, idInfo.OrgID, programID, setID, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder)
+		pe, err = s.store.CreateExercise(ctx, q, idInfo.OrgID, programID, setID, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg)
 		return err
 	})
 	if errors.Is(err, store.ErrNotFound) {
@@ -232,7 +230,7 @@ func (s *ProgramService) CreateExercise(ctx context.Context, programID domain.Pr
 	return pe, err
 }
 
-func (s *ProgramService) UpdateExercise(ctx context.Context, programID domain.ProgramID, setID, id int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*store.ProgramExercise, error) {
+func (s *ProgramService) UpdateExercise(ctx context.Context, programID domain.ProgramID, setID, id int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64) (*store.ProgramExercise, error) {
 	if exerciseID == 0 {
 		return nil, &ValidationError{Msg: "exercise_id is required"}
 	}
@@ -240,7 +238,7 @@ func (s *ProgramService) UpdateExercise(ctx context.Context, programID domain.Pr
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		idInfo, _ := domain.IdentityFromContext(ctx)
 		var err error
-		pe, err = s.store.UpdateExercise(ctx, q, idInfo.OrgID, programID, setID, id, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg, sortOrder)
+		pe, err = s.store.UpdateExercise(ctx, q, idInfo.OrgID, programID, setID, id, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg)
 		return err
 	})
 	if errors.Is(err, store.ErrNotFound) {
@@ -314,7 +312,6 @@ func (s *ProgramService) CreateFull(ctx context.Context, name string, descriptio
 					TargetReps:            ex.TargetReps,
 					TargetDurationSeconds: ex.TargetDurationSeconds,
 					TargetWeightKg:        ex.TargetWeightKg,
-					SortOrder:             ex.SortOrder,
 				})
 				nextExID++
 			}
@@ -323,7 +320,6 @@ func (s *ProgramService) CreateFull(ctx context.Context, name string, descriptio
 				Name:                set.Name,
 				Rounds:              set.Rounds,
 				IntraSetRestSeconds: set.IntraSetRestSeconds,
-				SortOrder:           set.SortOrder,
 				Exercises:           jsonExercises,
 			})
 		}

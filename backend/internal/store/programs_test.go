@@ -199,8 +199,7 @@ func TestProgramStore_GetDetail(t *testing.T) {
 
 		setName := "Set 1"
 		restSecs := 60
-		sortOrder := 1
-		ps, err := s.CreateSet(ctx, db, id.OrgID, p.ID, &setName, 3, &restSecs, &sortOrder)
+		ps, err := s.CreateSet(ctx, db, id.OrgID, p.ID, &setName, 3, &restSecs)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -211,7 +210,7 @@ func TestProgramStore_GetDetail(t *testing.T) {
 		}
 
 		reps := 8
-		_, err = s.CreateExercise(ctx, db, id.OrgID, p.ID, ps.ID, e.ID, nil, &reps, nil, nil, &sortOrder)
+		_, err = s.CreateExercise(ctx, db, id.OrgID, p.ID, ps.ID, e.ID, nil, &reps, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -290,7 +289,7 @@ func TestProgramStore_CreateSet(t *testing.T) {
 		s, programID, ctx2, q2 := seedTwoOrgs(t)
 		o2ID := domain.OrgID{UUID: uuid.MustParse("019cb68a-0000-0000-0000-000000000004")}
 
-		_, err := s.CreateSet(ctx2, q2, o2ID, programID, nil, 1, nil, nil)
+		_, err := s.CreateSet(ctx2, q2, o2ID, programID, nil, 1, nil)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -340,7 +339,7 @@ func TestProgramStore_CreateSet(t *testing.T) {
 					return
 				}
 				q := NewScopedQuerier(tx, oID.String(), uID.String())
-				set, err := ps.CreateSet(ctx, q, oID, programID, nil, 3, nil, nil)
+				set, err := ps.CreateSet(ctx, q, oID, programID, nil, 3, nil)
 				if err != nil {
 					_ = tx.Rollback()
 					errs[i] = err
@@ -373,7 +372,7 @@ func TestProgramStore_UpdateSet(t *testing.T) {
 		s, programID, ctx2, q2 := seedTwoOrgs(t)
 		o2ID := domain.OrgID{UUID: uuid.MustParse("019cb68a-0000-0000-0000-000000000004")}
 
-		_, err := s.UpdateSet(ctx2, q2, o2ID, programID, 999, nil, 1, nil, nil)
+		_, err := s.UpdateSet(ctx2, q2, o2ID, programID, 999, nil, 1, nil)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}

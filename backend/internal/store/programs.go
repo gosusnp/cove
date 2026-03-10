@@ -22,7 +22,6 @@ type JSONProgramExercise struct {
 	TargetReps            *int              `json:"reps,omitempty"`
 	TargetDurationSeconds *int              `json:"duration_s,omitempty"`
 	TargetWeightKg        *float64          `json:"weight_kg,omitempty"`
-	SortOrder             *int              `json:"sort_order,omitempty"`
 }
 
 // JSONProgramSet is the JSONB representation of a program set stored in programs.sets.
@@ -31,7 +30,6 @@ type JSONProgramSet struct {
 	Name                *string               `json:"name,omitempty"`
 	Rounds              int                   `json:"rounds"`
 	IntraSetRestSeconds *int                  `json:"rest_s,omitempty"`
-	SortOrder           *int                  `json:"sort_order,omitempty"`
 	Exercises           []JSONProgramExercise `json:"exercises"`
 }
 
@@ -150,7 +148,6 @@ func (s *ProgramStore) GetDetail(ctx context.Context, q Querier, orgID domain.Or
 			Name:                r.Name,
 			Rounds:              r.Rounds,
 			IntraSetRestSeconds: r.IntraSetRestSeconds,
-			SortOrder:           r.SortOrder,
 			Exercises:           []domain.ProgramExercise{},
 		}
 		for _, ex := range r.Exercises {
@@ -162,7 +159,6 @@ func (s *ProgramStore) GetDetail(ctx context.Context, q Querier, orgID domain.Or
 				TargetReps:            ex.TargetReps,
 				TargetDurationSeconds: ex.TargetDurationSeconds,
 				TargetWeightKg:        ex.TargetWeightKg,
-				SortOrder:             ex.SortOrder,
 			})
 		}
 		p.Sets = append(p.Sets, sd)
@@ -198,7 +194,6 @@ func (s *ProgramStore) ListSets(ctx context.Context, q Querier, orgID domain.Org
 			Name:                r.Name,
 			Rounds:              r.Rounds,
 			IntraSetRestSeconds: r.IntraSetRestSeconds,
-			SortOrder:           r.SortOrder,
 		}
 	}
 	return sets, nil
@@ -327,7 +322,7 @@ func (s *ProgramStore) writeSets(ctx context.Context, q Querier, orgID domain.Or
 }
 
 // CreateSet appends a new set to the programs.sets JSONB column.
-func (s *ProgramStore) CreateSet(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*ProgramSet, error) {
+func (s *ProgramStore) CreateSet(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, name *string, rounds int, intraSetRestSeconds *int) (*ProgramSet, error) {
 	if err := s.lockProgram(ctx, q, orgID, programID); err != nil {
 		return nil, err
 	}
@@ -344,7 +339,6 @@ func (s *ProgramStore) CreateSet(ctx context.Context, q Querier, orgID domain.Or
 		Name:                name,
 		Rounds:              rounds,
 		IntraSetRestSeconds: intraSetRestSeconds,
-		SortOrder:           sortOrder,
 		Exercises:           []jsonProgramExercise{},
 	})
 	if err := s.writeSets(ctx, q, orgID, programID, sets); err != nil {
@@ -356,12 +350,11 @@ func (s *ProgramStore) CreateSet(ctx context.Context, q Querier, orgID domain.Or
 		Name:                name,
 		Rounds:              rounds,
 		IntraSetRestSeconds: intraSetRestSeconds,
-		SortOrder:           sortOrder,
 	}, nil
 }
 
 // UpdateSet updates an existing set in the programs.sets JSONB column.
-func (s *ProgramStore) UpdateSet(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, id int64, name *string, rounds int, intraSetRestSeconds, sortOrder *int) (*ProgramSet, error) {
+func (s *ProgramStore) UpdateSet(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, id int64, name *string, rounds int, intraSetRestSeconds *int) (*ProgramSet, error) {
 	if err := s.lockProgram(ctx, q, orgID, programID); err != nil {
 		return nil, err
 	}
@@ -375,7 +368,6 @@ func (s *ProgramStore) UpdateSet(ctx context.Context, q Querier, orgID domain.Or
 			sets[i].Name = name
 			sets[i].Rounds = rounds
 			sets[i].IntraSetRestSeconds = intraSetRestSeconds
-			sets[i].SortOrder = sortOrder
 			found = true
 			break
 		}
@@ -392,7 +384,6 @@ func (s *ProgramStore) UpdateSet(ctx context.Context, q Querier, orgID domain.Or
 		Name:                name,
 		Rounds:              rounds,
 		IntraSetRestSeconds: intraSetRestSeconds,
-		SortOrder:           sortOrder,
 	}, nil
 }
 
@@ -421,7 +412,7 @@ func (s *ProgramStore) DeleteSet(ctx context.Context, q Querier, orgID domain.Or
 }
 
 // CreateExercise appends a new exercise to the target set in the programs.sets JSONB column.
-func (s *ProgramStore) CreateExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*ProgramExercise, error) {
+func (s *ProgramStore) CreateExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64) (*ProgramExercise, error) {
 	if err := s.lockProgram(ctx, q, orgID, programID); err != nil {
 		return nil, err
 	}
@@ -468,7 +459,6 @@ func (s *ProgramStore) CreateExercise(ctx context.Context, q Querier, orgID doma
 		TargetReps:            targetReps,
 		TargetDurationSeconds: targetDurationSeconds,
 		TargetWeightKg:        targetWeightKg,
-		SortOrder:             sortOrder,
 	}
 	for i, r := range sets {
 		if r.ID == setID {
@@ -487,12 +477,11 @@ func (s *ProgramStore) CreateExercise(ctx context.Context, q Querier, orgID doma
 		TargetReps:            targetReps,
 		TargetDurationSeconds: targetDurationSeconds,
 		TargetWeightKg:        targetWeightKg,
-		SortOrder:             sortOrder,
 	}, nil
 }
 
 // UpdateExercise updates an existing exercise in the programs.sets JSONB column.
-func (s *ProgramStore) UpdateExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID, id int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64, sortOrder *int) (*ProgramExercise, error) {
+func (s *ProgramStore) UpdateExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID, id int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64) (*ProgramExercise, error) {
 	if err := s.lockProgram(ctx, q, orgID, programID); err != nil {
 		return nil, err
 	}
@@ -529,7 +518,6 @@ func (s *ProgramStore) UpdateExercise(ctx context.Context, q Querier, orgID doma
 					TargetReps:            targetReps,
 					TargetDurationSeconds: targetDurationSeconds,
 					TargetWeightKg:        targetWeightKg,
-					SortOrder:             sortOrder,
 				}
 				found = true
 				break
@@ -551,7 +539,6 @@ func (s *ProgramStore) UpdateExercise(ctx context.Context, q Querier, orgID doma
 		TargetReps:            targetReps,
 		TargetDurationSeconds: targetDurationSeconds,
 		TargetWeightKg:        targetWeightKg,
-		SortOrder:             sortOrder,
 	}, nil
 }
 
@@ -633,7 +620,6 @@ func (s *ProgramStore) ListExercises(ctx context.Context, q Querier, orgID domai
 				TargetReps:            ex.TargetReps,
 				TargetDurationSeconds: ex.TargetDurationSeconds,
 				TargetWeightKg:        ex.TargetWeightKg,
-				SortOrder:             ex.SortOrder,
 			}
 		}
 		return exercises, nil

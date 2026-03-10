@@ -234,7 +234,7 @@ func (a *TestApp) SeedProgramSet(programID domain.ProgramID, rounds int) *store.
 		a.T.Fatalf("no owner recorded for program %v; call SeedProgram or SeedProgramForUser first", programID)
 	}
 	ctx := domain.NewContext(context.Background(), identity)
-	ps, err := a.Programs.CreateSet(ctx, programID, nil, rounds, nil, nil)
+	ps, err := a.Programs.CreateSet(ctx, programID, nil, rounds, nil)
 	if err != nil {
 		a.T.Fatalf("seed program set: %v", err)
 	}
@@ -251,7 +251,7 @@ func (a *TestApp) SeedProgramExercise(programID domain.ProgramID, setID int64, e
 	}
 	ctx := domain.NewContext(context.Background(), identity)
 
-	pe, err := a.Programs.CreateExercise(ctx, programID, setID, exerciseID, nil, nil, nil, nil, nil)
+	pe, err := a.Programs.CreateExercise(ctx, programID, setID, exerciseID, nil, nil, nil, nil)
 	if err != nil {
 		a.T.Fatalf("seed program exercise: %v", err)
 	}
