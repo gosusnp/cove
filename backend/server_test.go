@@ -29,10 +29,8 @@ func newTestAPIHandler(t *testing.T) http.Handler {
 	userSvc := service.NewUserService(database, userStore, orgStore)
 	pSvc := service.NewProgramService(database)
 	svcs := covemcp.Services{
-		Exercises:        service.NewExerciseService(database, store.NewExerciseStore()),
-		Programs:         pSvc,
-		ProgramSets:      service.NewProgramSetService(pSvc),
-		ProgramExercises: service.NewProgramExerciseService(pSvc),
+		Exercises: service.NewExerciseService(database, store.NewExerciseStore()),
+		Programs:  pSvc,
 	}
 	return NewAPIHandler(userStore, userSvc, svcs)
 }

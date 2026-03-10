@@ -44,11 +44,10 @@ type TestApp struct {
 	RawMux http.Handler // Raw mux with OAuth (no /api prefix)
 
 	// Services
-	Exercises        *service.ExerciseService
-	Programs         *service.ProgramService
-	ProgramSets      *programSetHelper
-	ProgramExercises *service.ProgramExerciseService
-	Users            *service.UserService
+	Exercises   *service.ExerciseService
+	Programs    *service.ProgramService
+	ProgramSets *programSetHelper
+	Users       *service.UserService
 
 	// Stores (for direct seeding/verification)
 	UserStore *store.UserStore
@@ -73,7 +72,6 @@ func NewTestApp(t *testing.T) *TestApp {
 	// Services
 	exSvc := service.NewExerciseService(database, exStore)
 	pSvc := service.NewProgramService(database)
-	peSvc := service.NewProgramExerciseService(pSvc)
 	uSvc := service.NewUserService(database, uStore, oStore)
 
 	// Create system user for raw mux auth
@@ -100,18 +98,17 @@ func NewTestApp(t *testing.T) *TestApp {
 	rawHandler := middleware.OAuth(uSvc, apiMux)
 
 	app := &TestApp{
-		T:                t,
-		DB:               database,
-		Mux:              handler,
-		RawMux:           rawHandler,
-		Exercises:        exSvc,
-		Programs:         pSvc,
-		ProgramExercises: peSvc,
-		Users:            uSvc,
-		UserStore:        uStore,
-		OrgStore:         oStore,
-		programOwners:    make(map[domain.ProgramID]*domain.Identity),
-		systemToken:      sysToken,
+		T:             t,
+		DB:            database,
+		Mux:           handler,
+		RawMux:        rawHandler,
+		Exercises:     exSvc,
+		Programs:      pSvc,
+		Users:         uSvc,
+		UserStore:     uStore,
+		OrgStore:      oStore,
+		programOwners: make(map[domain.ProgramID]*domain.Identity),
+		systemToken:   sysToken,
 	}
 	app.ProgramSets = &programSetHelper{app: app}
 	return app
@@ -271,7 +268,7 @@ func (a *TestApp) SeedProgramExercise(programID domain.ProgramID, setID int64, e
 	}
 	ctx := domain.NewContext(context.Background(), identity)
 
-	pe, err := a.ProgramExercises.Create(ctx, programID, setID, exerciseID, nil, nil, nil, nil, nil)
+	pe, err := a.Programs.CreateExercise(ctx, programID, setID, exerciseID, nil, nil, nil, nil, nil)
 	if err != nil {
 		a.T.Fatalf("seed program exercise: %v", err)
 	}

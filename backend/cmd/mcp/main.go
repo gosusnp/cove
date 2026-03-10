@@ -26,10 +26,8 @@ func main() {
 
 	pSvc := service.NewProgramService(database)
 	svcs := covemcp.Services{
-		Exercises:        service.NewExerciseService(database, store.NewExerciseStore()),
-		Programs:         pSvc,
-		ProgramSets:      service.NewProgramSetService(pSvc),
-		ProgramExercises: service.NewProgramExerciseService(pSvc),
+		Exercises: service.NewExerciseService(database, store.NewExerciseStore()),
+		Programs:  pSvc,
 	}
 
 	server := covemcp.NewServer(svcs)

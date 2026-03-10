@@ -12,7 +12,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func registerProgramSetTools(server *mcp.Server, sets *service.ProgramSetService) {
+func registerProgramSetTools(server *mcp.Server, svc *service.ProgramService) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "create_program_set",
 		Description: "Add a set (block) to a program",
@@ -23,7 +23,7 @@ func registerProgramSetTools(server *mcp.Server, sets *service.ProgramSetService
 		IntraSetRestSeconds *int    `json:"rest_s,omitempty"`
 		SortOrder           *int    `json:"sort_order,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		ps, err := sets.Create(ctx, domain.ProgramID(params.ProgramID), params.Name, params.Rounds, params.IntraSetRestSeconds, params.SortOrder)
+		ps, err := svc.CreateSet(ctx, domain.ProgramID(params.ProgramID), params.Name, params.Rounds, params.IntraSetRestSeconds, params.SortOrder)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -45,7 +45,7 @@ func registerProgramSetTools(server *mcp.Server, sets *service.ProgramSetService
 		IntraSetRestSeconds *int    `json:"rest_s,omitempty"`
 		SortOrder           *int    `json:"sort_order,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		ps, err := sets.Update(ctx, domain.ProgramID(params.ProgramID), params.ID, params.Name, params.Rounds, params.IntraSetRestSeconds, params.SortOrder)
+		ps, err := svc.UpdateSet(ctx, domain.ProgramID(params.ProgramID), params.ID, params.Name, params.Rounds, params.IntraSetRestSeconds, params.SortOrder)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -63,7 +63,7 @@ func registerProgramSetTools(server *mcp.Server, sets *service.ProgramSetService
 		ProgramID int64 `json:"program_id"`
 		ID        int64 `json:"id"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		if err := sets.Delete(ctx, domain.ProgramID(params.ProgramID), params.ID); err != nil {
+		if err := svc.DeleteSet(ctx, domain.ProgramID(params.ProgramID), params.ID); err != nil {
 			return nil, struct{}{}, err
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "deleted"}}}, struct{}{}, nil

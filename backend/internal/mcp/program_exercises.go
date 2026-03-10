@@ -12,7 +12,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func registerProgramExerciseTools(server *mcp.Server, exercises *service.ProgramExerciseService) {
+func registerProgramExerciseTools(server *mcp.Server, svc *service.ProgramService) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "create_program_exercise",
 		Description: "Add an exercise to a program set",
@@ -26,7 +26,7 @@ func registerProgramExerciseTools(server *mcp.Server, exercises *service.Program
 		TargetWeightKg        *float64 `json:"weight_kg,omitempty"`
 		SortOrder             *int     `json:"sort_order,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		pe, err := exercises.Create(ctx, domain.ProgramID(params.ProgramID), params.SetID, domain.ExerciseID(params.ExerciseID), params.Laterality, params.TargetReps, params.TargetDurationSeconds, params.TargetWeightKg, params.SortOrder)
+		pe, err := svc.CreateExercise(ctx, domain.ProgramID(params.ProgramID), params.SetID, domain.ExerciseID(params.ExerciseID), params.Laterality, params.TargetReps, params.TargetDurationSeconds, params.TargetWeightKg, params.SortOrder)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -51,7 +51,7 @@ func registerProgramExerciseTools(server *mcp.Server, exercises *service.Program
 		TargetWeightKg        *float64 `json:"weight_kg,omitempty"`
 		SortOrder             *int     `json:"sort_order,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		pe, err := exercises.Update(ctx, domain.ProgramID(params.ProgramID), params.SetID, params.ID, domain.ExerciseID(params.ExerciseID), params.Laterality, params.TargetReps, params.TargetDurationSeconds, params.TargetWeightKg, params.SortOrder)
+		pe, err := svc.UpdateExercise(ctx, domain.ProgramID(params.ProgramID), params.SetID, params.ID, domain.ExerciseID(params.ExerciseID), params.Laterality, params.TargetReps, params.TargetDurationSeconds, params.TargetWeightKg, params.SortOrder)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -70,7 +70,7 @@ func registerProgramExerciseTools(server *mcp.Server, exercises *service.Program
 		SetID     int64 `json:"set_id"`
 		ID        int64 `json:"id"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		if err := exercises.Delete(ctx, domain.ProgramID(params.ProgramID), params.SetID, params.ID); err != nil {
+		if err := svc.DeleteExercise(ctx, domain.ProgramID(params.ProgramID), params.SetID, params.ID); err != nil {
 			return nil, struct{}{}, err
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "deleted"}}}, struct{}{}, nil

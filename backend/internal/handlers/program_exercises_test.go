@@ -151,7 +151,7 @@ func TestProgramExerciseHandler_Update(t *testing.T) {
 
 		// Verify change
 		ctx := domain.NewContext(context.Background(), app.programOwners[p.ID])
-		got, _ := app.ProgramExercises.Get(ctx, p.ID, ps.ID, pe.ID)
+		got, _ := app.Programs.GetExercise(ctx, p.ID, ps.ID, pe.ID)
 		if got.Laterality == nil || *got.Laterality != "updated notes" {
 			t.Errorf("got laterality %v, want 'updated notes'", got.Laterality)
 		}
@@ -191,7 +191,7 @@ func TestProgramExerciseHandler_Delete(t *testing.T) {
 
 		// Verify gone
 		ctx := domain.NewContext(context.Background(), app.programOwners[p.ID])
-		_, err := app.ProgramExercises.Get(ctx, p.ID, ps.ID, pe.ID)
+		_, err := app.Programs.GetExercise(ctx, p.ID, ps.ID, pe.ID)
 		if err == nil {
 			t.Error("expected error getting deleted program exercise")
 		}

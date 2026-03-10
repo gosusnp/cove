@@ -251,6 +251,125 @@ func TestProgramService_Delete(t *testing.T) {
 	})
 }
 
+func TestProgramService_Sets(t *testing.T) {
+	t.Run("CreateSet defaults rounds", func(t *testing.T) {
+		svc, ctx := newTestProgramService(t)
+		p, _ := svc.Create(ctx, "Test", nil, true)
+
+		ps, err := svc.CreateSet(ctx, p.ID, nil, 0, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ps.Rounds != 1 {
+			t.Errorf("got rounds %d, want 1", ps.Rounds)
+		}
+	})
+
+	t.Run("UpdateSet defaults rounds", func(t *testing.T) {
+		svc, ctx := newTestProgramService(t)
+		p, _ := svc.Create(ctx, "Test", nil, true)
+		ps, _ := svc.CreateSet(ctx, p.ID, nil, 3, nil, nil)
+
+		updated, err := svc.UpdateSet(ctx, p.ID, ps.ID, nil, -5, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if updated.Rounds != 1 {
+			t.Errorf("got rounds %d, want 1", updated.Rounds)
+		}
+	})
+
+	t.Run("Set CRUD found and not found", func(t *testing.T) {
+		svc, ctx := newTestProgramService(t)
+		p, _ := svc.Create(ctx, "Test", nil, true)
+
+		// List empty
+		list, _ := svc.ListSets(ctx, p.ID)
+		if len(list) != 0 {
+			t.Errorf("expected 0 sets, got %d", len(list))
+		}
+
+		// Create
+		ps, _ := svc.CreateSet(ctx, p.ID, nil, 3, nil, nil)
+
+		// Get found
+		got, err := svc.GetSet(ctx, p.ID, ps.ID)
+		if err != nil || got.Rounds != 3 {
+			t.Errorf("failed to get set: %v", err)
+		}
+
+		// Get not found
+		_, err = svc.GetSet(ctx, p.ID, 999)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+
+		// Delete
+		if err := svc.DeleteSet(ctx, p.ID, ps.ID); err != nil {
+			t.Fatal(err)
+		}
+		_, err = svc.GetSet(ctx, p.ID, ps.ID)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("expected ErrNotFound after delete, got %v", err)
+		}
+	})
+}
+
+func TestProgramService_Exercises(t *testing.T) {
+	t.Run("CreateExercise validation", func(t *testing.T) {
+		svc, ctx := newTestProgramService(t)
+		p, _ := svc.Create(ctx, "Test", nil, true)
+		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil, nil)
+
+		_, err := svc.CreateExercise(ctx, p.ID, ps.ID, 0, nil, nil, nil, nil, nil)
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("got %v, want ValidationError", err)
+		}
+	})
+
+	t.Run("Exercise CRUD found and not found", func(t *testing.T) {
+		svc, ctx := newTestProgramService(t)
+		p, _ := svc.Create(ctx, "Test", nil, true)
+		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil, nil)
+
+		// Seed an exercise to reference
+		exSvc := NewExerciseService(svc.db, store.NewExerciseStore())
+		e, _ := exSvc.Create(ctx, "Squat", nil, nil, true)
+
+		// Create
+		pe, err := svc.CreateExercise(ctx, p.ID, ps.ID, e.ID, nil, nil, nil, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Get found
+		got, err := svc.GetExercise(ctx, p.ID, ps.ID, pe.ID)
+		if err != nil || got.ExerciseID != e.ID {
+			t.Errorf("failed to get exercise: %v", err)
+		}
+
+		// Update
+		reps := 10
+		updated, err := svc.UpdateExercise(ctx, p.ID, ps.ID, pe.ID, e.ID, nil, &reps, nil, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if updated.TargetReps == nil || *updated.TargetReps != 10 {
+			t.Errorf("got reps %v, want 10", updated.TargetReps)
+		}
+
+		// Delete
+		if err := svc.DeleteExercise(ctx, p.ID, ps.ID, pe.ID); err != nil {
+			t.Fatal(err)
+		}
+		_, err = svc.GetExercise(ctx, p.ID, ps.ID, pe.ID)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("expected ErrNotFound after delete, got %v", err)
+		}
+	})
+}
+
 func TestProgramService_Normalization(t *testing.T) {
 	t.Run("Create normalizes name", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)

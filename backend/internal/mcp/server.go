@@ -11,18 +11,16 @@ import (
 )
 
 type Services struct {
-	Exercises        *service.ExerciseService
-	Programs         *service.ProgramService
-	ProgramSets      *service.ProgramSetService
-	ProgramExercises *service.ProgramExerciseService
+	Exercises *service.ExerciseService
+	Programs  *service.ProgramService
 }
 
 func NewServer(svcs Services) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: "cove", Version: "1.0.0"}, nil)
 	registerExerciseTools(server, svcs.Exercises)
 	registerProgramTools(server, svcs.Programs)
-	registerProgramSetTools(server, svcs.ProgramSets)
-	registerProgramExerciseTools(server, svcs.ProgramExercises)
+	registerProgramSetTools(server, svcs.Programs)
+	registerProgramExerciseTools(server, svcs.Programs)
 	return server
 }
 
