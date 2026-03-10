@@ -4,6 +4,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
@@ -141,7 +143,8 @@ func TestProgramSetHandler_Update(t *testing.T) {
 		}
 
 		// Verify change
-		got, _ := app.ProgramSets.Get(p.ID, ps.ID)
+		ctx := domain.NewContext(context.Background(), app.programOwners[p.ID])
+		got, _ := app.Programs.GetSet(ctx, p.ID, ps.ID)
 		if got.Rounds != 5 {
 			t.Errorf("got rounds %d, want 5", got.Rounds)
 		}
@@ -173,7 +176,8 @@ func TestProgramSetHandler_Delete(t *testing.T) {
 		}
 
 		// Verify gone
-		_, err := app.ProgramSets.Get(p.ID, ps.ID)
+		ctx := domain.NewContext(context.Background(), app.programOwners[p.ID])
+		_, err := app.Programs.GetSet(ctx, p.ID, ps.ID)
 		if err == nil {
 			t.Error("expected error getting deleted set")
 		}

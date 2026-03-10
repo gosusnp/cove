@@ -21,21 +21,6 @@ import (
 	"github.com/gosusnp/cove/backend/internal/testutil"
 )
 
-// programSetHelper provides ctx-free access to program set operations for tests,
-// using the stored identity of the program owner.
-type programSetHelper struct {
-	app *TestApp
-}
-
-func (h *programSetHelper) Get(programID domain.ProgramID, id int64) (*store.ProgramSet, error) {
-	identity := h.app.programOwners[programID]
-	if identity == nil {
-		return nil, store.ErrNotFound
-	}
-	ctx := domain.NewContext(context.Background(), identity)
-	return h.app.Programs.GetSet(ctx, programID, id)
-}
-
 // TestApp encapsulates the entire application stack for integration testing.
 type TestApp struct {
 	T      *testing.T
@@ -44,10 +29,9 @@ type TestApp struct {
 	RawMux http.Handler // Raw mux with OAuth (no /api prefix)
 
 	// Services
-	Exercises   *service.ExerciseService
-	Programs    *service.ProgramService
-	ProgramSets *programSetHelper
-	Users       *service.UserService
+	Exercises *service.ExerciseService
+	Programs  *service.ProgramService
+	Users     *service.UserService
 
 	// Stores (for direct seeding/verification)
 	UserStore *store.UserStore
@@ -110,7 +94,6 @@ func NewTestApp(t *testing.T) *TestApp {
 		programOwners: make(map[domain.ProgramID]*domain.Identity),
 		systemToken:   sysToken,
 	}
-	app.ProgramSets = &programSetHelper{app: app}
 	return app
 }
 
