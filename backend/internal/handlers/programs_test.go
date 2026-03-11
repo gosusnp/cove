@@ -341,3 +341,163 @@ func TestProgramHandler_Delete(t *testing.T) {
 		}
 	})
 }
+
+func TestProgramHandler_ReorderStructure(t *testing.T) {
+	t.Run("reorder sets", func(t *testing.T) {
+		app := NewTestApp(t)
+		uID, oID := app.SeedUserWithOrg("test@test.com", "sub")
+		p := app.SeedProgramForUser(t.Context(), "Strength", uID, oID)
+		s1 := app.SeedProgramSet(p.ID, 3)
+		s2 := app.SeedProgramSet(p.ID, 4)
+		e := app.SeedExercise("Squat", nil)
+		pe1 := app.SeedProgramExercise(p.ID, s1.ID, e.ID)
+
+		// Swap s1 and s2.
+		body := []map[string]any{
+			{"set_id": s2.ID, "exercise_ids": []int64{}},
+			{"set_id": s1.ID, "exercise_ids": []int64{pe1.ID}},
+		}
+		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/programs/%d/structure", p.ID), body, uID)
+		w := app.Do(r)
+
+		if w.Code != http.StatusNoContent {
+			t.Errorf("got status %d, want %d: %s", w.Code, http.StatusNoContent, w.Body.String())
+		}
+
+		ctx := domain.NewContext(t.Context(), &domain.Identity{UserID: uID, OrgID: oID})
+		got, err := app.Programs.Get(ctx, p.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Sets[0].ID != s2.ID || got.Sets[1].ID != s1.ID {
+			t.Errorf("expected sets in order [%d, %d], got [%d, %d]", s2.ID, s1.ID, got.Sets[0].ID, got.Sets[1].ID)
+		}
+	})
+
+	t.Run("reorder exercises within set", func(t *testing.T) {
+		app := NewTestApp(t)
+		uID, oID := app.SeedUserWithOrg("test@test.com", "sub")
+		p := app.SeedProgramForUser(t.Context(), "Strength", uID, oID)
+		s := app.SeedProgramSet(p.ID, 3)
+		e1 := app.SeedExercise("Squat", nil)
+		e2 := app.SeedExercise("Deadlift", nil)
+		pe1 := app.SeedProgramExercise(p.ID, s.ID, e1.ID)
+		pe2 := app.SeedProgramExercise(p.ID, s.ID, e2.ID)
+
+		// Swap pe1 and pe2.
+		body := []map[string]any{
+			{"set_id": s.ID, "exercise_ids": []int64{pe2.ID, pe1.ID}},
+		}
+		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/programs/%d/structure", p.ID), body, uID)
+		w := app.Do(r)
+
+		if w.Code != http.StatusNoContent {
+			t.Errorf("got status %d, want %d: %s", w.Code, http.StatusNoContent, w.Body.String())
+		}
+
+		ctx := domain.NewContext(t.Context(), &domain.Identity{UserID: uID, OrgID: oID})
+		got, err := app.Programs.Get(ctx, p.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Sets[0].Exercises[0].ID != pe2.ID || got.Sets[0].Exercises[1].ID != pe1.ID {
+			t.Errorf("expected exercises in order [%d, %d], got [%d, %d]", pe2.ID, pe1.ID, got.Sets[0].Exercises[0].ID, got.Sets[0].Exercises[1].ID)
+		}
+	})
+
+	t.Run("cross-set exercise move", func(t *testing.T) {
+		app := NewTestApp(t)
+		uID, oID := app.SeedUserWithOrg("test@test.com", "sub")
+		p := app.SeedProgramForUser(t.Context(), "Strength", uID, oID)
+		s1 := app.SeedProgramSet(p.ID, 3)
+		s2 := app.SeedProgramSet(p.ID, 3)
+		e := app.SeedExercise("Squat", nil)
+		pe := app.SeedProgramExercise(p.ID, s1.ID, e.ID)
+
+		// Move pe from s1 to s2.
+		body := []map[string]any{
+			{"set_id": s1.ID, "exercise_ids": []int64{}},
+			{"set_id": s2.ID, "exercise_ids": []int64{pe.ID}},
+		}
+		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/programs/%d/structure", p.ID), body, uID)
+		w := app.Do(r)
+
+		if w.Code != http.StatusNoContent {
+			t.Errorf("got status %d, want %d: %s", w.Code, http.StatusNoContent, w.Body.String())
+		}
+
+		ctx := domain.NewContext(t.Context(), &domain.Identity{UserID: uID, OrgID: oID})
+		got, err := app.Programs.Get(ctx, p.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got.Sets[0].Exercises) != 0 {
+			t.Errorf("expected s1 to have 0 exercises, got %d", len(got.Sets[0].Exercises))
+		}
+		if len(got.Sets[1].Exercises) != 1 || got.Sets[1].Exercises[0].ID != pe.ID {
+			t.Errorf("expected s2 to have exercise %d, got %+v", pe.ID, got.Sets[1].Exercises)
+		}
+	})
+
+	t.Run("invalid body", func(t *testing.T) {
+		app := NewTestApp(t)
+		uID, oID := app.SeedUserWithOrg("test@test.com", "sub")
+		p := app.SeedProgramForUser(t.Context(), "Strength", uID, oID)
+
+		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/programs/%d/structure", p.ID), strings.NewReader("not json"), uID)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("missing set", func(t *testing.T) {
+		app := NewTestApp(t)
+		uID, oID := app.SeedUserWithOrg("test@test.com", "sub")
+		p := app.SeedProgramForUser(t.Context(), "Strength", uID, oID)
+		app.SeedProgramSet(p.ID, 3)
+
+		// Send wrong set_id.
+		body := []map[string]any{
+			{"set_id": 999, "exercise_ids": []int64{}},
+		}
+		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/programs/%d/structure", p.ID), body, uID)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		app := NewTestApp(t)
+		uID, _ := app.SeedUserWithOrg("test@test.com", "sub")
+
+		body := []map[string]any{}
+		r := app.AuthRequest(http.MethodPut, "/api/programs/999/structure", body, uID)
+		w := app.Do(r)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("RLS: cannot reorder another org's program", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		u2, _ := app.SeedUserWithOrg("u2@test.com", "sub2")
+		p := app.SeedProgramForUser(t.Context(), "Strength", u1, o1)
+		s := app.SeedProgramSet(p.ID, 3)
+
+		body := []map[string]any{
+			{"set_id": s.ID, "exercise_ids": []int64{}},
+		}
+		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/programs/%d/structure", p.ID), body, u2)
+		w := app.Do(r)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+}

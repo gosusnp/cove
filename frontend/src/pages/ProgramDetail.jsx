@@ -462,6 +462,8 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 
 	// ── Add / Edit Set dialog ─────────────────────────────────────────────────
 	const setDialog = useDialog();
+	const reorderError = useSignal("");
+
 	const editingSet = useSignal(null);
 	const setNameField = useSignal("");
 	const setRoundsField = useSignal("3");
@@ -506,7 +508,6 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 			? `/api/programs/${initialProgram.id}/sets/${editingSet.value._rawId}`
 			: `/api/programs/${initialProgram.id}/sets`;
 		const method = isEdit ? "PUT" : "POST";
-		const sortOrder = isEdit ? editingSet.value.sort_order : sets.length;
 		try {
 			const r = await fetch(url, {
 				method,
@@ -518,7 +519,6 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 					name: setNameField.value.trim() || undefined,
 					rounds,
 					rest_s: rest,
-					sort_order: sortOrder,
 				}),
 			});
 			if (!r.ok) {
@@ -602,15 +602,11 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 		pexFormSaving.value = true;
 		pexFormError.value = "";
 
-		const set = sets.find((s) => s._rawId === pexSetId.value);
 		const isEdit = !!editingPex.value;
 		const url = isEdit
 			? `/api/programs/${initialProgram.id}/sets/${pexSetId.value}/exercises/${editingPex.value._rawId}`
 			: `/api/programs/${initialProgram.id}/sets/${pexSetId.value}/exercises`;
 		const method = isEdit ? "PUT" : "POST";
-		const sortOrder = isEdit
-			? editingPex.value.sort_order
-			: (set?.exercises?.length ?? 0);
 
 		const repsVal = pexReps.value !== "" ? parseInt(pexReps.value, 10) : null;
 		const durVal =
@@ -631,7 +627,6 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 					reps: repsVal,
 					duration_s: durVal,
 					weight_kg: weightVal,
-					sort_order: sortOrder,
 				}),
 			});
 			if (!r.ok) {
@@ -685,91 +680,72 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 
 		dndHandleDragEnd(event);
 
-		if (!over) return;
+		if (!over || active.id === over.id) return;
 
+		let finalSets;
 		if (!activeType) {
 			// ── Set reorder ──────────────────────────────────────────────────
-			if (active.id === over.id) return;
 			const oldIdx = setsSnapshot.findIndex((s) => s.id === active.id);
 			const newIdx = setsSnapshot.findIndex((s) => s.id === over.id);
 			if (oldIdx < 0 || newIdx < 0) return;
 
-			const reordered = [...setsSnapshot];
-			const [moved] = reordered.splice(oldIdx, 1);
-			reordered.splice(newIdx, 0, moved);
-
-			Promise.all(
-				reordered.map((s, i) =>
-					fetch(`/api/programs/${initialProgram.id}/sets/${s._rawId}`, {
-						method: "PUT",
-						headers: {
-							Authorization: `Bearer ${token}`,
-							"Content-Type": "application/json",
-						},
-						body: JSON.stringify({
-							name: s.name ?? undefined,
-							rounds: s.rounds,
-							rest_s: s.rest_s,
-							sort_order: i,
-						}),
-					}),
-				),
-			).catch(() => {});
+			finalSets = [...setsSnapshot];
+			const [moved] = finalSets.splice(oldIdx, 1);
+			finalSets.splice(newIdx, 0, moved);
 		} else if (activeType === "exercise") {
 			// ── Exercise reorder / cross-set move ────────────────────────────
-			// After handleDragOver's optimistic updates, the exercise is already
-			// in the destination set inside `setsSnapshot`. Find which set it's in.
+			// For cross-set moves, setsSnapshot already has the exercise in the
+			// destination set (handleDragOver applied the optimistic update).
+			// For same-set reorders, apply the position swap manually.
+			const srcSetId = active.data.current?.setId;
 			const destSet = setsSnapshot.find((s) =>
 				s.exercises.some((e) => e.id === active.id),
 			);
 			if (!destSet) return;
 
-			// Also persist the source set if it differs (cross-set move).
-			const srcSetId = active.data.current?.setId;
-			const setsToSync = new Set([destSet.id]);
-			if (srcSetId && srcSetId !== destSet.id) setsToSync.add(srcSetId);
-
-			const requests = [];
-			for (const setPrefixedId of setsToSync) {
-				const s = setsSnapshot.find((x) => x.id === setPrefixedId);
-				if (!s) continue;
-				// For same-set reorder, reconstruct the final array since we
-				// snapshot before dndHandleDragEnd applies arrayMove.
-				let exercises = s.exercises;
-				if (setPrefixedId === destSet.id && srcSetId === destSet.id) {
-					const oldIdx = exercises.findIndex((e) => e.id === active.id);
-					const newIdx = exercises.findIndex((e) => e.id === over.id);
+			finalSets = setsSnapshot.map((s) => {
+				if (s.id === destSet.id && srcSetId === destSet.id) {
+					const exs = [...s.exercises];
+					const oldIdx = exs.findIndex((e) => e.id === active.id);
+					const newIdx = exs.findIndex((e) => e.id === over.id);
 					if (oldIdx >= 0 && newIdx >= 0 && oldIdx !== newIdx) {
-						exercises = [...exercises];
-						const [mv] = exercises.splice(oldIdx, 1);
-						exercises.splice(newIdx, 0, mv);
+						const [mv] = exs.splice(oldIdx, 1);
+						exs.splice(newIdx, 0, mv);
 					}
+					return { ...s, exercises: exs };
 				}
-				for (const [i, ex] of exercises.entries()) {
-					requests.push(
-						fetch(
-							`/api/programs/${initialProgram.id}/sets/${s._rawId}/exercises/${ex._rawId}`,
-							{
-								method: "PUT",
-								headers: {
-									Authorization: `Bearer ${token}`,
-									"Content-Type": "application/json",
-								},
-								body: JSON.stringify({
-									exercise_id: ex.exercise_id,
-									laterality: ex.laterality ?? undefined,
-									reps: ex.reps ?? null,
-									duration_s: ex.duration_s ?? null,
-									weight_kg: ex.weight_kg ?? null,
-									sort_order: i,
-								}),
-							},
-						),
-					);
-				}
-			}
-			Promise.all(requests).catch(() => {});
+				return s;
+			});
+		} else {
+			return;
 		}
+
+		const structure = finalSets.map((s) => ({
+			set_id: s._rawId,
+			exercise_ids: s.exercises.map((e) => e._rawId),
+		}));
+
+		reorderError.value = "";
+		fetch(`/api/programs/${initialProgram.id}/structure`, {
+			method: "PUT",
+			headers: {
+				Authorization: `Bearer ${token}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(structure),
+		})
+			.then((r) => {
+				if (!r.ok) {
+					return r.json().then((j) => {
+						reorderError.value = j.error ?? "Failed to save order.";
+						onRefresh();
+					});
+				}
+			})
+			.catch(() => {
+				reorderError.value = "Failed to save order.";
+				onRefresh();
+			});
 	};
 
 	// ── Active drag overlays ──────────────────────────────────────────────────
@@ -811,6 +787,11 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 				</div>
 
 				{/* Sets */}
+				{reorderError.value && (
+					<p class="text-sm" style={{ color: "var(--color-error)" }}>
+						{reorderError.value}
+					</p>
+				)}
 				{sets.length === 0 ? (
 					<p class="text-sm" style={{ color: "var(--color-muted)" }}>
 						No sets yet. Add a set to start building this program.

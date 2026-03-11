@@ -46,10 +46,6 @@ func createProgramFullSchema() *jsonschema.Schema {
 				Type:        "number",
 				Description: "Load in kg. Positive = added (e.g. 20), negative = assisted (e.g. -10), omit or 0 = bodyweight.",
 			},
-			"sort_order": {
-				Type:        "integer",
-				Description: "Position within the set. Inferred from array index if omitted.",
-			},
 		},
 	}
 
@@ -69,10 +65,6 @@ func createProgramFullSchema() *jsonschema.Schema {
 			"rest_s": {
 				Type:        "integer",
 				Description: "Rest in seconds between rounds of this set. Optional.",
-			},
-			"sort_order": {
-				Type:        "integer",
-				Description: "Position within the program. Inferred from array index if omitted.",
 			},
 			"exercises": {
 				Type:        "array",

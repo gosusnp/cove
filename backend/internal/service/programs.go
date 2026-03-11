@@ -320,6 +320,33 @@ func (s *ProgramService) DeleteExercise(ctx context.Context, programID domain.Pr
 	return err
 }
 
+// StructureEntry describes one set and its ordered exercises for ReorderStructure.
+type StructureEntry struct {
+	SetID       int64   `json:"set_id"`
+	ExerciseIDs []int64 `json:"exercise_ids"`
+}
+
+// ReorderStructure atomically reorders sets and exercises within a program.
+func (s *ProgramService) ReorderStructure(ctx context.Context, programID domain.ProgramID, structure []StructureEntry) error {
+	entries := make([]store.ProgramStructureEntry, len(structure))
+	for i, e := range structure {
+		entries[i] = store.ProgramStructureEntry{SetID: e.SetID, ExerciseIDs: e.ExerciseIDs}
+	}
+
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		idInfo, _ := domain.IdentityFromContext(ctx)
+		return s.store.ReorderStructure(ctx, q, idInfo.OrgID, programID, entries)
+	})
+	var bse *store.BadStructureError
+	if errors.As(err, &bse) {
+		return &ValidationError{Msg: bse.Msg}
+	}
+	if errors.Is(err, store.ErrNotFound) {
+		return ErrNotFound
+	}
+	return err
+}
+
 func (s *ProgramService) Delete(ctx context.Context, id domain.ProgramID) error {
 	idInfo, ok := domain.IdentityFromContext(ctx)
 	if !ok {

@@ -626,6 +626,87 @@ func (s *ProgramStore) WriteSetsForNewProgram(ctx context.Context, q Querier, pr
 	return nil
 }
 
+// ProgramStructureEntry describes one set and its ordered exercise IDs for ReorderStructure.
+type ProgramStructureEntry struct {
+	SetID       int64
+	ExerciseIDs []int64
+}
+
+// BadStructureError is returned by ReorderStructure when the request is inconsistent
+// with the program's current set/exercise inventory.
+type BadStructureError struct {
+	Msg string
+}
+
+func (e *BadStructureError) Error() string { return e.Msg }
+
+// ReorderStructure atomically reorders sets and exercises within a program.
+// structure must contain exactly one entry per existing set. The union of all exercise IDs
+// across entries must match exactly the full set of exercise IDs currently in the program;
+// cross-set moves are allowed, but additions and deletions are not.
+func (s *ProgramStore) ReorderStructure(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, structure []ProgramStructureEntry) error {
+	if err := s.lockProgram(ctx, q, orgID, programID); err != nil {
+		return err
+	}
+	sets, err := s.readSets(ctx, q, programID)
+	if err != nil {
+		return err
+	}
+
+	if len(structure) != len(sets) {
+		return &BadStructureError{Msg: fmt.Sprintf("expected %d sets, got %d", len(sets), len(structure))}
+	}
+
+	setIndex := make(map[int64]jsonProgramSet, len(sets))
+	for _, r := range sets {
+		setIndex[r.ID] = r
+	}
+
+	allExercises := make(map[int64]jsonProgramExercise)
+	for _, r := range sets {
+		for _, ex := range r.Exercises {
+			allExercises[ex.ID] = ex
+		}
+	}
+
+	seenSets := make(map[int64]bool, len(structure))
+	seenExercises := make(map[int64]bool, len(allExercises))
+	for _, entry := range structure {
+		if _, ok := setIndex[entry.SetID]; !ok {
+			return &BadStructureError{Msg: fmt.Sprintf("set %d not found", entry.SetID)}
+		}
+		if seenSets[entry.SetID] {
+			return &BadStructureError{Msg: fmt.Sprintf("duplicate set_id %d", entry.SetID)}
+		}
+		seenSets[entry.SetID] = true
+		for _, exID := range entry.ExerciseIDs {
+			if _, ok := allExercises[exID]; !ok {
+				return &BadStructureError{Msg: fmt.Sprintf("exercise %d not found in program", exID)}
+			}
+			if seenExercises[exID] {
+				return &BadStructureError{Msg: fmt.Sprintf("duplicate exercise_id %d", exID)}
+			}
+			seenExercises[exID] = true
+		}
+	}
+	if len(seenExercises) != len(allExercises) {
+		return &BadStructureError{Msg: "all exercises must be included exactly once"}
+	}
+
+	newSets := make([]jsonProgramSet, 0, len(structure))
+	for _, entry := range structure {
+		cur := setIndex[entry.SetID]
+		newExercises := make([]jsonProgramExercise, 0, len(entry.ExerciseIDs))
+		for _, exID := range entry.ExerciseIDs {
+			newExercises = append(newExercises, allExercises[exID])
+		}
+		cur.Exercises = newExercises
+		newSets = append(newSets, cur)
+	}
+
+	return s.writeSets(ctx, q, orgID, programID, newSets)
+}
+
 func (s *ProgramStore) Delete(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID) error {
 	res, err := q.ExecContext(ctx, `DELETE FROM programs WHERE id = $1 AND org_id = $2`, id, orgID)
 	if err != nil {
