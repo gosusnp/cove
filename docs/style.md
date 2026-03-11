@@ -202,6 +202,8 @@ Rules:
 
 The `/design-elements` route (visible when `VITE_COVE_ENV=dev`) is the live showcase for all `ui/` components. Every primitive must be represented there with all meaningful states (variants, sizes, disabled, active, etc.).
 
+**Interactive demos must be fully wired.** Stateful components (e.g. `Combobox`, `Switch`, `ToggleGroup`) must use a signal for their value and pass a real `onChange` handler — never `onChange={() => {}}`. A hardcoded static demo hides bugs and defeats the purpose of the showcase.
+
 ---
 
 ### Testing UI Components

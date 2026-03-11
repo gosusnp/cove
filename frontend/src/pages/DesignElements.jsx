@@ -37,6 +37,7 @@ import {
 } from "../components/ui/Section.jsx";
 import { PageTitle } from "../components/ui/PageTitle.jsx";
 import { ToggleGroup } from "../components/ui/ToggleGroup.jsx";
+import { Combobox } from "../components/ui/Combobox.jsx";
 import {
 	Accordion,
 	AccordionItem,
@@ -349,6 +350,8 @@ export function DesignElements() {
 	const toggleVal = useSignal("bilateral");
 	const toggleNullable = useSignal("unilateral");
 	const toggleNoLabel = useSignal(null);
+	const comboVal = useSignal("");
+	const comboVal2 = useSignal("2");
 
 	return (
 		<main class="max-w-2xl mx-auto px-4 py-10 flex flex-col gap-10">
@@ -699,6 +702,58 @@ export function DesignElements() {
 							grip on an exercise to reorder within or move between sets.
 						</p>
 						<ExerciseSetsDemo />
+					</div>
+				</PreviewRow>
+			</PageSection>
+
+			<Divider />
+
+			{/* ── Combobox ──────────────────────────────────── */}
+			<PageSection title="Combobox">
+				<PreviewRow label="default — empty">
+					<div class="w-64">
+						<Combobox
+							options={[
+								{ value: "1", label: "Squat" },
+								{ value: "2", label: "Bench Press" },
+								{ value: "3", label: "Deadlift" },
+								{ value: "4", label: "Romanian Deadlift" },
+								{ value: "5", label: "Overhead Press" },
+							]}
+							value={comboVal.value}
+							onChange={(v) => (comboVal.value = v)}
+							placeholder="Search exercises..."
+						/>
+					</div>
+				</PreviewRow>
+				<PreviewRow label="with label + pre-selected value">
+					<div class="w-64">
+						<Combobox
+							label="Exercise"
+							options={[
+								{ value: "1", label: "Squat" },
+								{ value: "2", label: "Bench Press" },
+								{ value: "3", label: "Deadlift" },
+							]}
+							value={comboVal2.value}
+							onChange={(v) => (comboVal2.value = v)}
+							placeholder="Search exercises..."
+						/>
+					</div>
+				</PreviewRow>
+				<PreviewRow label="disabled">
+					<div class="w-64">
+						<Combobox
+							label="Exercise"
+							options={[
+								{ value: "1", label: "Squat" },
+								{ value: "2", label: "Bench Press" },
+							]}
+							value="1"
+							onChange={() => {}}
+							placeholder="Search exercises..."
+							disabled
+						/>
 					</div>
 				</PreviewRow>
 			</PageSection>

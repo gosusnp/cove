@@ -23,9 +23,7 @@ export function ToggleGroup({
 	return (
 		<div class={cn("flex flex-col gap-1.5", className)}>
 			{label && (
-				<span class="text-sm font-medium text-(--color-text)">
-					{label}
-				</span>
+				<span class="text-sm font-medium text-(--color-text)">{label}</span>
 			)}
 			<div class="flex flex-wrap">
 				{options.map((option, index) => {

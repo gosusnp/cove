@@ -118,9 +118,7 @@ describe("AccordionDragHandle", () => {
 			</Accordion>,
 		);
 
-		expect(
-			document.querySelector(".cursor-grab"),
-		).toBeInTheDocument();
+		expect(document.querySelector(".cursor-grab")).toBeInTheDocument();
 	});
 
 	it("renders the grip icon", () => {
