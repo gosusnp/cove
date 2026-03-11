@@ -38,6 +38,11 @@ import { PageTitle } from "../components/ui/PageTitle.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { ToggleGroup } from "../components/ui/ToggleGroup.jsx";
 import { Combobox } from "../components/ui/Combobox.jsx";
+import {
+	Tooltip,
+	TooltipTrigger,
+	TooltipContent,
+} from "../components/ui/Tooltip.jsx";
 import { useDialog } from "../hooks/useDialog.js";
 import { useSortableGroups } from "../hooks/useSortableGroups.js";
 import { cn } from "../lib/utils.js";
@@ -51,6 +56,44 @@ const LATERALITY_OPTIONS = [
 	{ value: "right", label: "Right" },
 	{ value: "alternating", label: "Alternating" },
 ];
+
+// ── Icons ─────────────────────────────────────────────────────────────────────
+
+function PencilIcon() {
+	return (
+		<svg
+			width="14"
+			height="14"
+			viewBox="0 0 16 16"
+			fill="none"
+			aria-hidden="true"
+		>
+			<path
+				d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.609Z"
+				fill="currentColor"
+			/>
+		</svg>
+	);
+}
+
+function TrashIcon() {
+	return (
+		<svg
+			width="14"
+			height="14"
+			viewBox="0 0 16 16"
+			fill="none"
+			aria-hidden="true"
+		>
+			<path
+				fill-rule="evenodd"
+				clip-rule="evenodd"
+				d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75ZM5 3V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75V3h2.25a.75.75 0 0 1 0 1.5H14v8.75A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25V4.5H.75a.75.75 0 0 1 0-1.5H5ZM3.5 4.5v8.75c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V4.5h-9Z"
+				fill="currentColor"
+			/>
+		</svg>
+	);
+}
 
 // ── Weight tag ────────────────────────────────────────────────────────────────
 
@@ -199,16 +242,32 @@ function SortableExerciseRow({ exercise, setId, onEdit, onRemove }) {
 			)}
 			<WeightTag weight_kg={exercise.weight_kg} />
 			<div class="flex gap-1 shrink-0">
-				<Button variant="ghost" size="sm" onClick={() => onEdit(exercise)}>
-					Edit
-				</Button>
-				<Button
-					variant="destructive"
-					size="sm"
-					onClick={() => onRemove(exercise)}
-				>
-					Del
-				</Button>
+				<Tooltip>
+					<TooltipTrigger>
+						<Button
+							variant="outline"
+							size="icon"
+							aria-label="Edit exercise"
+							onClick={() => onEdit(exercise)}
+						>
+							<PencilIcon />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>Edit</TooltipContent>
+				</Tooltip>
+				<Tooltip>
+					<TooltipTrigger>
+						<Button
+							variant="outline"
+							size="icon"
+							aria-label="Remove exercise"
+							onClick={() => onRemove(exercise)}
+						>
+							<TrashIcon />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>Remove</TooltipContent>
+				</Tooltip>
 			</div>
 		</div>
 	);
@@ -732,9 +791,19 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 				<div class="flex items-center justify-between gap-4 flex-wrap">
 					<PageTitle>{programName.value}</PageTitle>
 					<div class="flex gap-2">
-						<Button variant="outline" size="sm" onClick={openRename}>
-							Rename
-						</Button>
+						<Tooltip>
+							<TooltipTrigger>
+								<Button
+									variant="outline"
+									size="icon"
+									aria-label="Rename program"
+									onClick={openRename}
+								>
+									<PencilIcon />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Rename</TooltipContent>
+						</Tooltip>
 						<Button variant="primary" size="sm" onClick={openAddSet}>
 							+ Add Set
 						</Button>
@@ -777,26 +846,38 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 												{set.rounds}× · {set.rest_s}s rest
 											</span>
 											<div class="flex gap-1">
-												<Button
-													variant="ghost"
-													size="sm"
-													onClick={(e) => {
-														e.stopPropagation();
-														openEditSet(set);
-													}}
-												>
-													Edit
-												</Button>
-												<Button
-													variant="destructive"
-													size="sm"
-													onClick={(e) => {
-														e.stopPropagation();
-														openDeleteSet(set);
-													}}
-												>
-													Delete
-												</Button>
+												<Tooltip>
+													<TooltipTrigger>
+														<Button
+															variant="outline"
+															size="icon"
+															aria-label="Edit set"
+															onClick={(e) => {
+																e.stopPropagation();
+																openEditSet(set);
+															}}
+														>
+															<PencilIcon />
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent>Edit</TooltipContent>
+												</Tooltip>
+												<Tooltip>
+													<TooltipTrigger>
+														<Button
+															variant="outline"
+															size="icon"
+															aria-label="Delete set"
+															onClick={(e) => {
+																e.stopPropagation();
+																openDeleteSet(set);
+															}}
+														>
+															<TrashIcon />
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent>Delete</TooltipContent>
+												</Tooltip>
 											</div>
 										</AccordionTrigger>
 										<AccordionContent>

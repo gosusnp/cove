@@ -350,7 +350,7 @@ describe("ProgramDetail — rename dialog", () => {
 		await waitFor(() =>
 			expect(screen.getByText("Strength A/B")).toBeInTheDocument(),
 		);
-		fireEvent.click(screen.getByText("Rename"));
+		fireEvent.click(screen.getByRole("button", { name: "Rename program" }));
 		expect(screen.getByText("Rename Program")).toBeInTheDocument();
 		expect(screen.getByDisplayValue("Strength A/B")).toBeInTheDocument();
 	});
@@ -358,8 +358,8 @@ describe("ProgramDetail — rename dialog", () => {
 	it("shows validation error when name is empty", async () => {
 		mockDefaultFetch();
 		renderDetail();
-		await waitFor(() => screen.getByText("Rename"));
-		fireEvent.click(screen.getByText("Rename"));
+		await waitFor(() => screen.getByRole("button", { name: "Rename program" }));
+		fireEvent.click(screen.getByRole("button", { name: "Rename program" }));
 		const form = screen.getByText("Rename Program").closest("form");
 		const input = within(form).getByDisplayValue("Strength A/B");
 		fireEvent.input(input, { target: { value: "" } });
@@ -390,8 +390,8 @@ describe("ProgramDetail — rename dialog", () => {
 			});
 
 		renderDetail();
-		await waitFor(() => screen.getByText("Rename"));
-		fireEvent.click(screen.getByText("Rename"));
+		await waitFor(() => screen.getByRole("button", { name: "Rename program" }));
+		fireEvent.click(screen.getByRole("button", { name: "Rename program" }));
 		const form = screen.getByText("Rename Program").closest("form");
 		const input = within(form).getByDisplayValue("Strength A/B");
 		fireEvent.input(input, { target: { value: "Renamed Program" } });
@@ -433,8 +433,8 @@ describe("ProgramDetail — rename dialog", () => {
 		});
 
 		renderDetail();
-		await waitFor(() => screen.getByText("Rename"));
-		fireEvent.click(screen.getByText("Rename"));
+		await waitFor(() => screen.getByRole("button", { name: "Rename program" }));
+		fireEvent.click(screen.getByRole("button", { name: "Rename program" }));
 		const form = screen.getByText("Rename Program").closest("form");
 		const input = within(form).getByDisplayValue("Strength A/B");
 		fireEvent.input(input, { target: { value: "Taken Name" } });
@@ -525,7 +525,7 @@ describe("ProgramDetail — edit set dialog", () => {
 		mockDefaultFetch();
 		renderDetail();
 		await waitFor(() => screen.getByText("Push"));
-		fireEvent.click(screen.getAllByText("Edit")[0]);
+		fireEvent.click(screen.getAllByRole("button", { name: "Edit set" })[0]);
 		expect(screen.getByText("Edit Set")).toBeInTheDocument();
 		expect(screen.getByDisplayValue("Push")).toBeInTheDocument();
 		expect(screen.getByDisplayValue("4")).toBeInTheDocument();
@@ -559,9 +559,7 @@ describe("ProgramDetail — edit set dialog", () => {
 
 		renderDetail();
 		await waitFor(() => screen.getByText("Push"));
-		// editButtons[0] = Push set Edit, editButtons[1] = exercise Edit, editButtons[2] = Pull set Edit
-		const editButtons = screen.getAllByText("Edit");
-		fireEvent.click(editButtons[0]);
+		fireEvent.click(screen.getAllByRole("button", { name: "Edit set" })[0]);
 		const form = screen.getByText("Edit Set").closest("form");
 		fireEvent.submit(form);
 
@@ -581,7 +579,7 @@ describe("ProgramDetail — delete set", () => {
 		mockDefaultFetch();
 		renderDetail();
 		await waitFor(() => screen.getByText("Push"));
-		fireEvent.click(screen.getAllByText("Delete")[0]);
+		fireEvent.click(screen.getAllByRole("button", { name: "Delete set" })[0]);
 		expect(screen.getByTestId("mock-confirm-dialog")).toBeInTheDocument();
 	});
 
@@ -606,7 +604,7 @@ describe("ProgramDetail — delete set", () => {
 
 		renderDetail();
 		await waitFor(() => screen.getByText("Push"));
-		fireEvent.click(screen.getAllByText("Delete")[0]);
+		fireEvent.click(screen.getAllByRole("button", { name: "Delete set" })[0]);
 		fireEvent.click(screen.getByText("Confirm"));
 
 		await waitFor(() =>
@@ -701,9 +699,9 @@ describe("ProgramDetail — edit exercise dialog", () => {
 		mockDefaultFetch();
 		renderDetail();
 		await waitFor(() => screen.getByText("Bench Press"));
-		// DOM order: [0]=Push set Edit, [1]=Bench Press exercise Edit, [2]=Pull set Edit
-		const editButtons = screen.getAllByText("Edit");
-		fireEvent.click(editButtons[1]);
+		fireEvent.click(
+			screen.getAllByRole("button", { name: "Edit exercise" })[0],
+		);
 		expect(screen.getByText("Edit Exercise")).toBeInTheDocument();
 		const combobox = screen.getByTestId("mock-combobox");
 		expect(combobox).toBeDisabled();
@@ -736,9 +734,9 @@ describe("ProgramDetail — edit exercise dialog", () => {
 
 		renderDetail();
 		await waitFor(() => screen.getByText("Bench Press"));
-		// DOM order: [0]=Push set Edit, [1]=Bench Press exercise Edit, [2]=Pull set Edit
-		const editButtons = screen.getAllByText("Edit");
-		fireEvent.click(editButtons[1]);
+		fireEvent.click(
+			screen.getAllByRole("button", { name: "Edit exercise" })[0],
+		);
 		const form = screen.getByText("Edit Exercise").closest("form");
 		fireEvent.submit(form);
 
@@ -758,7 +756,9 @@ describe("ProgramDetail — remove exercise", () => {
 		mockDefaultFetch();
 		renderDetail();
 		await waitFor(() => screen.getByText("Bench Press"));
-		fireEvent.click(screen.getAllByText("Del")[0]);
+		fireEvent.click(
+			screen.getAllByRole("button", { name: "Remove exercise" })[0],
+		);
 		expect(screen.getByTestId("mock-confirm-dialog")).toBeInTheDocument();
 		expect(
 			screen.getByText(/Remove "Bench Press" from this set\?/),
@@ -786,7 +786,9 @@ describe("ProgramDetail — remove exercise", () => {
 
 		renderDetail();
 		await waitFor(() => screen.getByText("Bench Press"));
-		fireEvent.click(screen.getAllByText("Del")[0]);
+		fireEvent.click(
+			screen.getAllByRole("button", { name: "Remove exercise" })[0],
+		);
 		fireEvent.click(screen.getByText("Confirm"));
 
 		await waitFor(() =>
@@ -823,9 +825,7 @@ describe("ProgramDetail — refresh after CRUD", () => {
 			return Promise.resolve({
 				ok: true,
 				json: () =>
-					Promise.resolve(
-						fetchCount === 1 ? MOCK_PROGRAM : programAfterDelete,
-					),
+					Promise.resolve(fetchCount === 1 ? MOCK_PROGRAM : programAfterDelete),
 			});
 		});
 
@@ -833,7 +833,7 @@ describe("ProgramDetail — refresh after CRUD", () => {
 		await waitFor(() => screen.getByText("Push"));
 
 		// Delete the "Push" set
-		fireEvent.click(screen.getAllByText("Delete")[0]);
+		fireEvent.click(screen.getAllByRole("button", { name: "Delete set" })[0]);
 		fireEvent.click(screen.getByText("Confirm"));
 
 		// After refresh, "Push" should be gone and only "Pull" remains

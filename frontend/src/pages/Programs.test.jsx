@@ -275,7 +275,7 @@ describe("Programs — rename dialog", () => {
 		await waitFor(() =>
 			expect(screen.getByText("Strength A/B")).toBeInTheDocument(),
 		);
-		fireEvent.click(screen.getAllByText("Rename")[0]);
+		fireEvent.click(screen.getAllByRole("button", { name: "Rename" })[0]);
 		expect(screen.getByText("Rename Program")).toBeInTheDocument();
 		expect(screen.getByDisplayValue("Strength A/B")).toBeInTheDocument();
 	});
@@ -300,7 +300,7 @@ describe("Programs — rename dialog", () => {
 		await waitFor(() =>
 			expect(screen.getByText("Strength A/B")).toBeInTheDocument(),
 		);
-		fireEvent.click(screen.getAllByText("Rename")[0]);
+		fireEvent.click(screen.getAllByRole("button", { name: "Rename" })[0]);
 		fireEvent.input(screen.getByLabelText("Name"), {
 			target: { value: "Updated Name" },
 		});
@@ -328,7 +328,7 @@ describe("Programs — delete", () => {
 		await waitFor(() =>
 			expect(screen.getByText("Strength A/B")).toBeInTheDocument(),
 		);
-		fireEvent.click(screen.getAllByText("Delete")[0]);
+		fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0]);
 		expect(screen.getByTestId("mock-confirm-dialog")).toBeInTheDocument();
 	});
 
@@ -349,7 +349,7 @@ describe("Programs — delete", () => {
 		await waitFor(() =>
 			expect(screen.getByText("Strength A/B")).toBeInTheDocument(),
 		);
-		fireEvent.click(screen.getAllByText("Delete")[0]);
+		fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0]);
 		fireEvent.click(screen.getByText("Confirm"));
 
 		await waitFor(() =>
@@ -375,7 +375,7 @@ describe("Programs — delete", () => {
 		await waitFor(() =>
 			expect(screen.getByText("Strength A/B")).toBeInTheDocument(),
 		);
-		fireEvent.click(screen.getAllByText("Delete")[0]);
+		fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0]);
 		fireEvent.click(screen.getByText("Confirm"));
 
 		// preact-iso's route() updates window.location via history API

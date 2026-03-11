@@ -40,7 +40,13 @@ describe("Nav", () => {
 
 	it("shows Exercises and Programs links when signed in", () => {
 		withProviders(<Nav />, { user: MOCK_USER });
-		expect(screen.getByRole("link", { name: "Exercises" })).toHaveAttribute("href", "/exercises");
-		expect(screen.getByRole("link", { name: "Programs" })).toHaveAttribute("href", "/programs");
+		expect(screen.getByRole("link", { name: "Exercises" })).toHaveAttribute(
+			"href",
+			"/exercises",
+		);
+		expect(screen.getByRole("link", { name: "Programs" })).toHaveAttribute(
+			"href",
+			"/programs",
+		);
 	});
 });

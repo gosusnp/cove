@@ -43,20 +43,22 @@ export function Nav() {
 				<NavigationMenuItem>
 					<NavigationMenuBrand href="/">Cove</NavigationMenuBrand>
 				</NavigationMenuItem>
-				{[...NAV_ITEMS, ...(user ? AUTH_NAV_ITEMS : [])].map(({ label, href }) => (
-					<NavigationMenuItem key={href}>
-						<NavigationMenuLink
-							href={href}
-							active={
-								href === "/"
-									? url === "/"
-									: url === href || url.startsWith(`${href}/`)
-							}
-						>
-							{label}
-						</NavigationMenuLink>
-					</NavigationMenuItem>
-				))}
+				{[...NAV_ITEMS, ...(user ? AUTH_NAV_ITEMS : [])].map(
+					({ label, href }) => (
+						<NavigationMenuItem key={href}>
+							<NavigationMenuLink
+								href={href}
+								active={
+									href === "/"
+										? url === "/"
+										: url === href || url.startsWith(`${href}/`)
+								}
+							>
+								{label}
+							</NavigationMenuLink>
+						</NavigationMenuItem>
+					),
+				)}
 			</NavigationMenu>
 
 			<NavigationMenu>

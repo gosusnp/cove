@@ -15,8 +15,51 @@ import {
 } from "../components/ui/Dialog.jsx";
 import { ListDetail } from "../components/ui/ListDetail.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
+import {
+	Tooltip,
+	TooltipTrigger,
+	TooltipContent,
+} from "../components/ui/Tooltip.jsx";
 import { useDialog } from "../hooks/useDialog.js";
 import { ProgramDetail } from "./ProgramDetail.jsx";
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
+
+function PencilIcon() {
+	return (
+		<svg
+			width="14"
+			height="14"
+			viewBox="0 0 16 16"
+			fill="none"
+			aria-hidden="true"
+		>
+			<path
+				d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.609Z"
+				fill="currentColor"
+			/>
+		</svg>
+	);
+}
+
+function TrashIcon() {
+	return (
+		<svg
+			width="14"
+			height="14"
+			viewBox="0 0 16 16"
+			fill="none"
+			aria-hidden="true"
+		>
+			<path
+				fill-rule="evenodd"
+				clip-rule="evenodd"
+				d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75ZM5 3V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75V3h2.25a.75.75 0 0 1 0 1.5H14v8.75A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25V4.5H.75a.75.75 0 0 1 0-1.5H5ZM3.5 4.5v8.75c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V4.5h-9Z"
+				fill="currentColor"
+			/>
+		</svg>
+	);
+}
 
 // ─── ProgramList ────────────────────────────────────────────────────────────
 
@@ -67,7 +110,7 @@ function ProgramList({
 					return (
 						<div
 							key={p.id}
-							class="flex items-center justify-between gap-4"
+							class="flex items-center justify-between gap-2"
 							style={{
 								borderBottom:
 									i < programs.length - 1
@@ -89,17 +132,33 @@ function ProgramList({
 							>
 								{p.name}
 							</button>
-							<div class="flex gap-2 shrink-0 pr-4">
-								<Button variant="ghost" size="sm" onClick={() => onRename(p)}>
-									Rename
-								</Button>
-								<Button
-									variant="destructive"
-									size="sm"
-									onClick={() => onDelete(p)}
-								>
-									Delete
-								</Button>
+							<div class="flex gap-1 shrink-0 pr-2">
+								<Tooltip>
+									<TooltipTrigger>
+										<Button
+											variant="ghost"
+											size="icon"
+											aria-label="Rename"
+											onClick={() => onRename(p)}
+										>
+											<PencilIcon />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent>Rename</TooltipContent>
+								</Tooltip>
+								<Tooltip>
+									<TooltipTrigger>
+										<Button
+											variant="ghost"
+											size="icon"
+											aria-label="Delete"
+											onClick={() => onDelete(p)}
+										>
+											<TrashIcon />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent>Delete</TooltipContent>
+								</Tooltip>
 							</div>
 						</div>
 					);
