@@ -31,4 +31,16 @@ describe("Nav", () => {
 		withProviders(<Nav />, { user: MOCK_USER });
 		expect(screen.getByLabelText(MOCK_USER.email)).toBeInTheDocument();
 	});
+
+	it("hides Exercises and Programs links when not signed in", () => {
+		withProviders(<Nav />);
+		expect(screen.queryByRole("link", { name: "Exercises" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "Programs" })).toBeNull();
+	});
+
+	it("shows Exercises and Programs links when signed in", () => {
+		withProviders(<Nav />, { user: MOCK_USER });
+		expect(screen.getByRole("link", { name: "Exercises" })).toHaveAttribute("href", "/exercises");
+		expect(screen.getByRole("link", { name: "Programs" })).toHaveAttribute("href", "/programs");
+	});
 });

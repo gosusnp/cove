@@ -12,8 +12,8 @@ import {
 } from "../ui/NavigationMenu.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 
-export const NAV_ITEMS = [
-	{ label: "Home", href: "/" },
+export const NAV_ITEMS = [{ label: "Home", href: "/" }];
+export const AUTH_NAV_ITEMS = [
 	{ label: "Exercises", href: "/exercises" },
 	{ label: "Programs", href: "/programs" },
 ];
@@ -43,7 +43,7 @@ export function Nav() {
 				<NavigationMenuItem>
 					<NavigationMenuBrand href="/">Cove</NavigationMenuBrand>
 				</NavigationMenuItem>
-				{NAV_ITEMS.map(({ label, href }) => (
+				{[...NAV_ITEMS, ...(user ? AUTH_NAV_ITEMS : [])].map(({ label, href }) => (
 					<NavigationMenuItem key={href}>
 						<NavigationMenuLink
 							href={href}
