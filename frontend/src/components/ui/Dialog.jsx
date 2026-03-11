@@ -9,6 +9,9 @@ export function Dialog({ openSignal, children }) {
 		<RadixDialog.Root
 			open={openSignal.value}
 			onOpenChange={(v) => {
+				if (v && document.activeElement instanceof HTMLElement) {
+					document.activeElement.blur();
+				}
 				openSignal.value = v;
 			}}
 		>
