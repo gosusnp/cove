@@ -38,6 +38,10 @@ export function DialogContent({ class: className, children, ...props }) {
 					"focus:outline-none",
 					className,
 				)}
+				onCloseAutoFocus={(e) => {
+					e.preventDefault();
+					document.body.focus();
+				}}
 				{...props}
 			>
 				{children}

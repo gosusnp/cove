@@ -3,7 +3,16 @@
 
 // jsdom-compatible mock for @radix-ui/react-dialog.
 
-export const Root = ({ children, open }) => (open ? children : null);
+import { createContext, useContext } from "preact/compat";
+
+const DialogContext = createContext(null);
+
+export const Root = ({ children, open, onOpenChange }) =>
+	open ? (
+		<DialogContext.Provider value={{ onOpenChange }}>
+			{children}
+		</DialogContext.Provider>
+	) : null;
 
 export const Trigger = ({ children, asChild }) => {
 	if (asChild) return children;
@@ -35,6 +44,25 @@ export const Description = ({ children, className, ...props }) => (
 );
 
 export const Close = ({ children, asChild }) => {
-	if (asChild) return children;
-	return <button type="button">{children}</button>;
+	const ctx = useContext(DialogContext);
+	const handleClose = () => ctx?.onOpenChange?.(false);
+	if (asChild) {
+		const child = Array.isArray(children) ? children[0] : children;
+		const originalOnClick = child?.props?.onClick;
+		return {
+			...child,
+			props: {
+				...child?.props,
+				onClick: (e) => {
+					originalOnClick?.(e);
+					handleClose();
+				},
+			},
+		};
+	}
+	return (
+		<button type="button" onClick={handleClose}>
+			{children}
+		</button>
+	);
 };

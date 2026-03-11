@@ -38,6 +38,7 @@ import {
 import { PageTitle } from "../components/ui/PageTitle.jsx";
 import { ToggleGroup } from "../components/ui/ToggleGroup.jsx";
 import { Combobox } from "../components/ui/Combobox.jsx";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
 import {
 	Accordion,
 	AccordionItem,
@@ -345,6 +346,8 @@ export function DesignElements() {
 	if (import.meta.env.VITE_COVE_ENV !== "dev") return null;
 
 	const dialog = useDialog();
+	const confirmDialog = useDialog();
+	const confirmResult = useSignal(null);
 	const switchA = useSignal(false);
 	const switchB = useSignal(true);
 	const toggleVal = useSignal("bilateral");
@@ -755,6 +758,37 @@ export function DesignElements() {
 							disabled
 						/>
 					</div>
+				</PreviewRow>
+			</PageSection>
+
+			<Divider />
+
+			{/* ── ConfirmDialog ──────────────────────────────── */}
+			<PageSection title="ConfirmDialog">
+				<PreviewRow label="destructive action">
+					<div class="flex items-center gap-3">
+						<Button
+							variant="destructive"
+							size="sm"
+							onClick={confirmDialog.show}
+						>
+							Delete Program
+						</Button>
+						{confirmResult.value && (
+							<span class="text-sm" style={{ color: "var(--color-muted)" }}>
+								{confirmResult.value}
+							</span>
+						)}
+					</div>
+					<ConfirmDialog
+						openSignal={confirmDialog.open}
+						title="Delete Program"
+						description="This will permanently delete the program and all its sets."
+						confirmLabel="Delete"
+						onConfirm={async () => {
+							confirmResult.value = `Deleted at ${new Date().toLocaleTimeString()}`;
+						}}
+					/>
 				</PreviewRow>
 			</PageSection>
 		</main>
