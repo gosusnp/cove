@@ -180,6 +180,7 @@ All interactive and reusable UI elements **must** come from `src/components/ui/`
 | `Tooltip`, `TooltipTrigger`, `TooltipContent` | `components/ui/Tooltip.jsx` | Hover tooltip; wraps Radix; self-contained provider |
 | `Section`, `Row`, `Divider` | `components/ui/Section.jsx` | Page section card with title; labeled row with right-side slot; `last` prop on `Row` drops the bottom border |
 | `Accordion`, `AccordionItem`, `AccordionTrigger`, `AccordionContent`, `AccordionDragHandle` | `components/ui/Accordion.jsx` | Collapsible sections via Radix; `AccordionItem` becomes sortable when given an `id` prop (place inside `@dnd-kit/sortable` `SortableContext`); `AccordionDragHandle` auto-wires drag listeners from nearest `AccordionItem` |
+| `PageTitle` | `components/ui/PageTitle.jsx` | Page-level heading with consistent typography |
 
 Supporting utilities:
 
@@ -187,6 +188,7 @@ Supporting utilities:
 |---|---|
 | `src/lib/utils.js` | `cn()` — class merging via clsx + tailwind-merge |
 | `src/hooks/useDialog.js` | `useDialog(initialOpen?)` — signal-based dialog state |
+| `src/hooks/useSortableGroups.js` | `useSortableGroups(initialSets, opts?)` — drag-and-drop state for sortable accordion groups via `@dnd-kit` |
 
 Rules:
 
@@ -204,27 +206,34 @@ The `/design-elements` route (visible when `VITE_COVE_ENV=dev`) is the live show
 
 ### Testing UI Components
 
-Radix UI packages use browser APIs (`ResizeObserver`, CSS custom properties) that jsdom does not support. Any Radix package that causes `InvalidCharacterError` in tests must have a jsdom-compatible mock in `src/__mocks__/`.
+Radix UI packages and `@dnd-kit` use browser APIs (`ResizeObserver`, CSS custom properties, pointer events) that jsdom does not support. Any package that causes errors in tests must have a jsdom-compatible mock in `src/__mocks__/`.
 
-The mock is wired via a vitest-only alias in `vite.config.js`:
+Mocks are wired via vitest-only aliases in `vite.config.js`:
 
 ```js
 test: {
   alias: {
     "@radix-ui/react-navigation-menu": resolve(import.meta.dirname, "src/__mocks__/radix-navigation-menu.jsx"),
+    "@radix-ui/react-tooltip":         resolve(import.meta.dirname, "src/__mocks__/radix-tooltip.jsx"),
+    "@radix-ui/react-switch":          resolve(import.meta.dirname, "src/__mocks__/radix-switch.jsx"),
+    "@radix-ui/react-dialog":          resolve(import.meta.dirname, "src/__mocks__/radix-dialog.jsx"),
+    "@radix-ui/react-accordion":       resolve(import.meta.dirname, "src/__mocks__/radix-accordion.jsx"),
+    "@dnd-kit/core":                   resolve(import.meta.dirname, "src/__mocks__/dnd-kit-core.jsx"),
+    "@dnd-kit/sortable":               resolve(import.meta.dirname, "src/__mocks__/dnd-kit-sortable.js"),
+    "@dnd-kit/utilities":              resolve(import.meta.dirname, "src/__mocks__/dnd-kit-utilities.js"),
   },
 }
 ```
 
-- **DO** add a mock to `src/__mocks__/` for any new Radix package that breaks tests.
+- **DO** add a mock to `src/__mocks__/` for any new package that breaks tests.
 - **DO** keep mocks minimal — passthrough components that render children are enough.
 - **DON'T** add the alias to the main Vite config — only inside the `test` block.
 
 ### Shared Test Utilities
 
-Cross-cutting test helpers live in `src/test-utils.js` and are imported by individual test files.
+Cross-cutting test helpers live in `src/test-utils.jsx` and are imported by individual test files.
 
-- **DO** import `withProviders` from `src/test-utils.js` in any test that needs `AuthContext` or `LocationProvider`.
+- **DO** import `withProviders` from `src/test-utils.jsx` in any test that needs `AuthContext` or `LocationProvider`.
 - **DON'T** redefine `withProviders` inside individual test files.
-- **DO** add new shared helpers to `src/test-utils.js` when the same setup appears in two or more test files.
+- **DO** add new shared helpers to `src/test-utils.jsx` when the same setup appears in two or more test files.
 - **DO** pass per-test defaults (e.g. `path`, `user`) as options rather than creating variant copies of the helper.

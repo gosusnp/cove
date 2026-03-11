@@ -17,7 +17,7 @@ backend/          — Go module (github.com/gosusnp/cove/backend)
     store/        — SQL queries and database error translation
     middleware/   — APIKey and OAuth auth, request logging
     mcp/          — MCP tool registration grouped by resource
-    testdb/       — shared test infrastructure (testcontainers + pgtestdb)
+    testutil/     — shared test infrastructure (testcontainers + pgtestdb)
   main.go         — HTTP server entry point
 frontend/         — Preact + Vite + Tailwind v4
   src/
@@ -45,6 +45,7 @@ This is a strict, one-direction dependency chain.
 - **DON'T** let a store call a service, or a handler query the database directly.
 - **DON'T** skip layers — a handler must not instantiate a store or call SQL.
 - **DON'T** let services share state or call each other. Coordination belongs at the handler or a dedicated service.
+- **DO** allow a service to depend on multiple stores when it needs to coordinate across resources (e.g. `ProgramService` depends on both `ProgramStore` and `ExerciseStore`).
 
 ---
 
@@ -140,16 +141,21 @@ func NewExerciseService(db *sql.DB, s *store.ExerciseStore) *ExerciseService {
     return &ExerciseService{db: db, store: s}
 }
 
-func (s *ExerciseService) Create(ctx context.Context, name string, progression *string) (*store.ExerciseDetail, error) {
+func (s *ExerciseService) Create(ctx context.Context, name string, progression *string) (*domain.Exercise, error) {
     name = normalizeName(name)
     if name == "" {
         return nil, &ValidationError{Msg: "name is required"}
     }
-    e, err := s.store.Create(ctx, s.db, name, progression)
-    if errors.Is(err, store.ErrDuplicate) {
-        return nil, &ValidationError{Msg: "exercise with this name already exists"}
-    }
-    return e, err
+    var ex *domain.Exercise
+    err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+        var err error
+        ex, err = s.store.Create(ctx, q, name, progression)
+        if errors.Is(err, store.ErrDuplicate) {
+            return &ValidationError{Msg: "exercise with this name already exists"}
+        }
+        return err
+    })
+    return ex, err
 }
 ```
 
@@ -341,7 +347,7 @@ type User struct {
 }
 ```
 
-- **DO** define list types (e.g., `Exercise`) and detail types (e.g., `ExerciseDetail`) separately when the detail includes optional or nested fields.
+- **DO** define full types (e.g., `Exercise`, `Program`) and lite types (e.g., `ExerciseLite`, `ProgramLite`) separately when a trimmed projection is needed — e.g. for list endpoints that don't need the full hierarchy.
 - **DO** use `*T` pointer fields with `omitempty` for nullable columns.
 - **DO** use hardened `ID[T]` (wrapping `uuid.UUID`) for primary keys on all new tables.
 - **DO** pay specific attention to identity tables (users, sessions, API keys) which **must** use these hardened UUIDs to follow the `UUID PRIMARY KEY` SQL convention.
@@ -465,7 +471,7 @@ Cove uses a vertical integration testing strategy. We prioritize testing the ful
 ### 1. Test Infrastructure (`testutil`)
 All shared testing infrastructure lives in `internal/testutil`.
 - **`RunMain(m, dsnPtr)`**: Call this in `TestMain` to handle the PostgreSQL container lifecycle automatically.
-- **`NewDB(t, dsn, fs)`**: Use this to get an isolated, migrated database for a single test.
+- **`NewDB(t)`**: Use this to get an isolated, migrated database for a single test.
 
 ### 2. The `TestApp` Pattern
 For handler and integration tests, use the `TestApp` struct (found in `internal/handlers/app_test.go`). It provides a pre-wired application stack including all services and the real `OAuth` middleware.
