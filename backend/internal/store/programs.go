@@ -67,7 +67,7 @@ func (s *ProgramStore) List(ctx context.Context, q Querier, orgID domain.OrgID) 
 	return programs, rows.Err()
 }
 
-func (s *ProgramStore) Get(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID) (*domain.ProgramLite, error) {
+func (s *ProgramStore) GetLite(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID) (*domain.ProgramLite, error) {
 	var p domain.ProgramLite
 	err := q.QueryRowContext(ctx, `
 		SELECT id, name, org_id, is_public FROM programs
@@ -93,7 +93,7 @@ func (s *ProgramStore) Create(ctx context.Context, q Querier, orgID domain.OrgID
 		return nil, fmt.Errorf("create program: %w", err)
 	}
 
-	return s.Get(ctx, q, orgID, id)
+	return s.GetLite(ctx, q, orgID, id)
 }
 
 func (s *ProgramStore) Update(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID, name string, description *string, isPublic bool) (*domain.ProgramLite, error) {
@@ -112,11 +112,11 @@ func (s *ProgramStore) Update(ctx context.Context, q Querier, orgID domain.OrgID
 	if n == 0 {
 		return nil, ErrNotFound
 	}
-	return s.Get(ctx, q, orgID, id)
+	return s.GetLite(ctx, q, orgID, id)
 }
 
-// GetDetail returns the full program hierarchy: sets with their exercises, all read from the denormalized programs.sets JSONB column.
-func (s *ProgramStore) GetDetail(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID) (*domain.Program, error) {
+// Get returns the full program hierarchy: sets with their exercises, all read from the denormalized programs.sets JSONB column.
+func (s *ProgramStore) Get(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID) (*domain.Program, error) {
 	var p domain.Program
 	var setsJSON []byte
 	err := q.QueryRowContext(ctx, `

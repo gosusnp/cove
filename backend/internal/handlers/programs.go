@@ -53,7 +53,7 @@ func (h *ProgramHandler) get(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	program, err := h.svc.GetDetail(r.Context(), id)
+	program, err := h.svc.Get(r.Context(), id)
 	if errors.Is(err, service.ErrUnauthorized) {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return

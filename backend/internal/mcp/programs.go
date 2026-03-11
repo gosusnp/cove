@@ -130,7 +130,7 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
 		ID int64 `json:"id"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		program, err := programs.GetDetail(ctx, domain.ProgramID(params.ID))
+		program, err := programs.Get(ctx, domain.ProgramID(params.ID))
 		if err != nil {
 			return nil, struct{}{}, err
 		}

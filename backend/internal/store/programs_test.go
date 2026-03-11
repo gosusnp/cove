@@ -82,7 +82,7 @@ func TestProgramStore_List(t *testing.T) {
 	})
 }
 
-func TestProgramStore_Get(t *testing.T) {
+func TestProgramStore_GetLite(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
 		s, db, ctx := newTestProgramStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
@@ -91,7 +91,7 @@ func TestProgramStore_Get(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		got, err := s.Get(ctx, db, id.OrgID, created.ID)
+		got, err := s.GetLite(ctx, db, id.OrgID, created.ID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -104,7 +104,7 @@ func TestProgramStore_Get(t *testing.T) {
 		s, db, ctx := newTestProgramStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
 
-		_, err := s.Get(ctx, db, id.OrgID, domain.ProgramID(999))
+		_, err := s.GetLite(ctx, db, id.OrgID, domain.ProgramID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -158,12 +158,12 @@ func TestProgramStore_Update(t *testing.T) {
 	})
 }
 
-func TestProgramStore_GetDetail(t *testing.T) {
+func TestProgramStore_Get(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		s, db, ctx := newTestProgramStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
 
-		_, err := s.GetDetail(ctx, db, id.OrgID, domain.ProgramID(999))
+		_, err := s.Get(ctx, db, id.OrgID, domain.ProgramID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -177,7 +177,7 @@ func TestProgramStore_GetDetail(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		detail, err := s.GetDetail(ctx, db, id.OrgID, p.ID)
+		detail, err := s.Get(ctx, db, id.OrgID, p.ID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -216,7 +216,7 @@ func TestProgramStore_GetDetail(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		detail, err := s.GetDetail(ctx, db, id.OrgID, p.ID)
+		detail, err := s.Get(ctx, db, id.OrgID, p.ID)
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -404,7 +404,7 @@ func TestProgramStore_Delete(t *testing.T) {
 		if err := s.Delete(ctx, db, id.OrgID, created.ID); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		_, err = s.Get(ctx, db, id.OrgID, created.ID)
+		_, err = s.GetLite(ctx, db, id.OrgID, created.ID)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("expected ErrNotFound after delete, got %v", err)
 		}

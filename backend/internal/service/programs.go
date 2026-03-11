@@ -56,7 +56,7 @@ func (s *ProgramService) List(ctx context.Context) ([]domain.ProgramLite, error)
 	return list, err
 }
 
-func (s *ProgramService) GetDetail(ctx context.Context, id domain.ProgramID) (*domain.Program, error) {
+func (s *ProgramService) Get(ctx context.Context, id domain.ProgramID) (*domain.Program, error) {
 	idInfo, ok := domain.IdentityFromContext(ctx)
 	if !ok {
 		return nil, ErrUnauthorized
@@ -65,7 +65,7 @@ func (s *ProgramService) GetDetail(ctx context.Context, id domain.ProgramID) (*d
 	var p *domain.Program
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var err error
-		p, err = s.store.GetDetail(ctx, q, idInfo.OrgID, id)
+		p, err = s.store.Get(ctx, q, idInfo.OrgID, id)
 		if err != nil {
 			return err
 		}
@@ -371,9 +371,9 @@ func (s *ProgramService) CreateFull(ctx context.Context, name string, descriptio
 			}
 		}
 
-		var programID domain.ProgramID
-		if err := q.QueryRowContext(ctx, `INSERT INTO programs (name, description, is_public) VALUES ($1, $2, $3) RETURNING id`, name, description, isPublic).Scan(&programID); err != nil {
-			return fmt.Errorf("create program: %w", err)
+		p, err := s.store.Create(ctx, q, idInfo.OrgID, name, description, isPublic)
+		if err != nil {
+			return err
 		}
 
 		// Build the sets JSONB structure directly without going through the dropped tables.
@@ -409,13 +409,12 @@ func (s *ProgramService) CreateFull(ctx context.Context, name string, descriptio
 			})
 		}
 
-		if err := s.store.WriteSetsForNewProgram(ctx, q, programID, jsonSets); err != nil {
+		if err := s.store.WriteSetsForNewProgram(ctx, q, p.ID, jsonSets); err != nil {
 			return err
 		}
 
-		var err error
-		programLite, err = s.store.Get(ctx, q, idInfo.OrgID, programID)
-		return err
+		programLite = p
+		return nil
 	})
 
 	return programLite, err

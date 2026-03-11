@@ -244,7 +244,7 @@ func TestProgramHandler_Update(t *testing.T) {
 
 		// Verify change
 		ctx := domain.NewContext(t.Context(), &domain.Identity{UserID: uID, OrgID: oID})
-		ex, _ := app.Programs.GetDetail(ctx, p.ID)
+		ex, _ := app.Programs.Get(ctx, p.ID)
 		if ex.Name != "New Name" {
 			t.Errorf("got name %q, want %q", ex.Name, "New Name")
 		}
@@ -279,7 +279,7 @@ func TestProgramHandler_Update(t *testing.T) {
 
 		// Verify not changed
 		ctx1 := domain.NewContext(t.Context(), &domain.Identity{UserID: u1, OrgID: o1})
-		ex, _ := app.Programs.GetDetail(ctx1, p1.ID)
+		ex, _ := app.Programs.Get(ctx1, p1.ID)
 		if ex.Name != "U1 Program" {
 			t.Errorf("got name %q, want %q", ex.Name, "U1 Program")
 		}
@@ -301,7 +301,7 @@ func TestProgramHandler_Delete(t *testing.T) {
 
 		// Verify gone
 		ctx := domain.NewContext(t.Context(), &domain.Identity{UserID: uID, OrgID: oID})
-		_, err := app.Programs.GetDetail(ctx, p.ID)
+		_, err := app.Programs.Get(ctx, p.ID)
 		if err == nil {
 			t.Error("expected error getting deleted program")
 		}
@@ -335,7 +335,7 @@ func TestProgramHandler_Delete(t *testing.T) {
 
 		// Verify still exists
 		ctx1 := domain.NewContext(t.Context(), &domain.Identity{UserID: u1, OrgID: o1})
-		_, err := app.Programs.GetDetail(ctx1, p1.ID)
+		_, err := app.Programs.Get(ctx1, p1.ID)
 		if err != nil {
 			t.Errorf("expected program to still exist, got err: %v", err)
 		}

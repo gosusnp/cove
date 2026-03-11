@@ -56,7 +56,7 @@ func TestProgramService_GetDetail(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
 		created, _ := svc.Create(ctx, "Strength", nil, true)
 
-		got, err := svc.GetDetail(ctx, created.ID)
+		got, err := svc.Get(ctx, created.ID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -67,7 +67,7 @@ func TestProgramService_GetDetail(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
-		_, err := svc.GetDetail(ctx, domain.ProgramID(999))
+		_, err := svc.Get(ctx, domain.ProgramID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -129,7 +129,7 @@ func TestProgramService_CreateFull(t *testing.T) {
 		}
 
 		// Verify program exists
-		p, err := svc.GetDetail(ctx, program.ID)
+		p, err := svc.Get(ctx, program.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -236,7 +236,7 @@ func TestProgramService_Delete(t *testing.T) {
 		if err := svc.Delete(ctx, p.ID); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		_, err := svc.GetDetail(ctx, p.ID)
+		_, err := svc.Get(ctx, p.ID)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("expected ErrNotFound, got %v", err)
 		}
@@ -383,7 +383,7 @@ func TestProgramService_NameResolution(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		detail, err := svc.GetDetail(ctx, p.ID)
+		detail, err := svc.Get(ctx, p.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -419,7 +419,7 @@ func TestProgramService_NameResolution(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		detail, err := svc.GetDetail(ctx, p.ID)
+		detail, err := svc.Get(ctx, p.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
