@@ -16,6 +16,8 @@ fix: backend.fix frontend.fix
 test.e2e:
 	$(MAKE) -C frontend test.e2e
 
+pre-commit-all: frontend.pre-commit backend.pre-commit
+
 ##################################################
 # Devenv dispatch
 devenv.up:
@@ -45,6 +47,9 @@ backend.run:
 backend.watch:
 	$(MAKE) -C backend watch
 
+backend.pre-commit:
+	$(MAKE) -C backend pre-commit
+
 
 ##################################################
 # Frontend dispatch
@@ -62,5 +67,8 @@ frontend.run:
 
 frontend.watch:
 	$(MAKE) -C frontend watch
+
+frontend.pre-commit:
+	$(MAKE) -C Frontend pre-commit
 
 .PHONY: preview dev build check fix test.e2e devenv.up devenv.down devenv.reset backend.build backend.check backend.fix backend.run backend.watch frontend.build frontend.check frontend.fix frontend.run frontend.watch

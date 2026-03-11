@@ -16,6 +16,9 @@ lint:
 fmt:
 	npm run format
 
+license-check:
+	cd ../backend && go tool addlicense -check -f ../.license_header.txt -ignore "node_modules/**" -ignore "dist/**" ../frontend
+
 license-fix:
 	cd ../backend && go tool addlicense -f ../.license_header.txt -ignore "node_modules/**" -ignore "dist/**" ../frontend
 
@@ -31,6 +34,8 @@ e2e.ui:
 fix: license-fix fmt
 
 check: lint test
+
+pre-commit: fix check
 
 install:
 	npm install

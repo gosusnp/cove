@@ -23,6 +23,9 @@ lint:
 fmt:
 	gofmt -w .
 
+license-check:
+	go tool addlicense -check -f ../.license_header.txt .
+
 license-fix:
 	go tool addlicense -f ../.license_header.txt .
 
@@ -38,5 +41,7 @@ devenv.reset:
 check: lint test
 
 fix: license-fix fmt
+
+pre-commit: fix check
 
 .PHONY: run watch build build-mcp test lint fmt license-fix check fix devenv.up devenv.down devenv.reset
