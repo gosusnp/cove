@@ -623,10 +623,14 @@ describe("ProgramDetail — add exercise dialog", () => {
 		mockDefaultFetch();
 		renderDetail();
 		await waitFor(() =>
-			expect(screen.getAllByText("+ Add Exercise").length).toBeGreaterThan(0),
+			expect(
+				screen.getAllByRole("button", { name: "Add exercise" }).length,
+			).toBeGreaterThan(0),
 		);
-		fireEvent.click(screen.getAllByText("+ Add Exercise")[0]);
-		expect(screen.getByText("Add Exercise")).toBeInTheDocument();
+		fireEvent.click(screen.getAllByRole("button", { name: "Add exercise" })[0]);
+		expect(
+			screen.getByRole("heading", { name: "Add Exercise" }),
+		).toBeInTheDocument();
 		const combobox = screen.getByTestId("mock-combobox");
 		expect(combobox).not.toBeDisabled();
 	});
@@ -635,10 +639,14 @@ describe("ProgramDetail — add exercise dialog", () => {
 		mockDefaultFetch();
 		renderDetail();
 		await waitFor(() =>
-			expect(screen.getAllByText("+ Add Exercise").length).toBeGreaterThan(0),
+			expect(
+				screen.getAllByRole("button", { name: "Add exercise" }).length,
+			).toBeGreaterThan(0),
 		);
-		fireEvent.click(screen.getAllByText("+ Add Exercise")[0]);
-		const form = screen.getByText("Add Exercise").closest("form");
+		fireEvent.click(screen.getAllByRole("button", { name: "Add exercise" })[0]);
+		const form = screen
+			.getByRole("heading", { name: "Add Exercise" })
+			.closest("form");
 		fireEvent.submit(form);
 		expect(screen.getByText("Exercise is required.")).toBeInTheDocument();
 	});
@@ -667,9 +675,11 @@ describe("ProgramDetail — add exercise dialog", () => {
 
 		renderDetail();
 		await waitFor(() =>
-			expect(screen.getAllByText("+ Add Exercise").length).toBeGreaterThan(0),
+			expect(
+				screen.getAllByRole("button", { name: "Add exercise" }).length,
+			).toBeGreaterThan(0),
 		);
-		fireEvent.click(screen.getAllByText("+ Add Exercise")[0]);
+		fireEvent.click(screen.getAllByRole("button", { name: "Add exercise" })[0]);
 
 		await waitFor(() =>
 			expect(
@@ -680,7 +690,9 @@ describe("ProgramDetail — add exercise dialog", () => {
 		fireEvent.change(screen.getByTestId("mock-combobox"), {
 			target: { value: "5" },
 		});
-		const form = screen.getByText("Add Exercise").closest("form");
+		const form = screen
+			.getByRole("heading", { name: "Add Exercise" })
+			.closest("form");
 		fireEvent.submit(form);
 
 		await waitFor(() =>

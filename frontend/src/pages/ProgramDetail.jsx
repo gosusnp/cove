@@ -76,6 +76,23 @@ function PencilIcon() {
 	);
 }
 
+function PlusIcon() {
+	return (
+		<svg
+			width="14"
+			height="14"
+			viewBox="0 0 16 16"
+			fill="none"
+			aria-hidden="true"
+		>
+			<path
+				d="M8 1.75a.75.75 0 0 1 .75.75v4.75h4.75a.75.75 0 0 1 0 1.5H8.75v4.75a.75.75 0 0 1-1.5 0V8.75H2.5a.75.75 0 0 1 0-1.5h4.75V2.5A.75.75 0 0 1 8 1.75Z"
+				fill="currentColor"
+			/>
+		</svg>
+	);
+}
+
 function TrashIcon() {
 	return (
 		<svg
@@ -832,6 +849,22 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 														<Button
 															variant="outline"
 															size="icon"
+															aria-label="Add exercise"
+															onClick={(e) => {
+																e.stopPropagation();
+																openAddPex(set.id);
+															}}
+														>
+															<PlusIcon />
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent>Add Exercise</TooltipContent>
+												</Tooltip>
+												<Tooltip>
+													<TooltipTrigger>
+														<Button
+															variant="outline"
+															size="icon"
 															aria-label="Edit set"
 															onClick={(e) => {
 																e.stopPropagation();
@@ -888,15 +921,6 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 													))}
 												</div>
 											</SortableContext>
-											<div class="mt-2">
-												<Button
-													variant="ghost"
-													size="sm"
-													onClick={() => openAddPex(set.id)}
-												>
-													+ Add Exercise
-												</Button>
-											</div>
 										</AccordionContent>
 									</AccordionItem>
 								))}
