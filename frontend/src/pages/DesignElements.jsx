@@ -36,6 +36,7 @@ import {
 	Divider,
 } from "../components/ui/Section.jsx";
 import { PageTitle } from "../components/ui/PageTitle.jsx";
+import { ToggleGroup } from "../components/ui/ToggleGroup.jsx";
 import {
 	Accordion,
 	AccordionItem,
@@ -345,6 +346,9 @@ export function DesignElements() {
 	const dialog = useDialog();
 	const switchA = useSignal(false);
 	const switchB = useSignal(true);
+	const toggleVal = useSignal("bilateral");
+	const toggleNullable = useSignal("unilateral");
+	const toggleNoLabel = useSignal(null);
 
 	return (
 		<main class="max-w-2xl mx-auto px-4 py-10 flex flex-col gap-10">
@@ -593,6 +597,62 @@ export function DesignElements() {
 				</PreviewRow>
 				<PreviewRow label="hero (text-6xl)">
 					<PageTitle class="text-6xl tracking-tight">Cove</PageTitle>
+				</PreviewRow>
+			</PageSection>
+
+			<Divider />
+
+			{/* ── ToggleGroup ───────────────────────────────── */}
+			<PageSection title="ToggleGroup">
+				<PreviewRow label="with label, pre-selected">
+					<ToggleGroup
+						label="Laterality"
+						value={toggleVal.value}
+						onChange={(v) => (toggleVal.value = v)}
+						options={[
+							{ value: "bilateral", label: "Bilateral" },
+							{ value: "unilateral", label: "Unilateral" },
+							{ value: "left", label: "Left" },
+							{ value: "right", label: "Right" },
+							{ value: "alternating", label: "Alternating" },
+						]}
+					/>
+				</PreviewRow>
+				<PreviewRow label="without label">
+					<ToggleGroup
+						value={toggleNoLabel.value}
+						onChange={(v) => (toggleNoLabel.value = v)}
+						options={[
+							{ value: "easy", label: "Easy" },
+							{ value: "moderate", label: "Moderate" },
+							{ value: "hard", label: "Hard" },
+						]}
+					/>
+				</PreviewRow>
+				<PreviewRow label="nullable — click active to deselect">
+					<ToggleGroup
+						label="Effort"
+						value={toggleNullable.value}
+						onChange={(v) => (toggleNullable.value = v)}
+						options={[
+							{ value: "low", label: "Low" },
+							{ value: "moderate", label: "Moderate" },
+							{ value: "high", label: "High" },
+						]}
+						nullable
+					/>
+				</PreviewRow>
+				<PreviewRow label="disabled">
+					<ToggleGroup
+						label="Disabled"
+						value="bilateral"
+						onChange={() => {}}
+						options={[
+							{ value: "bilateral", label: "Bilateral" },
+							{ value: "unilateral", label: "Unilateral" },
+						]}
+						disabled
+					/>
 				</PreviewRow>
 			</PageSection>
 
