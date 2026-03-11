@@ -119,7 +119,7 @@ describe("AccordionDragHandle", () => {
 		);
 
 		expect(
-			screen.getByRole("button", { name: "Drag to reorder" }),
+			document.querySelector(".cursor-grab"),
 		).toBeInTheDocument();
 	});
 
@@ -136,7 +136,7 @@ describe("AccordionDragHandle", () => {
 			</Accordion>,
 		);
 
-		const handle = screen.getByRole("button", { name: "Drag to reorder" });
+		const handle = document.querySelector(".cursor-grab");
 		expect(handle.querySelector("svg")).toBeInTheDocument();
 	});
 });

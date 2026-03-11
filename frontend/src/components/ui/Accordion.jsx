@@ -155,22 +155,20 @@ export function AccordionDragHandle({ class: className, ...props }) {
 	const ctx = useContext(DragCtx);
 
 	return (
-		<button
-			type="button"
+		<span
 			class={cn(
 				"flex items-center justify-center w-6 h-6 shrink-0 rounded",
 				"text-(--color-muted) hover:text-(--color-text) transition-colors",
 				"cursor-grab active:cursor-grabbing",
-				"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--color-accent)",
 				className,
 			)}
-			aria-label="Drag to reorder"
+			aria-hidden="true"
 			{...(ctx?.listeners ?? {})}
 			{...(ctx?.attributes ?? {})}
 			{...props}
 		>
 			<GripIcon />
-		</button>
+		</span>
 	);
 }
 
