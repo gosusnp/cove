@@ -8,17 +8,22 @@ import { Nav } from "./components/shared/Nav.jsx";
 import { Login } from "./pages/Login.jsx";
 import { Home } from "./pages/Home.jsx";
 import { Exercises } from "./pages/Exercises.jsx";
+import { Programs } from "./pages/Programs.jsx";
 import { Settings } from "./pages/Settings.jsx";
 import { DesignElements } from "./pages/DesignElements.jsx";
 
-const PROTECTED_ROUTES = ["/settings", "/exercises"];
+const PROTECTED_ROUTES = ["/settings", "/exercises", "/programs"];
 
 function Layout() {
 	const { url, route } = useLocation();
 	const { user } = useAuth();
 
+	const isProtected = PROTECTED_ROUTES.some(
+		(p) => url === p || url.startsWith(`${p}/`),
+	);
+
 	useEffect(() => {
-		if (!user && PROTECTED_ROUTES.includes(url)) {
+		if (!user && isProtected) {
 			route("/login");
 		} else if (user && url === "/login") {
 			route("/");
@@ -26,7 +31,7 @@ function Layout() {
 	}, [user, url]);
 
 	// Suppress render until the redirect fires to avoid a flash of wrong content.
-	if (!user && PROTECTED_ROUTES.includes(url)) return null;
+	if (!user && isProtected) return null;
 	if (user && url === "/login") return null;
 
 	return (
@@ -36,6 +41,8 @@ function Layout() {
 				<Route path="/login" component={Login} />
 				<Route path="/" component={Home} />
 				<Route path="/exercises" component={Exercises} />
+				<Route path="/programs" component={Programs} />
+				<Route path="/programs/:id" component={Programs} />
 				<Route path="/settings" component={Settings} />
 				{import.meta.env.VITE_COVE_ENV === "dev" && (
 					<Route path="/design-elements" component={DesignElements} />

@@ -15,6 +15,7 @@ import { Avatar } from "../ui/Avatar.jsx";
 export const NAV_ITEMS = [
 	{ label: "Home", href: "/" },
 	{ label: "Exercises", href: "/exercises" },
+	{ label: "Programs", href: "/programs" },
 ];
 
 function initials(user) {
@@ -44,7 +45,14 @@ export function Nav() {
 				</NavigationMenuItem>
 				{NAV_ITEMS.map(({ label, href }) => (
 					<NavigationMenuItem key={href}>
-						<NavigationMenuLink href={href} active={url === href}>
+						<NavigationMenuLink
+							href={href}
+							active={
+								href === "/"
+									? url === "/"
+									: url === href || url.startsWith(`${href}/`)
+							}
+						>
 							{label}
 						</NavigationMenuLink>
 					</NavigationMenuItem>
