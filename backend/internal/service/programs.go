@@ -116,10 +116,15 @@ func (s *ProgramService) Create(ctx context.Context, name string, description *s
 		return nil, &ValidationError{Msg: "name is required"}
 	}
 
+	id, ok := domain.IdentityFromContext(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
+	}
+
 	var p *domain.ProgramLite
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var err error
-		p, err = s.store.Create(ctx, q, name, description, isPublic)
+		p, err = s.store.Create(ctx, q, id.OrgID, name, description, isPublic)
 		return err
 	})
 	return p, err

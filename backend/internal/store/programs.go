@@ -83,7 +83,7 @@ func (s *ProgramStore) Get(ctx context.Context, q Querier, orgID domain.OrgID, i
 	return &p, nil
 }
 
-func (s *ProgramStore) Create(ctx context.Context, q Querier, name string, description *string, isPublic bool) (*domain.ProgramLite, error) {
+func (s *ProgramStore) Create(ctx context.Context, q Querier, orgID domain.OrgID, name string, description *string, isPublic bool) (*domain.ProgramLite, error) {
 	var id domain.ProgramID
 	err := q.QueryRowContext(ctx,
 		`INSERT INTO programs (name, description, is_public) VALUES ($1, $2, $3) RETURNING id`,
@@ -93,8 +93,7 @@ func (s *ProgramStore) Create(ctx context.Context, q Querier, name string, descr
 		return nil, fmt.Errorf("create program: %w", err)
 	}
 
-	idInfo, _ := domain.IdentityFromContext(ctx)
-	return s.Get(ctx, q, idInfo.OrgID, id)
+	return s.Get(ctx, q, orgID, id)
 }
 
 func (s *ProgramStore) Update(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID, name string, description *string, isPublic bool) (*domain.ProgramLite, error) {
