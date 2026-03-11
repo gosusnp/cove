@@ -55,28 +55,17 @@ func (s *ExerciseService) GetByIDs(ctx context.Context, ids []domain.ExerciseID)
 		return ExerciseResolution{}, ErrUnauthorized
 	}
 
-	var list []domain.Exercise
+	var found []domain.Exercise
+	var missing []domain.ExerciseID
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var err error
-		list, err = s.store.ListByIDs(ctx, q, identity.OrgID, ids)
+		found, missing, err = s.store.GetByIDs(ctx, q, identity.OrgID, ids)
 		return err
 	})
 	if err != nil {
 		return ExerciseResolution{}, err
 	}
-
-	foundSet := make(map[domain.ExerciseID]struct{}, len(list))
-	for _, e := range list {
-		foundSet[e.ID] = struct{}{}
-	}
-	missing := []domain.ExerciseID{}
-	for _, id := range ids {
-		if _, ok := foundSet[id]; !ok {
-			missing = append(missing, id)
-		}
-	}
-
-	return ExerciseResolution{Found: list, Missing: missing}, nil
+	return ExerciseResolution{Found: found, Missing: missing}, nil
 }
 
 func (s *ExerciseService) Get(ctx context.Context, id domain.ExerciseID) (*domain.Exercise, error) {

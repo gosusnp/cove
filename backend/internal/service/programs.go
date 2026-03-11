@@ -28,17 +28,17 @@ type ProgramSetInput struct {
 	Exercises           []ProgramExerciseInput `json:"exercises"`
 }
 
-// ProgramService holds a direct *sql.DB reference in addition to the store
+// ProgramService holds a direct *sql.DB reference in addition to its stores
 // because all write operations require a transaction with a FOR UPDATE lock on
 // the programs row. Other services only need their own store.
 type ProgramService struct {
-	db    *sql.DB
-	store *store.ProgramStore
-	exSvc *ExerciseService
+	db      *sql.DB
+	store   *store.ProgramStore
+	exStore *store.ExerciseStore
 }
 
-func NewProgramService(db *sql.DB, exSvc *ExerciseService) *ProgramService {
-	return &ProgramService{db: db, store: store.NewProgramStore(), exSvc: exSvc}
+func NewProgramService(db *sql.DB, exStore *store.ExerciseStore) *ProgramService {
+	return &ProgramService{db: db, store: store.NewProgramStore(), exStore: exStore}
 }
 
 func (s *ProgramService) List(ctx context.Context) ([]domain.ProgramLite, error) {
@@ -66,48 +66,48 @@ func (s *ProgramService) GetDetail(ctx context.Context, id domain.ProgramID) (*d
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var err error
 		p, err = s.store.GetDetail(ctx, q, idInfo.OrgID, id)
-		return err
+		if err != nil {
+			return err
+		}
+
+		// Collect unique exercise IDs for bulk name resolution.
+		seen := map[domain.ExerciseID]bool{}
+		var exerciseIDs []domain.ExerciseID
+		for _, set := range p.Sets {
+			for _, ex := range set.Exercises {
+				if !seen[ex.ExerciseID] {
+					seen[ex.ExerciseID] = true
+					exerciseIDs = append(exerciseIDs, ex.ExerciseID)
+				}
+			}
+		}
+
+		if len(exerciseIDs) > 0 {
+			// Bulk fetch live names; missing IDs fall back to name_snapshot already in Name.
+			found, _, err := s.exStore.GetByIDs(ctx, q, idInfo.OrgID, exerciseIDs)
+			if err != nil {
+				return fmt.Errorf("resolve exercise names: %w", err)
+			}
+			liveNames := make(map[domain.ExerciseID]string, len(found))
+			for _, e := range found {
+				liveNames[e.ID] = e.Name
+			}
+			for i, set := range p.Sets {
+				for j, ex := range set.Exercises {
+					if name, ok := liveNames[ex.ExerciseID]; ok {
+						p.Sets[i].Exercises[j].Name = name
+					}
+					// else: Name retains the name_snapshot set by the store.
+				}
+			}
+		}
+
+		return nil
 	})
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, ErrNotFound
 	}
-	if err != nil {
-		return nil, err
-	}
-
-	// Collect unique exercise IDs for bulk name resolution.
-	seen := map[domain.ExerciseID]bool{}
-	var exerciseIDs []domain.ExerciseID
-	for _, set := range p.Sets {
-		for _, ex := range set.Exercises {
-			if !seen[ex.ExerciseID] {
-				seen[ex.ExerciseID] = true
-				exerciseIDs = append(exerciseIDs, ex.ExerciseID)
-			}
-		}
-	}
-
-	if len(exerciseIDs) > 0 {
-		// Bulk fetch live names; Missing IDs fall back to name_snapshot already in Name.
-		resolution, err := s.exSvc.GetByIDs(ctx, exerciseIDs)
-		if err != nil {
-			return nil, fmt.Errorf("resolve exercise names: %w", err)
-		}
-		liveNames := make(map[domain.ExerciseID]string, len(resolution.Found))
-		for _, e := range resolution.Found {
-			liveNames[e.ID] = e.Name
-		}
-		for i, set := range p.Sets {
-			for j, ex := range set.Exercises {
-				if name, ok := liveNames[ex.ExerciseID]; ok {
-					p.Sets[i].Exercises[j].Name = name
-				}
-				// else: Name retains the name_snapshot set by the store.
-			}
-		}
-	}
-
-	return p, nil
+	return p, err
 }
 
 func (s *ProgramService) Create(ctx context.Context, name string, description *string, isPublic bool) (*domain.ProgramLite, error) {
@@ -259,20 +259,20 @@ func (s *ProgramService) CreateExercise(ctx context.Context, programID domain.Pr
 		return nil, &ValidationError{Msg: "exercise_id is required"}
 	}
 
-	// Resolve exercise name via ExerciseService to enforce org filter and visibility.
-	resolution, err := s.exSvc.GetByIDs(ctx, []domain.ExerciseID{exerciseID})
-	if err != nil {
-		return nil, fmt.Errorf("resolve exercise name: %w", err)
-	}
-	if len(resolution.Missing) > 0 {
-		return nil, ErrNotFound
-	}
-	nameSnapshot := resolution.Found[0].Name
-
 	var pe *store.ProgramExercise
-	err = withScopedTx(ctx, s.db, func(q store.Querier) error {
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		idInfo, _ := domain.IdentityFromContext(ctx)
-		var err error
+
+		// Resolve exercise name, enforcing org filter and visibility.
+		found, missing, err := s.exStore.GetByIDs(ctx, q, idInfo.OrgID, []domain.ExerciseID{exerciseID})
+		if err != nil {
+			return fmt.Errorf("resolve exercise name: %w", err)
+		}
+		if len(missing) > 0 {
+			return ErrNotFound
+		}
+		nameSnapshot := found[0].Name
+
 		pe, err = s.store.CreateExercise(ctx, q, idInfo.OrgID, programID, setID, exerciseID, nameSnapshot, laterality, targetReps, targetDurationSeconds, targetWeightKg)
 		return err
 	})
@@ -287,19 +287,19 @@ func (s *ProgramService) UpdateExercise(ctx context.Context, programID domain.Pr
 		return nil, &ValidationError{Msg: "exercise_id is required"}
 	}
 
-	// Validate exercise_id access via ExerciseService to enforce org filter and visibility.
-	resolution, err := s.exSvc.GetByIDs(ctx, []domain.ExerciseID{exerciseID})
-	if err != nil {
-		return nil, fmt.Errorf("validate exercise: %w", err)
-	}
-	if len(resolution.Missing) > 0 {
-		return nil, ErrNotFound
-	}
-
 	var pe *store.ProgramExercise
-	err = withScopedTx(ctx, s.db, func(q store.Querier) error {
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		idInfo, _ := domain.IdentityFromContext(ctx)
-		var err error
+
+		// Validate exercise_id visibility before mutating.
+		_, missing, err := s.exStore.GetByIDs(ctx, q, idInfo.OrgID, []domain.ExerciseID{exerciseID})
+		if err != nil {
+			return fmt.Errorf("validate exercise: %w", err)
+		}
+		if len(missing) > 0 {
+			return ErrNotFound
+		}
+
 		pe, err = s.store.UpdateExercise(ctx, q, idInfo.OrgID, programID, setID, id, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg)
 		return err
 	})
@@ -353,22 +353,24 @@ func (s *ProgramService) CreateFull(ctx context.Context, name string, descriptio
 		}
 	}
 
-	exerciseNames := map[domain.ExerciseID]string{}
-	if len(ids) > 0 {
-		resolution, err := s.exSvc.GetByIDs(ctx, ids)
-		if err != nil {
-			return nil, fmt.Errorf("check exercises: %w", err)
-		}
-		for _, e := range resolution.Found {
-			exerciseNames[e.ID] = e.Name
-		}
-		for _, missingID := range resolution.Missing {
-			return nil, &ValidationError{Msg: fmt.Sprintf("exercise_id %d not found or access denied", missingID)}
-		}
-	}
-
 	var programLite *domain.ProgramLite
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		idInfo, _ := domain.IdentityFromContext(ctx)
+
+		exerciseNames := map[domain.ExerciseID]string{}
+		if len(ids) > 0 {
+			found, missing, err := s.exStore.GetByIDs(ctx, q, idInfo.OrgID, ids)
+			if err != nil {
+				return fmt.Errorf("check exercises: %w", err)
+			}
+			for _, e := range found {
+				exerciseNames[e.ID] = e.Name
+			}
+			for _, missingID := range missing {
+				return &ValidationError{Msg: fmt.Sprintf("exercise_id %d not found or access denied", missingID)}
+			}
+		}
+
 		var programID domain.ProgramID
 		if err := q.QueryRowContext(ctx, `INSERT INTO programs (name, description, is_public) VALUES ($1, $2, $3) RETURNING id`, name, description, isPublic).Scan(&programID); err != nil {
 			return fmt.Errorf("create program: %w", err)
@@ -411,7 +413,6 @@ func (s *ProgramService) CreateFull(ctx context.Context, name string, descriptio
 			return err
 		}
 
-		idInfo, _ := domain.IdentityFromContext(ctx)
 		var err error
 		programLite, err = s.store.Get(ctx, q, idInfo.OrgID, programID)
 		return err

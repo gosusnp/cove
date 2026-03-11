@@ -44,9 +44,11 @@ func (s *ExerciseStore) List(ctx context.Context, q Querier, orgID domain.OrgID)
 	return exercises, rows.Err()
 }
 
-func (s *ExerciseStore) ListByIDs(ctx context.Context, q Querier, orgID domain.OrgID, ids []domain.ExerciseID) ([]domain.Exercise, error) {
+// GetByIDs fetches exercises by ID, filtered by org visibility.
+// It returns found exercises and a slice of IDs that were not found or not visible.
+func (s *ExerciseStore) GetByIDs(ctx context.Context, q Querier, orgID domain.OrgID, ids []domain.ExerciseID) (found []domain.Exercise, missing []domain.ExerciseID, err error) {
 	if len(ids) == 0 {
-		return []domain.Exercise{}, nil
+		return []domain.Exercise{}, []domain.ExerciseID{}, nil
 	}
 
 	intIDs := make([]int64, len(ids))
@@ -56,27 +58,41 @@ func (s *ExerciseStore) ListByIDs(ctx context.Context, q Querier, orgID domain.O
 
 	rows, err := q.QueryContext(ctx, `
 		SELECT id, name, progression, description, org_id, is_public, created_by, created_at, updated_by, updated_at
-		FROM exercises 
+		FROM exercises
 		WHERE id = ANY($1) AND (org_id = $2 OR is_public = true)
 		ORDER BY name
 	`, intIDs, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("list exercises by ids: %w", err)
+		return nil, nil, fmt.Errorf("get exercises by ids: %w", err)
 	}
 	defer rows.Close()
 
-	exercises := []domain.Exercise{}
+	found = []domain.Exercise{}
 	for rows.Next() {
 		var e domain.Exercise
 		if err := rows.Scan(
 			&e.ID, &e.Name, &e.Progression, &e.Description, &e.OrgID, &e.IsPublic,
 			&e.CreatedBy, &e.CreatedAt, &e.UpdatedBy, &e.UpdatedAt,
 		); err != nil {
-			return nil, fmt.Errorf("scan exercise: %w", err)
+			return nil, nil, fmt.Errorf("scan exercise: %w", err)
 		}
-		exercises = append(exercises, e)
+		found = append(found, e)
 	}
-	return exercises, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	foundSet := make(map[domain.ExerciseID]struct{}, len(found))
+	for _, e := range found {
+		foundSet[e.ID] = struct{}{}
+	}
+	missing = []domain.ExerciseID{}
+	for _, id := range ids {
+		if _, ok := foundSet[id]; !ok {
+			missing = append(missing, id)
+		}
+	}
+	return found, missing, nil
 }
 
 func (s *ExerciseStore) Get(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ExerciseID) (*domain.Exercise, error) {

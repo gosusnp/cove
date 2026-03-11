@@ -32,7 +32,7 @@ func newTestProgramService(t *testing.T) (*ProgramService, context.Context) {
 		OrgID:  oID,
 	})
 
-	return NewProgramService(db, NewExerciseService(db, store.NewExerciseStore())), ctx
+	return NewProgramService(db, store.NewExerciseStore()), ctx
 }
 
 func TestProgramService_List(t *testing.T) {

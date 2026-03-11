@@ -63,8 +63,9 @@ func main() {
 		Endpoint:     google.Endpoint,
 	}
 
-	exSvc := service.NewExerciseService(database, store.NewExerciseStore())
-	pSvc := service.NewProgramService(database, exSvc)
+	exStore := store.NewExerciseStore()
+	exSvc := service.NewExerciseService(database, exStore)
+	pSvc := service.NewProgramService(database, exStore)
 	svcs := covemcp.Services{
 		Exercises: exSvc,
 		Programs:  pSvc,

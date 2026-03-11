@@ -93,24 +93,24 @@ func TestExerciseStore_List(t *testing.T) {
 	})
 }
 
-func TestExerciseStore_ListByIDs(t *testing.T) {
-	t.Run("empty returns empty slice", func(t *testing.T) {
+func TestExerciseStore_GetByIDs(t *testing.T) {
+	t.Run("empty returns empty slices", func(t *testing.T) {
 		s, db, ctx := newTestExerciseStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
 
-		exercises, err := s.ListByIDs(ctx, db, id.OrgID, []domain.ExerciseID{})
+		found, missing, err := s.GetByIDs(ctx, db, id.OrgID, []domain.ExerciseID{})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if exercises == nil {
-			t.Fatal("expected empty slice, got nil")
+		if found == nil || missing == nil {
+			t.Fatal("expected empty slices, got nil")
 		}
-		if len(exercises) != 0 {
-			t.Errorf("expected 0 exercises, got %d", len(exercises))
+		if len(found) != 0 || len(missing) != 0 {
+			t.Errorf("expected empty results, got found=%d missing=%d", len(found), len(missing))
 		}
 	})
 
-	t.Run("returns only specified exercises", func(t *testing.T) {
+	t.Run("returns found and missing", func(t *testing.T) {
 		s, db, ctx := newTestExerciseStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
 
@@ -118,16 +118,20 @@ func TestExerciseStore_ListByIDs(t *testing.T) {
 		e2, _ := s.Create(ctx, db, "B", nil, nil, true)
 		_, _ = s.Create(ctx, db, "C", nil, nil, true)
 
-		ids := []domain.ExerciseID{e1.ID, e2.ID}
-		exercises, err := s.ListByIDs(ctx, db, id.OrgID, ids)
+		var ghost domain.ExerciseID = 99999
+		ids := []domain.ExerciseID{e1.ID, e2.ID, ghost}
+		found, missing, err := s.GetByIDs(ctx, db, id.OrgID, ids)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(exercises) != 2 {
-			t.Fatalf("expected 2 exercises, got %d", len(exercises))
+		if len(found) != 2 {
+			t.Fatalf("expected 2 found, got %d", len(found))
 		}
-		if exercises[0].Name != "A" || exercises[1].Name != "B" {
-			t.Errorf("got %v, want exercises A and B", exercises)
+		if found[0].Name != "A" || found[1].Name != "B" {
+			t.Errorf("got %v, want exercises A and B", found)
+		}
+		if len(missing) != 1 || missing[0] != ghost {
+			t.Errorf("expected missing=[%v], got %v", ghost, missing)
 		}
 	})
 }
