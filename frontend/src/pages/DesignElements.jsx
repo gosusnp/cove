@@ -39,6 +39,7 @@ import { PageTitle } from "../components/ui/PageTitle.jsx";
 import { ToggleGroup } from "../components/ui/ToggleGroup.jsx";
 import { Combobox } from "../components/ui/Combobox.jsx";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
+import { ListDetail } from "../components/ui/ListDetail.jsx";
 import {
 	Accordion,
 	AccordionItem,
@@ -355,6 +356,7 @@ export function DesignElements() {
 	const toggleNoLabel = useSignal(null);
 	const comboVal = useSignal("");
 	const comboVal2 = useSignal("2");
+	const listDetailHasDetail = useSignal(false);
 
 	return (
 		<main class="max-w-2xl mx-auto px-4 py-10 flex flex-col gap-10">
@@ -757,6 +759,64 @@ export function DesignElements() {
 							placeholder="Search exercises..."
 							disabled
 						/>
+					</div>
+				</PreviewRow>
+			</PageSection>
+
+			<Divider />
+
+			{/* ── ListDetail ────────────────────────────────── */}
+			<PageSection title="ListDetail">
+				<PreviewRow label="two-panel master-detail layout">
+					<div class="w-full flex flex-col gap-3">
+						<div class="flex items-center gap-3">
+							<Switch checkedSignal={listDetailHasDetail} />
+							<span class="text-sm" style={{ color: "var(--color-muted)" }}>
+								hasDetail: {String(listDetailHasDetail.value)}
+							</span>
+						</div>
+						<div
+							class="w-full rounded-xl overflow-hidden border border-(--color-border)"
+							style={{ height: "320px" }}
+						>
+							<ListDetail
+								list={
+									<ul class="p-3 flex flex-col gap-1">
+										{["Strength A", "Hypertrophy B", "Deload Week"].map(
+											(name) => (
+												<li
+													key={name}
+													class="px-3 py-2 rounded-lg text-sm cursor-pointer hover:bg-(--color-bg)"
+													style={{ color: "var(--color-text)" }}
+												>
+													{name}
+												</li>
+											),
+										)}
+									</ul>
+								}
+								detail={
+									listDetailHasDetail.value ? (
+										<div class="p-6">
+											<p
+												class="font-medium"
+												style={{ color: "var(--color-text)" }}
+											>
+												Strength A
+											</p>
+											<p
+												class="text-sm mt-1"
+												style={{ color: "var(--color-muted)" }}
+											>
+												4 sets · 3 exercises
+											</p>
+										</div>
+									) : null
+								}
+								emptyState="Select a program to view its sets."
+								hasDetail={listDetailHasDetail.value}
+							/>
+						</div>
 					</div>
 				</PreviewRow>
 			</PageSection>
