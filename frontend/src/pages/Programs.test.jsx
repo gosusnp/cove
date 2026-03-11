@@ -75,7 +75,7 @@ const MOCK_PROGRAMS = [
 	{ id: 2, name: "Hypertrophy Block" },
 ];
 
-const MOCK_PROGRAM_DETAIL = {
+const _MOCK_PROGRAM_DETAIL = {
 	id: 1,
 	name: "Strength A/B",
 	sets: [

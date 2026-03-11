@@ -14,9 +14,9 @@ import {
 	DialogTitle,
 } from "../components/ui/Dialog.jsx";
 import { ListDetail } from "../components/ui/ListDetail.jsx";
-import { Row } from "../components/ui/Section.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { useDialog } from "../hooks/useDialog.js";
+import { ProgramDetail } from "./ProgramDetail.jsx";
 
 // ─── ProgramList ────────────────────────────────────────────────────────────
 
@@ -104,113 +104,6 @@ function ProgramList({
 						</div>
 					);
 				})
-			)}
-		</div>
-	);
-}
-
-// ─── ProgramDetail ───────────────────────────────────────────────────────────
-
-function ProgramDetail({ programId, token }) {
-	const program = useSignal(null);
-	const loading = useSignal(true);
-	const error = useSignal("");
-
-	useEffect(() => {
-		if (!programId || !token) return;
-		loading.value = true;
-		error.value = "";
-		fetch(`/api/programs/${programId}`, {
-			headers: { Authorization: `Bearer ${token}` },
-		})
-			.then((r) => {
-				if (!r.ok) throw new Error("Failed to load program");
-				return r.json();
-			})
-			.then((data) => {
-				program.value = data;
-			})
-			.catch((err) => {
-				error.value = err.message;
-			})
-			.finally(() => {
-				loading.value = false;
-			});
-	}, [programId, token]);
-
-	if (loading.value) {
-		return (
-			<div class="flex flex-1 items-center justify-center p-8">
-				<p class="text-sm" style={{ color: "var(--color-muted)" }}>
-					Loading…
-				</p>
-			</div>
-		);
-	}
-
-	if (error.value) {
-		return (
-			<div class="flex flex-1 items-center justify-center p-8">
-				<p class="text-sm" style={{ color: "var(--color-error, red)" }}>
-					{error.value}
-				</p>
-			</div>
-		);
-	}
-
-	if (!program.value) return null;
-
-	const p = program.value;
-
-	return (
-		<div class="p-6 max-w-2xl mx-auto w-full">
-			<h1
-				class="text-xl font-semibold mb-6"
-				style={{ color: "var(--color-text)" }}
-			>
-				{p.name}
-			</h1>
-
-			{p.sets && p.sets.length > 0 ? (
-				<div class="flex flex-col gap-4">
-					{p.sets.map((set) => (
-						<div
-							key={set.id}
-							class="rounded-xl overflow-hidden"
-							style={{
-								background: "var(--color-surface)",
-								border: "1px solid var(--color-border)",
-							}}
-						>
-							<div
-								class="px-4 py-3 border-b"
-								style={{ borderColor: "var(--color-border)" }}
-							>
-								<span
-									class="text-xs font-semibold uppercase tracking-widest"
-									style={{ color: "var(--color-muted)" }}
-								>
-									{set.name || "Unnamed Set"}
-								</span>
-							</div>
-							{set.exercises && set.exercises.length > 0 ? (
-								set.exercises.map((ex, i) => (
-									<Row
-										key={ex.id}
-										label={ex.name}
-										last={i === set.exercises.length - 1}
-									/>
-								))
-							) : (
-								<Row label="No exercises in this set." last />
-							)}
-						</div>
-					))}
-				</div>
-			) : (
-				<p class="text-sm" style={{ color: "var(--color-muted)" }}>
-					No sets in this program yet.
-				</p>
 			)}
 		</div>
 	);
@@ -351,11 +244,7 @@ export function Programs() {
 						error={fetchError.value}
 					/>
 				}
-				detail={
-					selectedId ? (
-						<ProgramDetail programId={selectedId} token={token} />
-					) : null
-				}
+				detail={selectedId ? <ProgramDetail programId={selectedId} /> : null}
 			/>
 
 			{/* New / Rename dialog */}
