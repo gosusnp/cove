@@ -16,11 +16,13 @@ import { cn } from "../../lib/utils.js";
 export const AUTH_NAV_ITEMS = [
 	{ label: "Exercises", href: "/exercises" },
 	{ label: "Programs", href: "/programs" },
+	{ label: "Sessions", href: "/sessions" },
 ];
 
 const PAGE_TITLES = [
 	{ label: "Exercises", href: "/exercises" },
 	{ label: "Programs", href: "/programs" },
+	{ label: "Sessions", href: "/sessions" },
 	{ label: "Settings", href: "/settings" },
 ];
 

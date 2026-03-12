@@ -8,6 +8,33 @@ import (
 )
 
 // -----------------------------------------------------------------------------
+// Workout Session
+// -----------------------------------------------------------------------------
+
+type WorkoutSessionID IntID[struct{ workoutSession struct{} }]
+
+// WorkoutSession represents a single training session.
+// program_structure being non-nil implicitly indicates a structured session.
+type WorkoutSession struct {
+	ID               WorkoutSessionID `json:"id"`
+	OrgID            OrgID            `json:"org_id"`
+	UserID           UserID           `json:"user_id"`
+	ProgramID        *ProgramID       `json:"program_id,omitempty"`
+	ProgramName      *string          `json:"program_name,omitempty"`
+	ProgramStructure *string          `json:"program_structure,omitempty"`
+	Activity         *string          `json:"activity,omitempty"`
+	DurationS        *int             `json:"duration_s,omitempty"`
+	PerceivedEffort  *int             `json:"perceived_effort,omitempty"`
+	SessionNotes     *string          `json:"session_notes,omitempty"`
+	StartedAt        *time.Time       `json:"started_at,omitempty"`
+	CompletedAt      *time.Time       `json:"completed_at,omitempty"`
+	CreatedBy        UserID           `json:"created_by"`
+	CreatedAt        time.Time        `json:"created_at"`
+	UpdatedBy        *UserID          `json:"updated_by,omitempty"`
+	UpdatedAt        time.Time        `json:"updated_at"`
+}
+
+// -----------------------------------------------------------------------------
 // Program
 // -----------------------------------------------------------------------------
 

@@ -29,9 +29,10 @@ type TestApp struct {
 	RawMux http.Handler // Raw mux with OAuth (no /api prefix)
 
 	// Services
-	Exercises *service.ExerciseService
-	Programs  *service.ProgramService
-	Users     *service.UserService
+	Exercises       *service.ExerciseService
+	Programs        *service.ProgramService
+	Users           *service.UserService
+	WorkoutSessions *service.WorkoutSessionService
 
 	// Stores (for direct seeding/verification)
 	UserStore *store.UserStore
@@ -52,11 +53,13 @@ func NewTestApp(t *testing.T) *TestApp {
 	exStore := store.NewExerciseStore()
 	uStore := store.NewUserStore()
 	oStore := store.NewOrgStore()
+	wsStore := store.NewWorkoutSessionStore()
 
 	// Services
 	exSvc := service.NewExerciseService(database, exStore)
 	pSvc := service.NewProgramService(database, exStore)
 	uSvc := service.NewUserService(database, uStore, oStore)
+	wsSvc := service.NewWorkoutSessionService(database, wsStore)
 
 	// Create system user for raw mux auth
 	sysUser, _, err := uSvc.GetOrCreate(context.Background(), domain.Email("system@test.com"), domain.GoogleSub("system-sub"))
@@ -75,6 +78,7 @@ func NewTestApp(t *testing.T) *TestApp {
 	NewProgramSetHandler(pSvc).RegisterRoutes(apiMux)
 	NewProgramExerciseHandler(pSvc).RegisterRoutes(apiMux)
 	NewUserHandler(uSvc).RegisterRoutes(apiMux)
+	NewWorkoutSessionHandler(wsSvc).RegisterRoutes(apiMux)
 
 	// Apply OAuth middleware with /api prefix as in server.go
 	handler := http.StripPrefix("/api", middleware.OAuth(uSvc, apiMux))
@@ -82,17 +86,18 @@ func NewTestApp(t *testing.T) *TestApp {
 	rawHandler := middleware.OAuth(uSvc, apiMux)
 
 	app := &TestApp{
-		T:             t,
-		DB:            database,
-		Mux:           handler,
-		RawMux:        rawHandler,
-		Exercises:     exSvc,
-		Programs:      pSvc,
-		Users:         uSvc,
-		UserStore:     uStore,
-		OrgStore:      oStore,
-		programOwners: make(map[domain.ProgramID]*domain.Identity),
-		systemToken:   sysToken,
+		T:               t,
+		DB:              database,
+		Mux:             handler,
+		RawMux:          rawHandler,
+		Exercises:       exSvc,
+		Programs:        pSvc,
+		Users:           uSvc,
+		WorkoutSessions: wsSvc,
+		UserStore:       uStore,
+		OrgStore:        oStore,
+		programOwners:   make(map[domain.ProgramID]*domain.Identity),
+		systemToken:     sysToken,
 	}
 	return app
 }
@@ -239,6 +244,17 @@ func (a *TestApp) SeedProgramSet(programID domain.ProgramID, rounds int) *store.
 		a.T.Fatalf("seed program set: %v", err)
 	}
 	return ps
+}
+
+// SeedWorkoutSession creates a workout session owned by the given user/org.
+func (a *TestApp) SeedWorkoutSession(ctx context.Context, userID domain.UserID, orgID domain.OrgID, p store.WorkoutSessionParams) *domain.WorkoutSession {
+	a.T.Helper()
+	authCtx := domain.NewContext(ctx, &domain.Identity{UserID: userID, OrgID: orgID})
+	ws, err := a.WorkoutSessions.Create(authCtx, p)
+	if err != nil {
+		a.T.Fatalf("seed workout session: %v", err)
+	}
+	return ws
 }
 
 // SeedProgramExercise adds an exercise to a set.

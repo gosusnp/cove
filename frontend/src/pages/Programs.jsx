@@ -92,10 +92,7 @@ function ProgramList({
 
 			{/* Program rows */}
 			{error && (
-				<p
-					class="px-4 py-3 text-sm"
-					style={{ color: "var(--color-error, red)" }}
-				>
+				<p class="px-4 py-3 text-sm" style={{ color: "var(--color-error)" }}>
 					{error}
 				</p>
 			)}
@@ -324,7 +321,7 @@ export function Programs() {
 								autoFocus
 							/>
 							{formError.value && (
-								<p class="text-sm" style={{ color: "var(--color-error, red)" }}>
+								<p class="text-sm" style={{ color: "var(--color-error)" }}>
 									{formError.value}
 								</p>
 							)}

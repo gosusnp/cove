@@ -343,7 +343,7 @@ export function ProgramDetail({ programId }) {
 	if (fetchError.value) {
 		return (
 			<div class="flex flex-1 items-center justify-center p-8">
-				<p class="text-sm" style={{ color: "var(--color-error, red)" }}>
+				<p class="text-sm" style={{ color: "var(--color-error)" }}>
 					{fetchError.value}
 				</p>
 			</div>
@@ -998,7 +998,7 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 								autoFocus
 							/>
 							{renameError.value && (
-								<p class="text-sm" style={{ color: "var(--color-error, red)" }}>
+								<p class="text-sm" style={{ color: "var(--color-error)" }}>
 									{renameError.value}
 								</p>
 							)}
@@ -1051,7 +1051,7 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 								}}
 							/>
 							{setFormError.value && (
-								<p class="text-sm" style={{ color: "var(--color-error, red)" }}>
+								<p class="text-sm" style={{ color: "var(--color-error)" }}>
 									{setFormError.value}
 								</p>
 							)}
@@ -1137,7 +1137,7 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 								}}
 							/>
 							{pexFormError.value && (
-								<p class="text-sm" style={{ color: "var(--color-error, red)" }}>
+								<p class="text-sm" style={{ color: "var(--color-error)" }}>
 									{pexFormError.value}
 								</p>
 							)}

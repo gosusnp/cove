@@ -9,10 +9,11 @@ import { Login } from "./pages/Login.jsx";
 import { Home } from "./pages/Home.jsx";
 import { Exercises } from "./pages/Exercises.jsx";
 import { Programs } from "./pages/Programs.jsx";
+import { Sessions } from "./pages/Sessions.jsx";
 import { Settings } from "./pages/Settings.jsx";
 import { DesignElements } from "./pages/DesignElements.jsx";
 
-const PROTECTED_ROUTES = ["/settings", "/exercises", "/programs"];
+const PROTECTED_ROUTES = ["/settings", "/exercises", "/programs", "/sessions"];
 
 function Layout() {
 	const { url, route } = useLocation();
@@ -43,6 +44,8 @@ function Layout() {
 				<Route path="/exercises" component={Exercises} />
 				<Route path="/programs" component={Programs} />
 				<Route path="/programs/:id" component={Programs} />
+				<Route path="/sessions" component={Sessions} />
+				<Route path="/sessions/:id" component={Sessions} />
 				<Route path="/settings" component={Settings} />
 				{import.meta.env.VITE_COVE_ENV === "dev" && (
 					<Route path="/design-elements" component={DesignElements} />

@@ -66,13 +66,14 @@ func main() {
 	exStore := store.NewExerciseStore()
 	exSvc := service.NewExerciseService(database, exStore)
 	pSvc := service.NewProgramService(database, exStore)
+	wsSvc := service.NewWorkoutSessionService(database, store.NewWorkoutSessionStore())
 	svcs := covemcp.Services{
 		Exercises: exSvc,
 		Programs:  pSvc,
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/api/", NewAPIHandler(userStore, userSvc, svcs))
+	mux.Handle("/api/", NewAPIHandler(userStore, userSvc, svcs, wsSvc))
 	mux.Handle("/mcp/", middleware.OAuth(userSvc, covemcp.NewHTTPHandler(svcs)))
 
 	var staticFS fs.FS
