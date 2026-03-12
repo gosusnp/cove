@@ -40,7 +40,7 @@ func TestProgram_SetHeading_Named(t *testing.T) {
 		},
 	}
 	got := markdown.Program(p)
-	if !strings.Contains(got, "## A (3× · 90s rest)") {
+	if !strings.Contains(got, "## A (3 rounds · 90s rest)") {
 		t.Errorf("expected named set heading, got: %q", got)
 	}
 }
@@ -53,7 +53,7 @@ func TestProgram_SetHeading_Unnamed(t *testing.T) {
 		},
 	}
 	got := markdown.Program(p)
-	if !strings.Contains(got, "## Set 2 (4×)") {
+	if !strings.Contains(got, "## Set 2 (4 rounds)") {
 		t.Errorf("expected unnamed set heading with ID, got: %q", got)
 	}
 }
@@ -66,7 +66,7 @@ func TestProgram_SetHeading_NoRest(t *testing.T) {
 		},
 	}
 	got := markdown.Program(p)
-	if !strings.Contains(got, "## B (2×)") {
+	if !strings.Contains(got, "## B (2 rounds)") {
 		t.Errorf("expected no rest in heading when unset, got: %q", got)
 	}
 }
@@ -110,8 +110,11 @@ func TestProgram_ExerciseLine_DurationOnly(t *testing.T) {
 		},
 	}
 	got := markdown.Program(p)
-	if !strings.Contains(got, "- Plank — 60s · bodyweight") {
+	if !strings.Contains(got, "- Plank — 60s") {
 		t.Errorf("unexpected duration-only exercise line, got: %q", got)
+	}
+	if strings.Contains(got, "bodyweight") {
+		t.Errorf("expected no bodyweight label, got: %q", got)
 	}
 }
 
@@ -134,6 +137,25 @@ func TestProgram_ExerciseLine_AssistedWeight(t *testing.T) {
 	}
 }
 
+func TestProgram_ExerciseLine_NoDetails(t *testing.T) {
+	p := &domain.Program{
+		Name: "Conditioning",
+		Sets: []domain.ProgramSet{
+			{
+				ID:     1,
+				Rounds: 1,
+				Exercises: []domain.ProgramExercise{
+					{Name: "Wrist Roller"},
+				},
+			},
+		},
+	}
+	got := markdown.Program(p)
+	if !strings.Contains(got, "- Wrist Roller\n") {
+		t.Errorf("expected no em dash when no details, got: %q", got)
+	}
+}
+
 func TestProgram_ExerciseLine_Bodyweight(t *testing.T) {
 	p := &domain.Program{
 		Name: "Calisthenics",
@@ -148,8 +170,11 @@ func TestProgram_ExerciseLine_Bodyweight(t *testing.T) {
 		},
 	}
 	got := markdown.Program(p)
-	if !strings.Contains(got, "bodyweight") {
-		t.Errorf("expected bodyweight label for nil weight, got: %q", got)
+	if strings.Contains(got, "bodyweight") {
+		t.Errorf("expected no bodyweight label for nil weight, got: %q", got)
+	}
+	if !strings.Contains(got, "- Push-up — 20 reps") {
+		t.Errorf("expected exercise without weight label, got: %q", got)
 	}
 }
 

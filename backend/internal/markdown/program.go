@@ -44,7 +44,7 @@ func setHeading(s domain.ProgramSet) string {
 		label = fmt.Sprintf("Set %d", s.ID)
 	}
 
-	detail := fmt.Sprintf("%d×", s.Rounds)
+	detail := roundsLabel(s.Rounds)
 	if s.IntraSetRestSeconds != nil && *s.IntraSetRestSeconds > 0 {
 		detail += fmt.Sprintf(" · %ds rest", *s.IntraSetRestSeconds)
 	}
@@ -55,8 +55,6 @@ func setHeading(s domain.ProgramSet) string {
 // exerciseLine produces a single list item for an exercise, e.g.
 // "Bench Press — bilateral · 8 reps · +80kg".
 func exerciseLine(e domain.ProgramExercise) string {
-	parts := []string{e.Name}
-
 	var details []string
 	if e.Laterality != nil {
 		details = append(details, *e.Laterality)
@@ -67,16 +65,28 @@ func exerciseLine(e domain.ProgramExercise) string {
 	if e.TargetDurationSeconds != nil {
 		details = append(details, fmt.Sprintf("%ds", *e.TargetDurationSeconds))
 	}
-	details = append(details, weightLabel(e.TargetWeightKg))
+	if w := weightLabel(e.TargetWeightKg); w != "" {
+		details = append(details, w)
+	}
 
-	parts = append(parts, strings.Join(details, " · "))
-	return strings.Join(parts, " — ")
+	if len(details) == 0 {
+		return e.Name
+	}
+	return e.Name + " — " + strings.Join(details, " · ")
 }
 
-// weightLabel returns a human-readable weight string.
+// roundsLabel returns a human-readable round count, e.g. "1 round" or "3 rounds".
+func roundsLabel(n int) string {
+	if n == 1 {
+		return "1 round"
+	}
+	return fmt.Sprintf("%d rounds", n)
+}
+
+// weightLabel returns a human-readable weight string, or empty string for bodyweight.
 func weightLabel(kg *float64) string {
 	if kg == nil || *kg == 0 {
-		return "bodyweight"
+		return ""
 	}
 	if *kg > 0 {
 		return fmt.Sprintf("+%gkg", *kg)
