@@ -456,7 +456,6 @@ describe("ProgramDetail — add set dialog", () => {
 		fireEvent.click(screen.getByText("+ Add Set"));
 		expect(screen.getByText("Add Set")).toBeInTheDocument();
 		expect(screen.getByDisplayValue("3")).toBeInTheDocument();
-		expect(screen.getByDisplayValue("90")).toBeInTheDocument();
 	});
 
 	it("shows validation error for invalid rounds", async () => {

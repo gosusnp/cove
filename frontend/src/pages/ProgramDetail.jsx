@@ -490,7 +490,7 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 	const editingSet = useSignal(null);
 	const setNameField = useSignal("");
 	const setRoundsField = useSignal("3");
-	const setRestField = useSignal("90");
+	const setRestField = useSignal("");
 	const setFormError = useSignal("");
 	const setFormSaving = useSignal(false);
 
@@ -498,7 +498,7 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 		editingSet.value = null;
 		setNameField.value = "";
 		setRoundsField.value = "3";
-		setRestField.value = "90";
+		setRestField.value = "";
 		setFormError.value = "";
 		setDialog.show();
 	};
@@ -507,7 +507,7 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 		editingSet.value = set;
 		setNameField.value = set.name ?? "";
 		setRoundsField.value = String(set.rounds ?? 3);
-		setRestField.value = String(set.rest_s ?? 90);
+		setRestField.value = set.rest_s != null ? String(set.rest_s) : "";
 		setFormError.value = "";
 		setDialog.show();
 	};
@@ -515,12 +515,13 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 	const handleSaveSet = async (e) => {
 		e.preventDefault();
 		const rounds = parseInt(setRoundsField.value, 10);
-		const rest = parseInt(setRestField.value, 10);
+		const restRaw = setRestField.value.trim();
+		const rest = restRaw === "" ? null : parseInt(restRaw, 10);
 		if (Number.isNaN(rounds) || rounds < 1) {
 			setFormError.value = "Rounds must be at least 1.";
 			return;
 		}
-		if (Number.isNaN(rest) || rest < 0) {
+		if (rest !== null && (Number.isNaN(rest) || rest < 0)) {
 			setFormError.value = "Rest must be 0 or more seconds.";
 			return;
 		}
@@ -541,7 +542,7 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 				body: JSON.stringify({
 					name: setNameField.value.trim() || undefined,
 					rounds,
-					rest_s: rest,
+					rest_s: rest ?? undefined,
 				}),
 			});
 			if (!r.ok) {
@@ -875,7 +876,8 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 												class="ml-auto mr-2 text-xs tabular-nums"
 												style={{ color: "var(--color-muted)" }}
 											>
-												{set.rounds}× · {set.rest_s}s rest
+												{set.rounds}×
+												{set.rest_s != null ? ` · ${set.rest_s}s rest` : ""}
 											</span>
 											<div class="flex gap-1">
 												<Tooltip>
@@ -1040,7 +1042,7 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 								}}
 							/>
 							<TextField
-								label="Rest between sets (sec)"
+								label="Rest between sets (sec, optional)"
 								type="number"
 								min="0"
 								value={setRestField.value}
