@@ -136,6 +136,36 @@ func TestProgramHandler_Get(t *testing.T) {
 		}
 	})
 
+	t.Run("response includes structure field", func(t *testing.T) {
+		app := NewTestApp(t)
+		uID, oID := app.SeedUserWithOrg("test@test.com", "sub")
+		p := app.SeedProgramForUser(t.Context(), "Strength", uID, oID)
+		ps := app.SeedProgramSet(p.ID, 3)
+		e := app.SeedExercise("Squat", nil)
+		app.SeedProgramExercise(p.ID, ps.ID, e.ID)
+
+		r := app.AuthRequest(http.MethodGet, fmt.Sprintf("/api/programs/%d", p.ID), nil, uID)
+		w := app.Do(r)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("got status %d, want %d", w.Code, http.StatusOK)
+		}
+		var got map[string]any
+		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		structure, ok := got["structure"].(string)
+		if !ok || structure == "" {
+			t.Errorf("expected non-empty structure field, got: %v", got["structure"])
+		}
+		if !strings.Contains(structure, "Strength") {
+			t.Errorf("structure should contain program name, got: %q", structure)
+		}
+		if !strings.Contains(structure, "Squat") {
+			t.Errorf("structure should contain exercise name, got: %q", structure)
+		}
+	})
+
 	t.Run("not found", func(t *testing.T) {
 		app := NewTestApp(t)
 		uID, _ := app.SeedUserWithOrg("test@test.com", "sub")

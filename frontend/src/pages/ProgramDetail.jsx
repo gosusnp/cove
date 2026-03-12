@@ -265,7 +265,10 @@ function SortableExerciseRow({ exercise, setId, onEdit, onRemove }) {
 							variant="outline"
 							size="icon"
 							aria-label="Edit exercise"
-							onClick={() => onEdit(exercise)}
+							onClick={(e) => {
+								e.currentTarget.blur();
+								onEdit(exercise);
+							}}
 						>
 							<PencilIcon />
 						</Button>
@@ -278,7 +281,10 @@ function SortableExerciseRow({ exercise, setId, onEdit, onRemove }) {
 							variant="outline"
 							size="icon"
 							aria-label="Remove exercise"
-							onClick={() => onRemove(exercise)}
+							onClick={(e) => {
+								e.currentTarget.blur();
+								onRemove(exercise);
+							}}
 						>
 							<TrashIcon />
 						</Button>
@@ -790,18 +796,46 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 									variant="outline"
 									size="icon"
 									aria-label="Rename program"
-									onClick={openRename}
+									onClick={(e) => {
+										e.currentTarget.blur();
+										openRename();
+									}}
 								>
 									<PencilIcon />
 								</Button>
 							</TooltipTrigger>
 							<TooltipContent>Rename</TooltipContent>
 						</Tooltip>
-						<Button variant="primary" size="sm" onClick={openAddSet}>
+						<Button
+							variant="primary"
+							size="sm"
+							onClick={(e) => {
+								e.currentTarget.blur();
+								openAddSet();
+							}}
+						>
 							+ Add Set
 						</Button>
 					</div>
 				</div>
+
+				{/* Structure preview */}
+				{initialProgram.structure && (
+					<details class="rounded-lg border border-(--color-border) bg-(--color-surface)">
+						<summary
+							class="cursor-pointer select-none px-4 py-3 text-sm font-medium"
+							style={{ color: "var(--color-text)" }}
+						>
+							Structure preview
+						</summary>
+						<pre
+							class="px-4 pb-4 text-xs leading-relaxed whitespace-pre-wrap"
+							style={{ color: "var(--color-muted)" }}
+						>
+							{initialProgram.structure}
+						</pre>
+					</details>
+				)}
 
 				{/* Sets */}
 				{reorderError.value && (
@@ -852,6 +886,7 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 															aria-label="Add exercise"
 															onClick={(e) => {
 																e.stopPropagation();
+																e.currentTarget.blur();
 																openAddPex(set.id);
 															}}
 														>
@@ -868,6 +903,7 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 															aria-label="Edit set"
 															onClick={(e) => {
 																e.stopPropagation();
+																e.currentTarget.blur();
 																openEditSet(set);
 															}}
 														>
@@ -884,6 +920,7 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 															aria-label="Delete set"
 															onClick={(e) => {
 																e.stopPropagation();
+																e.currentTarget.blur();
 																openDeleteSet(set);
 															}}
 														>

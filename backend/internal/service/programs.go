@@ -10,8 +10,15 @@ import (
 	"fmt"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
+	"github.com/gosusnp/cove/backend/internal/markdown"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
+
+// ProgramEnriched wraps a full program with a pre-rendered Markdown structure.
+type ProgramEnriched struct {
+	*domain.Program
+	Structure string `json:"structure"`
+}
 
 type ProgramExerciseInput struct {
 	ExerciseID            domain.ExerciseID `json:"exercise_id"`
@@ -56,7 +63,7 @@ func (s *ProgramService) List(ctx context.Context) ([]domain.ProgramLite, error)
 	return list, err
 }
 
-func (s *ProgramService) Get(ctx context.Context, id domain.ProgramID) (*domain.Program, error) {
+func (s *ProgramService) Get(ctx context.Context, id domain.ProgramID) (*ProgramEnriched, error) {
 	idInfo, ok := domain.IdentityFromContext(ctx)
 	if !ok {
 		return nil, ErrUnauthorized
@@ -107,7 +114,10 @@ func (s *ProgramService) Get(ctx context.Context, id domain.ProgramID) (*domain.
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, ErrNotFound
 	}
-	return p, err
+	if err != nil {
+		return nil, err
+	}
+	return &ProgramEnriched{Program: p, Structure: markdown.Program(p)}, nil
 }
 
 func (s *ProgramService) Create(ctx context.Context, name string, description *string, isPublic bool) (*domain.ProgramLite, error) {
