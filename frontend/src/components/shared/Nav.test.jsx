@@ -38,15 +38,22 @@ describe("Nav", () => {
 		expect(screen.queryByRole("link", { name: "Programs" })).toBeNull();
 	});
 
+	it("shows Sign in links when not signed in", () => {
+		withProviders(<Nav />);
+		const links = screen.getAllByRole("link", { name: "Sign in" });
+		expect(links.length).toBeGreaterThan(0);
+		for (const link of links) {
+			expect(link).toHaveAttribute("href", "/login");
+		}
+	});
+
 	it("shows Exercises and Programs links when signed in", () => {
 		withProviders(<Nav />, { user: MOCK_USER });
-		expect(screen.getByRole("link", { name: "Exercises" })).toHaveAttribute(
-			"href",
-			"/exercises",
-		);
-		expect(screen.getByRole("link", { name: "Programs" })).toHaveAttribute(
-			"href",
-			"/programs",
-		);
+		const exerciseLinks = screen.getAllByRole("link", { name: "Exercises" });
+		expect(exerciseLinks.length).toBeGreaterThan(0);
+		expect(exerciseLinks[0]).toHaveAttribute("href", "/exercises");
+		const programLinks = screen.getAllByRole("link", { name: "Programs" });
+		expect(programLinks.length).toBeGreaterThan(0);
+		expect(programLinks[0]).toHaveAttribute("href", "/programs");
 	});
 });

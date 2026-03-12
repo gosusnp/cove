@@ -49,6 +49,7 @@
 
 	--nav-h-mobile: 4rem;
 	--nav-h-desktop: 3.5rem;
+	--sidebar-w-desktop: 14rem;
 
 	font-family: system-ui, -apple-system, sans-serif;
 	font-size: 16px;
@@ -80,7 +81,7 @@ body {
 	min-height: 100dvh;
 }
 
-/* Layout shell: bottom padding for mobile nav, top padding for desktop nav */
+/* Layout shell: bottom padding for mobile nav, left padding for desktop sidebar */
 .app-shell {
 	padding-bottom: var(--nav-h-mobile);
 }
@@ -89,5 +90,6 @@ body {
 	.app-shell {
 		padding-top: var(--nav-h-desktop);
 		padding-bottom: 0;
+		padding-left: var(--sidebar-w-desktop);
 	}
 }

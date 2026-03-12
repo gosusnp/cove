@@ -19,4 +19,9 @@ describe("TopBar", () => {
 		);
 		expect(screen.getByText("Nav content")).toBeInTheDocument();
 	});
+
+	it("renders brand content in the left slot", () => {
+		render(<TopBar brand={<span>Cove</span>}>content</TopBar>);
+		expect(screen.getByText("Cove")).toBeInTheDocument();
+	});
 });
