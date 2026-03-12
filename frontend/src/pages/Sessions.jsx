@@ -6,6 +6,7 @@ import { useSignal } from "@preact/signals";
 import { useLocation, useRoute } from "preact-iso";
 import { useAuth } from "../Auth.jsx";
 import { ListDetail } from "../components/ui/ListDetail.jsx";
+import { ListItem } from "../components/ui/ListItem.jsx";
 import { SessionDetail } from "./SessionDetail.jsx";
 
 function formatDate(iso) {
@@ -42,40 +43,17 @@ function SessionList({ sessions, selectedId, onSelect, error }) {
 
 			{!error &&
 				sessions.map((s, i) => {
-					const isActive = s.id === selectedId;
 					const label = s.program_name ?? s.activity ?? "Session";
 					const sub = formatDate(s.started_at ?? s.created_at);
 					return (
-						<button
+						<ListItem
 							key={s.id}
-							type="button"
-							class="w-full text-left px-4 py-3 cursor-pointer bg-transparent border-none flex flex-col gap-0.5"
-							style={{
-								borderBottom:
-									i < sessions.length - 1
-										? "1px solid var(--color-border)"
-										: undefined,
-								background: isActive
-									? "color-mix(in srgb, var(--color-accent) 10%, transparent)"
-									: undefined,
-								borderLeft: isActive
-									? "3px solid var(--color-accent)"
-									: "3px solid transparent",
-							}}
+							label={label}
+							sublabel={sub}
+							active={s.id === selectedId}
+							isLast={i === sessions.length - 1}
 							onClick={() => onSelect(s.id)}
-						>
-							<span
-								class="text-sm font-medium truncate"
-								style={{ color: "var(--color-text)" }}
-							>
-								{label}
-							</span>
-							{sub && (
-								<span class="text-xs" style={{ color: "var(--color-muted)" }}>
-									{sub}
-								</span>
-							)}
-						</button>
+						/>
 					);
 				})}
 		</div>

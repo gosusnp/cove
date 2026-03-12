@@ -40,6 +40,7 @@ import { ToggleGroup } from "../components/ui/ToggleGroup.jsx";
 import { Combobox } from "../components/ui/Combobox.jsx";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
 import { ListDetail } from "../components/ui/ListDetail.jsx";
+import { ListItem } from "../components/ui/ListItem.jsx";
 import {
 	Accordion,
 	AccordionItem,
@@ -758,6 +759,88 @@ export function DesignElements() {
 							onChange={() => {}}
 							placeholder="Search exercises..."
 							disabled
+						/>
+					</div>
+				</PreviewRow>
+			</PageSection>
+
+			<Divider />
+
+			{/* ── ListItem ──────────────────────────────────── */}
+			<PageSection title="ListItem">
+				<PreviewRow label="default — label only">
+					<div
+						class="w-full rounded-xl overflow-hidden"
+						style={{
+							background: "var(--color-surface)",
+							border: "1px solid var(--color-border)",
+						}}
+					>
+						<ListItem label="Strength A" onClick={() => {}} />
+						<ListItem label="Hypertrophy B" onClick={() => {}} />
+						<ListItem label="Deload Week" isLast onClick={() => {}} />
+					</div>
+				</PreviewRow>
+				<PreviewRow label="with sublabel">
+					<div
+						class="w-full rounded-xl overflow-hidden"
+						style={{
+							background: "var(--color-surface)",
+							border: "1px solid var(--color-border)",
+						}}
+					>
+						<ListItem
+							label="Morning session"
+							sublabel="Mar 10, 2026"
+							onClick={() => {}}
+						/>
+						<ListItem
+							label="Evening session"
+							sublabel="Mar 12, 2026"
+							isLast
+							onClick={() => {}}
+						/>
+					</div>
+				</PreviewRow>
+				<PreviewRow label="active state">
+					<div
+						class="w-full rounded-xl overflow-hidden"
+						style={{
+							background: "var(--color-surface)",
+							border: "1px solid var(--color-border)",
+						}}
+					>
+						<ListItem label="Strength A" active onClick={() => {}} />
+						<ListItem label="Hypertrophy B" isLast onClick={() => {}} />
+					</div>
+				</PreviewRow>
+				<PreviewRow label="with actions slot">
+					<div
+						class="w-full rounded-xl overflow-hidden"
+						style={{
+							background: "var(--color-surface)",
+							border: "1px solid var(--color-border)",
+						}}
+					>
+						<ListItem
+							label="Strength A"
+							active
+							onClick={() => {}}
+							actions={
+								<Button variant="ghost" size="icon" aria-label="Delete">
+									×
+								</Button>
+							}
+						/>
+						<ListItem
+							label="Hypertrophy B"
+							isLast
+							onClick={() => {}}
+							actions={
+								<Button variant="ghost" size="icon" aria-label="Delete">
+									×
+								</Button>
+							}
 						/>
 					</div>
 				</PreviewRow>

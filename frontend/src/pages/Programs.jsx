@@ -14,6 +14,7 @@ import {
 	DialogTitle,
 } from "../components/ui/Dialog.jsx";
 import { ListDetail } from "../components/ui/ListDetail.jsx";
+import { ListItem } from "../components/ui/ListItem.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import {
 	Tooltip,
@@ -102,34 +103,15 @@ function ProgramList({
 				</p>
 			) : (
 				!error &&
-				programs.map((p, i) => {
-					const isActive = p.id === selectedId;
-					return (
-						<div
-							key={p.id}
-							class="flex items-center justify-between gap-2"
-							style={{
-								borderBottom:
-									i < programs.length - 1
-										? "1px solid var(--color-border)"
-										: undefined,
-								background: isActive
-									? "color-mix(in srgb, var(--color-accent) 10%, transparent)"
-									: undefined,
-								borderLeft: isActive
-									? "3px solid var(--color-accent)"
-									: "3px solid transparent",
-							}}
-						>
-							<button
-								type="button"
-								class="flex-1 text-left px-4 py-3 cursor-pointer bg-transparent border-none text-sm truncate min-w-0"
-								style={{ color: "var(--color-text)" }}
-								onClick={() => onSelect(p.id)}
-							>
-								{p.name}
-							</button>
-							<div class="flex gap-1 shrink-0 pr-2">
+				programs.map((p, i) => (
+					<ListItem
+						key={p.id}
+						label={p.name}
+						active={p.id === selectedId}
+						isLast={i === programs.length - 1}
+						onClick={() => onSelect(p.id)}
+						actions={
+							<>
 								<Tooltip>
 									<TooltipTrigger>
 										<Button
@@ -156,10 +138,10 @@ function ProgramList({
 									</TooltipTrigger>
 									<TooltipContent>Delete</TooltipContent>
 								</Tooltip>
-							</div>
-						</div>
-					);
-				})
+							</>
+						}
+					/>
+				))
 			)}
 		</div>
 	);
