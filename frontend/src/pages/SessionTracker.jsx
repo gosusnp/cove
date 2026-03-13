@@ -8,6 +8,7 @@ import { useAuth } from "../Auth.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { Combobox } from "../components/ui/Combobox.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
+import { SessionSummaryDialog } from "./SessionSummaryDialog.jsx";
 
 // Formats elapsed seconds as HH:MM:SS.
 function formatElapsed(totalSeconds) {
@@ -40,9 +41,13 @@ export function SessionTracker() {
 	const saveError = useSignal("");
 
 	// Notes field.
-	// Speech-to-text placeholder: this textarea could accept voice input via
-	// the Web Speech API (SpeechRecognition) in a future iteration.
 	const notes = useSignal("");
+
+	// Summary dialog state.
+	const showSummary = useSignal(false);
+	const perceivedEffort = useSignal(null); // 1–10 or null
+	const summaryElapsed = useSignal(0); // elapsed captured when End Session is tapped
+	const completedAtRef = useRef(null); // Date captured when End Session is tapped
 
 	// Program hint strip state (v1 placeholder — expand logic deferred).
 	const hintExpanded = useSignal(false);
@@ -131,18 +136,35 @@ export function SessionTracker() {
 		running.value = true;
 	}
 
-	// End session: patch with completed_at + notes, then navigate to detail.
-	async function handleEnd() {
-		if (!token || sessionId.value == null) return;
+	// End Session tapped: pause timer and open summary dialog.
+	function handleStopClick() {
+		if (sessionId.value == null) return;
 		running.value = false;
+		completedAtRef.current = new Date();
+		summaryElapsed.value = elapsed.value;
+		showSummary.value = true;
+	}
+
+	// Cancel from summary dialog: resume timer.
+	function handleSummaryCancel() {
+		showSummary.value = false;
+		running.value = true;
+		completedAtRef.current = null;
+		saveError.value = "";
+	}
+
+	// Save Session: patch with completed_at, duration, notes, effort, then navigate.
+	async function handleSave() {
+		if (!token || sessionId.value == null) return;
 		saving.value = true;
 		saveError.value = "";
 		try {
 			const prog = programDetail.value;
 			const body = {
-				completed_at: new Date().toISOString(),
-				duration_s: elapsed.value,
+				completed_at: completedAtRef.current.toISOString(),
+				duration_s: summaryElapsed.value,
 				session_notes: notes.value || null,
+				perceived_effort: perceivedEffort.value,
 				...(prog && {
 					program_id: prog.id,
 					program_name: prog.name,
@@ -174,152 +196,161 @@ export function SessionTracker() {
 	}));
 
 	return (
-		<div
-			class="flex flex-col min-h-dvh"
-			style={{ background: "var(--color-bg)" }}
-		>
-			{/* Sticky timer zone */}
+		<>
 			<div
-				class="sticky top-0 z-10 flex flex-col gap-4 px-4 py-5 border-b"
-				style={{
-					background: "var(--color-surface)",
-					borderColor: "var(--color-border)",
-				}}
+				class="flex flex-col min-h-dvh"
+				style={{ background: "var(--color-bg)" }}
 			>
-				{/* Elapsed time */}
-				<div class="flex flex-col items-center gap-1">
-					<output
-						class="font-mono text-5xl font-semibold tabular-nums tracking-tight"
-						style={{ color: "var(--color-text)", display: "block" }}
-						aria-live="polite"
-						aria-label={`Elapsed time ${formatElapsed(elapsed.value)}`}
-					>
-						{formatElapsed(elapsed.value)}
-					</output>
-					{started && (
-						<span class="text-xs" style={{ color: "var(--color-muted)" }}>
-							{running.value ? "Running" : "Paused"}
-						</span>
-					)}
-				</div>
-
-				{/* Controls */}
-				<div class="flex gap-3 justify-center">
-					{notStarted && (
-						<Button
-							variant="primary"
-							size="lg"
-							onClick={handleStart}
-							disabled={saving.value}
+				{/* Sticky timer zone */}
+				<div
+					class="sticky top-0 z-10 flex flex-col gap-4 px-4 py-5 border-b"
+					style={{
+						background: "var(--color-surface)",
+						borderColor: "var(--color-border)",
+					}}
+				>
+					{/* Elapsed time */}
+					<div class="flex flex-col items-center gap-1">
+						<output
+							class="font-mono text-5xl font-semibold tabular-nums tracking-tight"
+							style={{ color: "var(--color-text)", display: "block" }}
+							aria-live="polite"
+							aria-label={`Elapsed time ${formatElapsed(elapsed.value)}`}
 						>
-							Start
-						</Button>
-					)}
-					{started && running.value && (
-						<Button variant="outline" size="md" onClick={handlePause}>
-							Pause
-						</Button>
-					)}
-					{started && !running.value && (
-						<Button variant="outline" size="md" onClick={handleResume}>
-							Resume
-						</Button>
-					)}
-					{started && (
-						<Button
-							variant="destructive"
-							size="md"
-							onClick={handleEnd}
-							disabled={saving.value}
-						>
-							End Session
-						</Button>
-					)}
-				</div>
-
-				{saveError.value && (
-					<p
-						class="text-sm text-center"
-						style={{ color: "var(--color-error, #dc2626)" }}
-					>
-						{saveError.value}
-					</p>
-				)}
-			</div>
-
-			{/* Scrollable content zone */}
-			<div class="flex flex-col gap-6 px-4 py-6 max-w-2xl mx-auto w-full">
-				{/* Program selector — only shown before session starts */}
-				{notStarted && (
-					<div class="flex flex-col gap-2">
-						<Combobox
-							label="Program (optional)"
-							value={selectedProgramId.value}
-							onChange={(v) => {
-								selectedProgramId.value = v;
-							}}
-							options={[{ value: "", label: "No program" }, ...programOptions]}
-							placeholder="Select a program…"
-						/>
-					</div>
-				)}
-
-				{/* Program hint strip (v1 placeholder) */}
-				{started && programDetail.value && (
-					<div
-						class="rounded-xl border overflow-hidden"
-						style={{
-							background: "var(--color-surface)",
-							borderColor: "var(--color-border)",
-						}}
-					>
-						<button
-							type="button"
-							class="w-full flex items-center justify-between px-4 py-3 text-sm text-left"
-							style={{ color: "var(--color-text)" }}
-							onClick={() => {
-								hintExpanded.value = !hintExpanded.value;
-							}}
-						>
-							<span class="font-medium">
-								Program: {programDetail.value.name}
+							{formatElapsed(elapsed.value)}
+						</output>
+						{started && (
+							<span class="text-xs" style={{ color: "var(--color-muted)" }}>
+								{running.value ? "Running" : "Paused"}
 							</span>
-							<span style={{ color: "var(--color-muted)" }}>
-								{hintExpanded.value ? "▲" : "▼"}
-							</span>
-						</button>
-						{hintExpanded.value && (
-							<div
-								class="px-4 pb-4 text-sm whitespace-pre-wrap border-t"
-								style={{
-									borderColor: "var(--color-border)",
-									color: "var(--color-text)",
-									paddingTop: "0.75rem",
-								}}
-							>
-								{programDetail.value.structure ?? (
-									<span style={{ color: "var(--color-muted)" }}>
-										No program details available.
-									</span>
-								)}
-							</div>
 						)}
 					</div>
-				)}
 
-				{/* Notes */}
-				<TextField
-					id="session-notes"
-					label="Notes"
-					multiline
-					value={notes.value}
-					onInput={(e) => {
-						notes.value = e.target.value;
-					}}
-					placeholder="What are you working on today?"
-					rows={6}
-				/>
+					{/* Controls */}
+					<div class="flex gap-3 justify-center">
+						{notStarted && (
+							<Button
+								variant="primary"
+								size="lg"
+								onClick={handleStart}
+								disabled={saving.value}
+							>
+								Start
+							</Button>
+						)}
+						{started && running.value && (
+							<Button variant="outline" size="md" onClick={handlePause}>
+								Pause
+							</Button>
+						)}
+						{started && !running.value && (
+							<Button variant="outline" size="md" onClick={handleResume}>
+								Resume
+							</Button>
+						)}
+						{started && (
+							<Button
+								variant="destructive"
+								size="md"
+								onClick={handleStopClick}
+								disabled={saving.value}
+							>
+								End Session
+							</Button>
+						)}
+					</div>
+				</div>
+
+				{/* Scrollable content zone */}
+				<div class="flex flex-col gap-6 px-4 py-6 max-w-2xl mx-auto w-full">
+					{/* Program selector — only shown before session starts */}
+					{notStarted && (
+						<div class="flex flex-col gap-2">
+							<Combobox
+								label="Program (optional)"
+								value={selectedProgramId.value}
+								onChange={(v) => {
+									selectedProgramId.value = v;
+								}}
+								options={[
+									{ value: "", label: "No program" },
+									...programOptions,
+								]}
+								placeholder="Select a program…"
+							/>
+						</div>
+					)}
+
+					{/* Program hint strip (v1 placeholder) */}
+					{started && programDetail.value && (
+						<div
+							class="rounded-xl border overflow-hidden"
+							style={{
+								background: "var(--color-surface)",
+								borderColor: "var(--color-border)",
+							}}
+						>
+							<button
+								type="button"
+								class="w-full flex items-center justify-between px-4 py-3 text-sm text-left"
+								style={{ color: "var(--color-text)" }}
+								onClick={() => {
+									hintExpanded.value = !hintExpanded.value;
+								}}
+							>
+								<span class="font-medium">
+									Program: {programDetail.value.name}
+								</span>
+								<span style={{ color: "var(--color-muted)" }}>
+									{hintExpanded.value ? "▲" : "▼"}
+								</span>
+							</button>
+							{hintExpanded.value && (
+								<div
+									class="px-4 pb-4 text-sm whitespace-pre-wrap border-t"
+									style={{
+										borderColor: "var(--color-border)",
+										color: "var(--color-text)",
+										paddingTop: "0.75rem",
+									}}
+								>
+									{programDetail.value.structure ?? (
+										<span style={{ color: "var(--color-muted)" }}>
+											No program details available.
+										</span>
+									)}
+								</div>
+							)}
+						</div>
+					)}
+
+					{/* Notes */}
+					<TextField
+						id="session-notes"
+						label="Notes"
+						multiline
+						value={notes.value}
+						onInput={(e) => {
+							notes.value = e.target.value;
+						}}
+						placeholder="What are you working on today?"
+						rows={6}
+					/>
+				</div>
 			</div>
-		</div>
+
+			<SessionSummaryDialog
+				openSignal={showSummary}
+				completedAt={completedAtRef.current}
+				elapsed={summaryElapsed.value}
+				programName={programDetail.value?.name ?? null}
+				notesSignal={notes}
+				effortSignal={perceivedEffort}
+				saving={saving.value}
+				saveError={saveError.value}
+				onCancel={handleSummaryCancel}
+				onSave={handleSave}
+			/>
+		</>
 	);
 }
