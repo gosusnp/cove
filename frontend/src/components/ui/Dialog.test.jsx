@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { render, screen } from "@testing-library/preact";
-import { describe, it, expect } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/preact";
+import { describe, it, expect, vi } from "vitest";
 import { signal } from "@preact/signals";
 import {
 	Dialog,
@@ -67,5 +67,37 @@ describe("Dialog", () => {
 			</Dialog>,
 		);
 		expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+	});
+
+	it("calls onOpenChange when open state changes", () => {
+		const open = signal(true);
+		const onOpenChange = vi.fn();
+		render(
+			<Dialog openSignal={open} onOpenChange={onOpenChange}>
+				<DialogContent>
+					<DialogTitle>Title</DialogTitle>
+					<DialogClose>
+						<button type="button">Close</button>
+					</DialogClose>
+				</DialogContent>
+			</Dialog>,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Close" }));
+		expect(onOpenChange).toHaveBeenCalledWith(false);
+	});
+
+	it("renders fullscreen DialogContent", () => {
+		const open = signal(true);
+		render(
+			<Dialog openSignal={open}>
+				<DialogContent fullscreen>
+					<DialogTitle>Fullscreen</DialogTitle>
+				</DialogContent>
+			</Dialog>,
+		);
+		expect(screen.getByRole("dialog")).toBeInTheDocument();
+		expect(
+			screen.getByRole("heading", { name: "Fullscreen" }),
+		).toBeInTheDocument();
 	});
 });
