@@ -14,12 +14,14 @@ import { Avatar } from "../ui/Avatar.jsx";
 import { cn } from "../../lib/utils.js";
 
 export const AUTH_NAV_ITEMS = [
+	{ label: "Workout", href: "/workout" },
 	{ label: "Exercises", href: "/exercises" },
 	{ label: "Programs", href: "/programs" },
 	{ label: "Sessions", href: "/sessions" },
 ];
 
 const PAGE_TITLES = [
+	{ label: "Workout", href: "/workout" },
 	{ label: "Exercises", href: "/exercises" },
 	{ label: "Programs", href: "/programs" },
 	{ label: "Sessions", href: "/sessions" },

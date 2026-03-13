@@ -7,6 +7,7 @@ import { useLocation, useRoute } from "preact-iso";
 import { useAuth } from "../Auth.jsx";
 import { ListDetail } from "../components/ui/ListDetail.jsx";
 import { ListItem } from "../components/ui/ListItem.jsx";
+import { Button } from "../components/ui/Button.jsx";
 import { SessionDetail } from "./SessionDetail.jsx";
 
 function formatDate(iso) {
@@ -14,11 +15,11 @@ function formatDate(iso) {
 	return new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" });
 }
 
-function SessionList({ sessions, selectedId, onSelect, error }) {
+function SessionList({ sessions, selectedId, onSelect, onNew, error }) {
 	return (
 		<div class="flex flex-col">
 			<div
-				class="flex items-center px-4 py-3 border-b"
+				class="flex items-center justify-between px-4 py-3 border-b"
 				style={{ borderColor: "var(--color-border)" }}
 			>
 				<h2
@@ -27,6 +28,9 @@ function SessionList({ sessions, selectedId, onSelect, error }) {
 				>
 					Sessions
 				</h2>
+				<Button variant="primary" size="sm" onClick={onNew}>
+					Start
+				</Button>
 			</div>
 
 			{error && (
@@ -96,6 +100,10 @@ export function Sessions() {
 		route(`/sessions/${id}`);
 	};
 
+	const handleNew = () => {
+		route("/workout");
+	};
+
 	return (
 		<ListDetail
 			hasDetail={!!selectedId}
@@ -105,6 +113,7 @@ export function Sessions() {
 					sessions={sessions.value}
 					selectedId={selectedId}
 					onSelect={handleSelect}
+					onNew={handleNew}
 					error={fetchError.value}
 				/>
 			}

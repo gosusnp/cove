@@ -550,6 +550,15 @@ export function DesignElements() {
 						readOnly
 					/>
 				</PreviewRow>
+				<PreviewRow label="multiline">
+					<TextField
+						id="ex-multiline"
+						label="Notes"
+						multiline
+						placeholder="Enter notes…"
+						rows={4}
+					/>
+				</PreviewRow>
 			</PageSection>
 
 			<Divider />
