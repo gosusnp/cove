@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { screen } from "@testing-library/preact";
-import { describe, it, expect } from "vitest";
-import { Home } from "./Home.jsx";
+import { describe, expect, it } from "vitest";
 import { withProviders } from "../test-utils.jsx";
+import { Home } from "./Home.jsx";
 
 describe("Home", () => {
 	it("renders the heading", () => {

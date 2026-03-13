@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { createContext } from "preact";
-import { useContext } from "preact/hooks";
-import * as RadixAccordion from "@radix-ui/react-accordion";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import * as RadixAccordion from "@radix-ui/react-accordion";
+import { createContext } from "preact";
+import { useContext } from "preact/hooks";
 import { cn } from "../../lib/utils";
 
 // Passes drag listeners/attributes from AccordionItem down to AccordionDragHandle.

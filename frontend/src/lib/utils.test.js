@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { timeAgo } from "./utils";
 
 describe("timeAgo", () => {

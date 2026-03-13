@@ -1,9 +1,9 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { renderHook, act } from "@testing-library/preact";
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { useSortableGroups, HOVER_OPEN_DELAY } from "./useSortableGroups.js";
+import { act, renderHook } from "@testing-library/preact";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { HOVER_OPEN_DELAY, useSortableGroups } from "./useSortableGroups.js";
 
 // ── Test data ─────────────────────────────────────────────────────────────────
 

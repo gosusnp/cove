@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { useEffect } from "preact/hooks";
 import { useSignal } from "@preact/signals";
+import { useEffect } from "preact/hooks";
 import { useAuth } from "../Auth.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import {
@@ -13,9 +13,9 @@ import {
 	DialogTitle,
 } from "../components/ui/Dialog.jsx";
 import { PageTitle } from "../components/ui/PageTitle.jsx";
-import { Section, Row } from "../components/ui/Section.jsx";
-import { TextField } from "../components/ui/TextField.jsx";
+import { Row, Section } from "../components/ui/Section.jsx";
 import { Switch } from "../components/ui/Switch.jsx";
+import { TextField } from "../components/ui/TextField.jsx";
 import { useDialog } from "../hooks/useDialog.js";
 
 export function Exercises() {

@@ -1,25 +1,33 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { useEffect, useRef } from "preact/hooks";
-import { useSignal } from "@preact/signals";
 import {
-	DndContext,
 	closestCenter,
+	DndContext,
+	DragOverlay,
 	KeyboardSensor,
 	PointerSensor,
 	useSensor,
 	useSensors,
-	DragOverlay,
 } from "@dnd-kit/core";
 import {
 	SortableContext,
-	verticalListSortingStrategy,
 	useSortable,
+	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useSignal } from "@preact/signals";
+import { useEffect, useRef } from "preact/hooks";
 import { useAuth } from "../Auth.jsx";
+import {
+	Accordion,
+	AccordionContent,
+	AccordionDragHandle,
+	AccordionItem,
+	AccordionTrigger,
+} from "../components/ui/Accordion.jsx";
 import { Button } from "../components/ui/Button.jsx";
+import { Combobox } from "../components/ui/Combobox.jsx";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
 import {
 	Dialog,
@@ -27,21 +35,13 @@ import {
 	DialogContent,
 	DialogTitle,
 } from "../components/ui/Dialog.jsx";
-import {
-	Accordion,
-	AccordionItem,
-	AccordionTrigger,
-	AccordionContent,
-	AccordionDragHandle,
-} from "../components/ui/Accordion.jsx";
 import { PageTitle } from "../components/ui/PageTitle.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { ToggleGroup } from "../components/ui/ToggleGroup.jsx";
-import { Combobox } from "../components/ui/Combobox.jsx";
 import {
 	Tooltip,
-	TooltipTrigger,
 	TooltipContent,
+	TooltipTrigger,
 } from "../components/ui/Tooltip.jsx";
 import { useDialog } from "../hooks/useDialog.js";
 import { useSortableGroups } from "../hooks/useSortableGroups.js";

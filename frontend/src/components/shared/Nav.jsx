@@ -3,15 +3,15 @@
 
 import { useLocation } from "preact-iso";
 import { useAuth } from "../../Auth.jsx";
-import { TopBar } from "../ui/TopBar.jsx";
+import { cn } from "../../lib/utils.js";
+import { Avatar } from "../ui/Avatar.jsx";
 import {
 	NavigationMenu,
-	NavigationMenuItem,
 	NavigationMenuBrand,
+	NavigationMenuItem,
 	NavigationMenuLink,
 } from "../ui/NavigationMenu.jsx";
-import { Avatar } from "../ui/Avatar.jsx";
-import { cn } from "../../lib/utils.js";
+import { TopBar } from "../ui/TopBar.jsx";
 
 export const AUTH_NAV_ITEMS = [
 	{ label: "Workout", href: "/workout" },

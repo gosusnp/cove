@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { useEffect, useRef } from "preact/hooks";
 import { useSignal } from "@preact/signals";
+import { useEffect, useRef } from "preact/hooks";
 import { useLocation } from "preact-iso";
 import { useAuth } from "../Auth.jsx";
 import { Button } from "../components/ui/Button.jsx";

@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import * as RadixSwitch from "@radix-ui/react-switch";
 import { useSignal } from "@preact/signals";
+import * as RadixSwitch from "@radix-ui/react-switch";
 import { cn } from "../../lib/utils";
 
 export function Switch({ checkedSignal, class: className, ...props }) {

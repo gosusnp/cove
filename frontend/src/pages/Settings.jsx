@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { useEffect } from "preact/hooks";
 import { useSignal } from "@preact/signals";
+import { useEffect } from "preact/hooks";
 import { useLocation } from "preact-iso";
 import { useAuth } from "../Auth.jsx";
 import { Avatar } from "../components/ui/Avatar.jsx";
@@ -15,10 +15,10 @@ import {
 	DialogTitle,
 } from "../components/ui/Dialog.jsx";
 import { PageTitle } from "../components/ui/PageTitle.jsx";
-import { Section, Row } from "../components/ui/Section.jsx";
-import { timeAgo } from "../lib/utils";
+import { Row, Section } from "../components/ui/Section.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { useDialog } from "../hooks/useDialog.js";
+import { timeAgo } from "../lib/utils";
 
 function initials(user) {
 	if (user.name) {

@@ -1,12 +1,12 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
+import { Button } from "../components/ui/Button.jsx";
 import {
 	Dialog,
 	DialogContent,
 	DialogTitle,
 } from "../components/ui/Dialog.jsx";
-import { Button } from "../components/ui/Button.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 
 // Formats elapsed seconds as Xh YYm ZZs or Mm SSs.

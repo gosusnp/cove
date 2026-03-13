@@ -1,13 +1,13 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { useEffect } from "preact/hooks";
 import { useSignal } from "@preact/signals";
+import { useEffect } from "preact/hooks";
 import { useLocation, useRoute } from "preact-iso";
 import { useAuth } from "../Auth.jsx";
+import { Button } from "../components/ui/Button.jsx";
 import { ListDetail } from "../components/ui/ListDetail.jsx";
 import { ListItem } from "../components/ui/ListItem.jsx";
-import { Button } from "../components/ui/Button.jsx";
 import { SessionDetail } from "./SessionDetail.jsx";
 
 function formatDate(iso) {

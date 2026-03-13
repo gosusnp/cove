@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { render, waitFor } from "@testing-library/preact";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider, useAuth } from "./Auth.jsx";
 
 function TestComponent({ onLogout }) {

@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { screen } from "@testing-library/preact";
-import { describe, it, expect, vi } from "vitest";
-import { DesignElements } from "./DesignElements.jsx";
+import { describe, expect, it, vi } from "vitest";
 import { withProviders } from "../test-utils.jsx";
+import { DesignElements } from "./DesignElements.jsx";
 
 // Mock the UI components to avoid issues with Radix UI in jsdom/vitest.
 // Radix UI components often use APIs not fully implemented in jsdom,

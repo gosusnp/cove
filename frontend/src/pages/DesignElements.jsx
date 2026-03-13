@@ -3,10 +3,35 @@
 
 // Dev-only component showcase. Accessible at /design-elements when VITE_COVE_ENV=dev is set.
 
-import { useLocation } from "preact-iso";
-import { useEffect } from "preact/hooks";
+import {
+	closestCenter,
+	DndContext,
+	DragOverlay,
+	KeyboardSensor,
+	PointerSensor,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import {
+	SortableContext,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useSignal } from "@preact/signals";
+import { useEffect } from "preact/hooks";
+import { useLocation } from "preact-iso";
+import {
+	Accordion,
+	AccordionContent,
+	AccordionDragHandle,
+	AccordionItem,
+	AccordionTrigger,
+} from "../components/ui/Accordion.jsx";
+import { Avatar } from "../components/ui/Avatar.jsx";
 import { Button } from "../components/ui/Button.jsx";
+import { Combobox } from "../components/ui/Combobox.jsx";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
 import {
 	Dialog,
 	DialogClose,
@@ -15,56 +40,31 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "../components/ui/Dialog.jsx";
-import { Switch } from "../components/ui/Switch.jsx";
-import { useDialog } from "../hooks/useDialog.js";
+import { ListDetail } from "../components/ui/ListDetail.jsx";
+import { ListItem } from "../components/ui/ListItem.jsx";
 import {
 	NavigationMenu,
 	NavigationMenuBrand,
 	NavigationMenuItem,
 	NavigationMenuLink,
 } from "../components/ui/NavigationMenu.jsx";
-import { Avatar } from "../components/ui/Avatar.jsx";
+import { PageTitle } from "../components/ui/PageTitle.jsx";
+import {
+	Section as CardSection,
+	Divider,
+	Row,
+} from "../components/ui/Section.jsx";
+import { Switch } from "../components/ui/Switch.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
+import { ToggleGroup } from "../components/ui/ToggleGroup.jsx";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "../components/ui/Tooltip.jsx";
-import {
-	Section as CardSection,
-	Row,
-	Divider,
-} from "../components/ui/Section.jsx";
-import { PageTitle } from "../components/ui/PageTitle.jsx";
-import { ToggleGroup } from "../components/ui/ToggleGroup.jsx";
-import { Combobox } from "../components/ui/Combobox.jsx";
-import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
-import { ListDetail } from "../components/ui/ListDetail.jsx";
-import { ListItem } from "../components/ui/ListItem.jsx";
-import {
-	Accordion,
-	AccordionItem,
-	AccordionTrigger,
-	AccordionContent,
-	AccordionDragHandle,
-} from "../components/ui/Accordion.jsx";
-import {
-	DndContext,
-	closestCenter,
-	KeyboardSensor,
-	PointerSensor,
-	useSensor,
-	useSensors,
-	DragOverlay,
-} from "@dnd-kit/core";
-import {
-	SortableContext,
-	verticalListSortingStrategy,
-	useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { cn } from "../lib/utils.js";
+import { useDialog } from "../hooks/useDialog.js";
 import { useSortableGroups } from "../hooks/useSortableGroups.js";
+import { cn } from "../lib/utils.js";
 
 const PREVIEW_NAV_ITEMS = [
 	{ label: "Home", href: "/" },

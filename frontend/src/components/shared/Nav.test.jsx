@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { screen } from "@testing-library/preact";
-import { describe, it, expect } from "vitest";
-import { Nav } from "./Nav.jsx";
+import { describe, expect, it } from "vitest";
 import { withProviders } from "../../test-utils.jsx";
+import { Nav } from "./Nav.jsx";
 
 const MOCK_USER = { email: "jane@example.com", name: "Jane Smith" };
 

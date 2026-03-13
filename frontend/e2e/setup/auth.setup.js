@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { test as setup, expect } from "@playwright/test";
+import { expect, test as setup } from "@playwright/test";
 
 const AUTH_FILE = "playwright/.auth/user.json";
 const STORAGE_KEY = "cove_session";

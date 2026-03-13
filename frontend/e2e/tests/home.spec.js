@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 test("home page shows 'Your space.'", async ({ page }) => {
 	await page.goto("/");

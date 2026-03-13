@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: Elastic-2.0
  */
 
-import { defineConfig } from "vitest/config";
 import { resolve } from "node:path";
 import preact from "@preact/preset-vite";
 import tailwindcss from "@tailwindcss/vite";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
 	plugins: [preact(), tailwindcss()],

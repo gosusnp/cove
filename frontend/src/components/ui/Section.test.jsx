@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { render, screen } from "@testing-library/preact";
-import { describe, it, expect } from "vitest";
-import { Section, Row, Divider } from "./Section.jsx";
+import { describe, expect, it } from "vitest";
+import { Divider, Row, Section } from "./Section.jsx";
 
 describe("Section", () => {
 	it("renders the title", () => {

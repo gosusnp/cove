@@ -1,10 +1,10 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { screen, fireEvent, waitFor, within } from "@testing-library/preact";
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { Settings } from "./Settings.jsx";
+import { fireEvent, screen, waitFor, within } from "@testing-library/preact";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { withProviders } from "../test-utils.jsx";
+import { Settings } from "./Settings.jsx";
 
 vi.mock("../components/ui/Dialog.jsx", () => ({
 	Dialog: ({ children }) => <div data-testid="mock-dialog">{children}</div>,

@@ -1,9 +1,9 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { render, screen, fireEvent } from "@testing-library/preact";
-import { describe, it, expect } from "vitest";
 import { signal } from "@preact/signals";
+import { fireEvent, render, screen } from "@testing-library/preact";
+import { describe, expect, it } from "vitest";
 import { Switch } from "./Switch.jsx";
 
 describe("Switch", () => {

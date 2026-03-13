@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { useState, useRef } from "preact/hooks";
 import { arrayMove } from "@dnd-kit/sortable";
+import { useRef, useState } from "preact/hooks";
 
 // Delay (ms) before a collapsed group auto-opens while an item hovers over it.
 export const HOVER_OPEN_DELAY = 600;

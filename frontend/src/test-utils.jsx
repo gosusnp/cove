@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { render } from "@testing-library/preact";
-import { vi } from "vitest";
 import { LocationProvider } from "preact-iso";
+import { vi } from "vitest";
 import { AuthContext } from "./Auth.jsx";
 
 export function withProviders(ui, { path = "/", user = null } = {}) {

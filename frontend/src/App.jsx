@@ -1,18 +1,18 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { LocationProvider, Router, Route, useLocation } from "preact-iso";
 import { useEffect } from "preact/hooks";
+import { LocationProvider, Route, Router, useLocation } from "preact-iso";
 import { AuthProvider, useAuth } from "./Auth.jsx";
 import { Nav } from "./components/shared/Nav.jsx";
-import { Login } from "./pages/Login.jsx";
-import { Home } from "./pages/Home.jsx";
+import { DesignElements } from "./pages/DesignElements.jsx";
 import { Exercises } from "./pages/Exercises.jsx";
+import { Home } from "./pages/Home.jsx";
+import { Login } from "./pages/Login.jsx";
 import { Programs } from "./pages/Programs.jsx";
 import { Sessions } from "./pages/Sessions.jsx";
 import { SessionTracker } from "./pages/SessionTracker.jsx";
 import { Settings } from "./pages/Settings.jsx";
-import { DesignElements } from "./pages/DesignElements.jsx";
 
 const PROTECTED_ROUTES = [
 	"/settings",

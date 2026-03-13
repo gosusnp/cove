@@ -33,7 +33,7 @@ export default defineConfig({
 	],
 	webServer: {
 		command:
-			"sh -c 'set -a && . ../backend/.env && set +a && cd ../backend && bin/cove'",
+			"sh -c 'set -a && . ../backend/.env && set +a && cd ../backend && COVE_DEV=true bin/cove'",
 		url: "http://localhost:8080",
 		reuseExistingServer: !process.env.CI,
 		timeout: 30_000,

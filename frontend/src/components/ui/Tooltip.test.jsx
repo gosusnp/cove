@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { render, screen } from "@testing-library/preact";
-import { describe, it, expect } from "vitest";
-import { Tooltip, TooltipTrigger, TooltipContent } from "./Tooltip.jsx";
+import { describe, expect, it } from "vitest";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./Tooltip.jsx";
 
 describe("Tooltip", () => {
 	it("renders the trigger", () => {

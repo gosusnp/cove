@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { useRef, useId, useEffect } from "preact/hooks";
 import { useSignal } from "@preact/signals";
+import { useEffect, useId, useRef } from "preact/hooks";
 import { cn } from "../../lib/utils";
 
 export function Combobox({

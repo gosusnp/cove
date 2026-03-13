@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { render, screen } from "@testing-library/preact";
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { TextField } from "./TextField.jsx";
 
 describe("TextField", () => {

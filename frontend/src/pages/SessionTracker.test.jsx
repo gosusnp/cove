@@ -1,10 +1,10 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { render, screen, fireEvent, waitFor } from "@testing-library/preact";
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { SessionTracker } from "./SessionTracker.jsx";
+import { fireEvent, screen, waitFor } from "@testing-library/preact";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { withProviders } from "../test-utils.jsx";
+import { SessionTracker } from "./SessionTracker.jsx";
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 
