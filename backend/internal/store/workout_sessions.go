@@ -27,10 +27,11 @@ func scanWorkoutSession(sc scanner) (*domain.WorkoutSession, error) {
 	var ws domain.WorkoutSession
 	err := sc.Scan(
 		&ws.ID, &ws.OrgID, &ws.UserID,
-		&ws.ProgramID, &ws.ProgramName, &ws.ProgramStructure,
-		&ws.Activity, &ws.DurationS, &ws.PerceivedEffort, &ws.SessionNotes,
+		&ws.ProgramID,
+		&ws.Activity, &ws.DurationS,
 		&ws.StartedAt, &ws.CompletedAt,
 		&ws.CreatedBy, &ws.CreatedAt, &ws.UpdatedBy, &ws.UpdatedAt,
+		ws.SensitiveDataScanner(),
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -43,10 +44,11 @@ func scanWorkoutSession(sc scanner) (*domain.WorkoutSession, error) {
 
 const workoutSessionColumns = `
 	id, org_id, user_id,
-	program_id, program_name, program_structure,
-	activity, duration_s, perceived_effort, session_notes,
+	program_id,
+	activity, duration_s,
 	started_at, completed_at,
-	created_by, created_at, updated_by, updated_at`
+	created_by, created_at, updated_by, updated_at,
+	sensitive_data`
 
 func (s *WorkoutSessionStore) get(ctx context.Context, q Querier, orgID domain.OrgID, id domain.WorkoutSessionID) (*domain.WorkoutSession, error) {
 	row := q.QueryRowContext(ctx, `
@@ -61,7 +63,7 @@ func (s *WorkoutSessionStore) get(ctx context.Context, q Querier, orgID domain.O
 	return ws, nil
 }
 
-func (s *WorkoutSessionStore) List(ctx context.Context, q Querier, orgID domain.OrgID, userID domain.UserID) ([]domain.WorkoutSession, error) {
+func (s *WorkoutSessionStore) List(ctx context.Context, q Querier, orgID domain.OrgID, userID domain.UserID) ([]*domain.WorkoutSession, error) {
 	rows, err := q.QueryContext(ctx, `
 		SELECT`+workoutSessionColumns+`
 		FROM workout_sessions
@@ -73,13 +75,13 @@ func (s *WorkoutSessionStore) List(ctx context.Context, q Querier, orgID domain.
 	}
 	defer rows.Close()
 
-	sessions := []domain.WorkoutSession{}
+	sessions := []*domain.WorkoutSession{}
 	for rows.Next() {
 		ws, err := scanWorkoutSession(rows)
 		if err != nil {
 			return nil, fmt.Errorf("scan workout session: %w", err)
 		}
-		sessions = append(sessions, *ws)
+		sessions = append(sessions, ws)
 	}
 	return sessions, rows.Err()
 }
@@ -90,18 +92,15 @@ func (s *WorkoutSessionStore) Get(ctx context.Context, q Querier, orgID domain.O
 
 // WorkoutSessionParams holds the mutable fields for creating or updating a workout session.
 type WorkoutSessionParams struct {
-	ProgramID        *domain.ProgramID
-	ProgramName      *string
-	ProgramStructure *string
-	Activity         *string
-	DurationS        *int
-	PerceivedEffort  *int
-	SessionNotes     *string
-	StartedAt        *time.Time
-	CompletedAt      *time.Time
+	ProgramID     *domain.ProgramID
+	Activity      *string
+	DurationS     *int
+	StartedAt     *time.Time
+	CompletedAt   *time.Time
+	SensitiveData domain.SessionSensitiveData
 }
 
-func (s *WorkoutSessionStore) Create(ctx context.Context, q Querier, p WorkoutSessionParams) (*domain.WorkoutSession, error) {
+func (s *WorkoutSessionStore) Create(ctx context.Context, q Querier, p WorkoutSessionParams, sensitiveData []byte) (*domain.WorkoutSession, error) {
 	// org_id and created_by are set by the bookkeeping trigger via ScopedQuerier.
 	// user_id is the owner of the session and must be set explicitly.
 	idInfo, _ := domain.IdentityFromContext(ctx)
@@ -109,16 +108,18 @@ func (s *WorkoutSessionStore) Create(ctx context.Context, q Querier, p WorkoutSe
 	err := q.QueryRowContext(ctx, `
 		INSERT INTO workout_sessions (
 			user_id,
-			program_id, program_name, program_structure,
-			activity, duration_s, perceived_effort, session_notes,
-			started_at, completed_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			program_id,
+			activity, duration_s,
+			started_at, completed_at,
+			sensitive_data
+		) VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
 	`,
 		idInfo.UserID,
-		p.ProgramID, p.ProgramName, p.ProgramStructure,
-		p.Activity, p.DurationS, p.PerceivedEffort, p.SessionNotes,
+		p.ProgramID,
+		p.Activity, p.DurationS,
 		p.StartedAt, p.CompletedAt,
+		sensitiveData,
 	).Scan(&id)
 	if err != nil {
 		return nil, fmt.Errorf("create workout session: %w", err)
@@ -127,17 +128,19 @@ func (s *WorkoutSessionStore) Create(ctx context.Context, q Querier, p WorkoutSe
 	return s.get(ctx, q, idInfo.OrgID, id)
 }
 
-func (s *WorkoutSessionStore) Update(ctx context.Context, q Querier, orgID domain.OrgID, id domain.WorkoutSessionID, p WorkoutSessionParams) (*domain.WorkoutSession, error) {
+func (s *WorkoutSessionStore) Update(ctx context.Context, q Querier, orgID domain.OrgID, id domain.WorkoutSessionID, p WorkoutSessionParams, sensitiveData []byte) (*domain.WorkoutSession, error) {
 	res, err := q.ExecContext(ctx, `
 		UPDATE workout_sessions SET
-			program_id = $1, program_name = $2, program_structure = $3,
-			activity = $4, duration_s = $5, perceived_effort = $6, session_notes = $7,
-			started_at = $8, completed_at = $9
-		WHERE id = $10 AND org_id = $11
+			program_id = $1,
+			activity = $2, duration_s = $3,
+			started_at = $4, completed_at = $5,
+			sensitive_data = $6
+		WHERE id = $7 AND org_id = $8
 	`,
-		p.ProgramID, p.ProgramName, p.ProgramStructure,
-		p.Activity, p.DurationS, p.PerceivedEffort, p.SessionNotes,
+		p.ProgramID,
+		p.Activity, p.DurationS,
 		p.StartedAt, p.CompletedAt,
+		sensitiveData,
 		id, orgID,
 	)
 	if err != nil {

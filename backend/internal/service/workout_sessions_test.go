@@ -8,6 +8,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/gosusnp/cove/backend/internal/crypto"
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
 	"github.com/gosusnp/cove/backend/internal/testutil"
@@ -16,7 +17,7 @@ import (
 func newTestWorkoutSessionService(t *testing.T) (*WorkoutSessionService, context.Context) {
 	t.Helper()
 	db := testutil.NewDB(t)
-	svc := NewWorkoutSessionService(db, store.NewWorkoutSessionStore())
+	svc := NewWorkoutSessionService(db, store.NewWorkoutSessionStore(), crypto.NewTestEncryptor())
 
 	uSvc := NewUserService(db, store.NewUserStore(), store.NewOrgStore())
 	user, _, _ := uSvc.GetOrCreate(context.Background(), "test@example.com", "sub123")
@@ -36,7 +37,7 @@ func TestWorkoutSessionService_List(t *testing.T) {
 	t.Run("returns sessions for current user only", func(t *testing.T) {
 		db := testutil.NewDB(t)
 		uSvc := NewUserService(db, store.NewUserStore(), store.NewOrgStore())
-		wsSvc := NewWorkoutSessionService(db, store.NewWorkoutSessionStore())
+		wsSvc := NewWorkoutSessionService(db, store.NewWorkoutSessionStore(), crypto.NewTestEncryptor())
 
 		user1, _, _ := uSvc.GetOrCreate(context.Background(), "u1@example.com", "sub1")
 		user2, _, _ := uSvc.GetOrCreate(context.Background(), "u2@example.com", "sub2")
@@ -118,9 +119,11 @@ func TestWorkoutSessionService_Create(t *testing.T) {
 		duration := 1800
 
 		ws, err := svc.Create(ctx, store.WorkoutSessionParams{
-			Activity:        &activity,
-			PerceivedEffort: &effort,
-			DurationS:       &duration,
+			Activity:  &activity,
+			DurationS: &duration,
+			SensitiveData: domain.SessionSensitiveData{
+				PerceivedEffort: &effort,
+			},
 		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -128,8 +131,13 @@ func TestWorkoutSessionService_Create(t *testing.T) {
 		if ws.Activity == nil || *ws.Activity != activity {
 			t.Errorf("got activity %v, want %q", ws.Activity, activity)
 		}
-		if ws.PerceivedEffort == nil || *ws.PerceivedEffort != effort {
-			t.Errorf("got effort %v, want %d", ws.PerceivedEffort, effort)
+		if err := ws.UseSensitiveData(ctx, func(private domain.SessionSensitiveData) error {
+			if private.PerceivedEffort == nil || *private.PerceivedEffort != effort {
+				t.Errorf("got effort %v, want %d", private.PerceivedEffort, effort)
+			}
+			return nil
+		}); err != nil {
+			t.Fatalf("UseSensitiveData: %v", err)
 		}
 	})
 
@@ -155,8 +163,10 @@ func TestWorkoutSessionService_Update(t *testing.T) {
 		newActivity := "Swim"
 		effort := 9
 		updated, err := svc.Update(ctx, created.ID, store.WorkoutSessionParams{
-			Activity:        &newActivity,
-			PerceivedEffort: &effort,
+			Activity: &newActivity,
+			SensitiveData: domain.SessionSensitiveData{
+				PerceivedEffort: &effort,
+			},
 		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -164,8 +174,13 @@ func TestWorkoutSessionService_Update(t *testing.T) {
 		if updated.Activity == nil || *updated.Activity != newActivity {
 			t.Errorf("got activity %v, want %q", updated.Activity, newActivity)
 		}
-		if updated.PerceivedEffort == nil || *updated.PerceivedEffort != effort {
-			t.Errorf("got effort %v, want %d", updated.PerceivedEffort, effort)
+		if err := updated.UseSensitiveData(ctx, func(private domain.SessionSensitiveData) error {
+			if private.PerceivedEffort == nil || *private.PerceivedEffort != effort {
+				t.Errorf("got effort %v, want %d", private.PerceivedEffort, effort)
+			}
+			return nil
+		}); err != nil {
+			t.Fatalf("UseSensitiveData: %v", err)
 		}
 	})
 

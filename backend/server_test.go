@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gosusnp/cove/backend/internal/crypto"
 	"github.com/gosusnp/cove/backend/internal/db"
 	covemcp "github.com/gosusnp/cove/backend/internal/mcp"
 	"github.com/gosusnp/cove/backend/internal/service"
@@ -30,7 +31,7 @@ func newTestAPIHandler(t *testing.T) http.Handler {
 	exStore := store.NewExerciseStore()
 	exSvc := service.NewExerciseService(database, exStore)
 	pSvc := service.NewProgramService(database, exStore)
-	wsSvc := service.NewWorkoutSessionService(database, store.NewWorkoutSessionStore())
+	wsSvc := service.NewWorkoutSessionService(database, store.NewWorkoutSessionStore(), crypto.NewTestEncryptor())
 	svcs := covemcp.Services{
 		Exercises: exSvc,
 		Programs:  pSvc,

@@ -4,7 +4,10 @@
 package domain
 
 import (
+	"context"
 	"time"
+
+	"github.com/gosusnp/cove/backend/internal/crypto"
 )
 
 // -----------------------------------------------------------------------------
@@ -13,25 +16,81 @@ import (
 
 type WorkoutSessionID IntID[struct{ workoutSession struct{} }]
 
+// SessionSensitiveData holds the sensitive fields of a workout session that are
+// stored encrypted in the database. It is only decrypted by the handler layer.
+//
+// String fields use *crypto.SensitiveString instead of *string so that the
+// backing bytes can be explicitly zeroed after use, avoiding Go string interning.
+type SessionSensitiveData struct {
+	PerceivedEffort  *int                    `json:"perceived_effort,omitempty"`
+	SessionNotes     *crypto.SensitiveString `json:"session_notes,omitempty"`
+	ProgramName      *crypto.SensitiveString `json:"program_name,omitempty"`
+	ProgramStructure *crypto.SensitiveString `json:"program_structure,omitempty"`
+}
+
+// IsEmpty reports whether all sensitive fields are unset. When true, the
+// service skips encryption and stores NULL in the database instead.
+// Update this method whenever a new field is added to SessionSensitiveData.
+func (s SessionSensitiveData) IsEmpty() bool {
+	return s.PerceivedEffort == nil &&
+		s.SessionNotes == nil &&
+		s.ProgramName == nil &&
+		s.ProgramStructure == nil
+}
+
 // WorkoutSession represents a single training session.
-// program_structure being non-nil implicitly indicates a structured session.
+// Sensitive data is accessed exclusively via UseSensitiveData.
 type WorkoutSession struct {
-	ID               WorkoutSessionID `json:"id"`
-	OrgID            OrgID            `json:"org_id"`
-	UserID           UserID           `json:"user_id"`
-	ProgramID        *ProgramID       `json:"program_id,omitempty"`
-	ProgramName      *string          `json:"program_name,omitempty"`
-	ProgramStructure *string          `json:"program_structure,omitempty"`
-	Activity         *string          `json:"activity,omitempty"`
-	DurationS        *int             `json:"duration_s,omitempty"`
-	PerceivedEffort  *int             `json:"perceived_effort,omitempty"`
-	SessionNotes     *string          `json:"session_notes,omitempty"`
-	StartedAt        *time.Time       `json:"started_at,omitempty"`
-	CompletedAt      *time.Time       `json:"completed_at,omitempty"`
-	CreatedBy        UserID           `json:"created_by"`
-	CreatedAt        time.Time        `json:"created_at"`
-	UpdatedBy        *UserID          `json:"updated_by,omitempty"`
-	UpdatedAt        time.Time        `json:"updated_at"`
+	ID          WorkoutSessionID `json:"id"`
+	OrgID       OrgID            `json:"org_id"`
+	UserID      UserID           `json:"user_id"`
+	ProgramID   *ProgramID       `json:"program_id,omitempty"`
+	Activity    *string          `json:"activity,omitempty"`
+	DurationS   *int             `json:"duration_s,omitempty"`
+	StartedAt   *time.Time       `json:"started_at,omitempty"`
+	CompletedAt *time.Time       `json:"completed_at,omitempty"`
+	CreatedBy   UserID           `json:"created_by"`
+	CreatedAt   time.Time        `json:"created_at"`
+	UpdatedBy   *UserID          `json:"updated_by,omitempty"`
+	UpdatedAt   time.Time        `json:"updated_at"`
+
+	// sensitiveData contains a sync.Mutex; WorkoutSession must always be used
+	// as a pointer (*WorkoutSession) and must never be copied after first use.
+	sensitiveData crypto.EncryptedField[SessionSensitiveData] `json:"-"`
+}
+
+// UseSensitiveData decrypts the session's sensitive payload, calls fn with it,
+// then zeros the struct in place before returning. It is the only way to access
+// sensitive fields — no plaintext escapes this call.
+//
+// Because string fields use crypto.SensitiveString ([]byte-backed), zeroing the
+// struct overwrites their backing bytes, avoiding Go string interning.
+//
+// The session's UserID is passed as GCM additional data, binding the ciphertext
+// to this specific user. Decryption will fail if the stored user_id does not
+// match.
+func (ws *WorkoutSession) UseSensitiveData(ctx context.Context, fn func(SessionSensitiveData) error) error {
+	return ws.sensitiveData.Use(ctx, func(p *SessionSensitiveData) error {
+		return fn(*p)
+	}, ws.UserID.UUID[:])
+}
+
+// SetEncryptor injects the encryptor needed to decrypt sensitive data.
+// Called by the service after a store read.
+func (ws *WorkoutSession) SetEncryptor(enc crypto.Encryptor) {
+	ws.sensitiveData.SetEncryptor(enc)
+}
+
+// SensitiveDataScanner returns a pointer suitable for sql.Scan to populate the
+// sensitive_data column. Called by the store only.
+func (ws *WorkoutSession) SensitiveDataScanner() interface{ Scan(any) error } {
+	return &ws.sensitiveData
+}
+
+// SensitiveDataBytes returns the raw ciphertext for writing to the store.
+// Called by the store only.
+func (ws *WorkoutSession) SensitiveDataBytes() []byte {
+	return ws.sensitiveData.Value()
 }
 
 // -----------------------------------------------------------------------------

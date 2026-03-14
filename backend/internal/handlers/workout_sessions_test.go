@@ -16,6 +16,17 @@ import (
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
+// sessionResp is used to decode workout session JSON responses in tests.
+type sessionResp struct {
+	ID               domain.WorkoutSessionID `json:"id"`
+	Activity         *string                 `json:"activity,omitempty"`
+	ProgramID        *domain.ProgramID       `json:"program_id,omitempty"`
+	ProgramName      *string                 `json:"program_name,omitempty"`
+	PerceivedEffort  *int                    `json:"perceived_effort,omitempty"`
+	SessionNotes     *string                 `json:"session_notes,omitempty"`
+	ProgramStructure *string                 `json:"program_structure,omitempty"`
+}
+
 func TestWorkoutSessionHandler_List(t *testing.T) {
 	t.Run("empty returns array not null", func(t *testing.T) {
 		app := NewTestApp(t)
@@ -26,7 +37,7 @@ func TestWorkoutSessionHandler_List(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
 		}
-		var got []domain.WorkoutSession
+		var got []sessionResp
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
@@ -48,7 +59,7 @@ func TestWorkoutSessionHandler_List(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
 		}
-		var got []domain.WorkoutSession
+		var got []sessionResp
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
@@ -70,7 +81,7 @@ func TestWorkoutSessionHandler_List(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
 		}
-		var got []domain.WorkoutSession
+		var got []sessionResp
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
@@ -103,7 +114,7 @@ func TestWorkoutSessionHandler_Get(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
 		}
-		var got domain.WorkoutSession
+		var got sessionResp
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
@@ -170,7 +181,7 @@ func TestWorkoutSessionHandler_Create(t *testing.T) {
 		if w.Code != http.StatusCreated {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusCreated)
 		}
-		var got domain.WorkoutSession
+		var got sessionResp
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
@@ -190,7 +201,7 @@ func TestWorkoutSessionHandler_Create(t *testing.T) {
 		if w.Code != http.StatusCreated {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusCreated)
 		}
-		var got domain.WorkoutSession
+		var got sessionResp
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
@@ -251,7 +262,7 @@ func TestWorkoutSessionHandler_Update(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
 		}
-		var got domain.WorkoutSession
+		var got sessionResp
 		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}

@@ -14,6 +14,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 
+	"github.com/gosusnp/cove/backend/internal/crypto"
 	"github.com/gosusnp/cove/backend/internal/db"
 	"github.com/gosusnp/cove/backend/internal/handlers"
 	covemcp "github.com/gosusnp/cove/backend/internal/mcp"
@@ -44,6 +45,15 @@ func main() {
 		log.Fatal("GOOGLE_REDIRECT_URL is required")
 	}
 
+	encryptionKey := os.Getenv("SESSION_ENCRYPTION_KEY")
+	if encryptionKey == "" {
+		log.Fatal("SESSION_ENCRYPTION_KEY is required")
+	}
+	enc, err := crypto.NewAESEncryptor(0, map[byte]string{0: encryptionKey})
+	if err != nil {
+		log.Fatalf("init encryptor: %v", err)
+	}
+
 	var allowedEmails []string
 	if raw := os.Getenv("COVE_ALLOWED_EMAILS"); raw != "" {
 		allowedEmails = strings.Split(raw, ",")
@@ -66,7 +76,7 @@ func main() {
 	exStore := store.NewExerciseStore()
 	exSvc := service.NewExerciseService(database, exStore)
 	pSvc := service.NewProgramService(database, exStore)
-	wsSvc := service.NewWorkoutSessionService(database, store.NewWorkoutSessionStore())
+	wsSvc := service.NewWorkoutSessionService(database, store.NewWorkoutSessionStore(), enc)
 	svcs := covemcp.Services{
 		Exercises: exSvc,
 		Programs:  pSvc,

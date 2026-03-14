@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gosusnp/cove/backend/internal/crypto"
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/testutil"
 )
@@ -38,6 +39,19 @@ func newTestWorkoutSessionStore(t *testing.T) (*WorkoutSessionStore, Querier, co
 	q := NewScopedQuerier(tx, oID.String(), uID.String())
 
 	return NewWorkoutSessionStore(), q, ctx
+}
+
+// secureBytes returns the encrypted form of p.SensitiveData using the test
+// encryptor, bound to the user_id in ctx as GCM additional data.
+func secureBytes(t *testing.T, ctx context.Context, p WorkoutSessionParams) []byte {
+	t.Helper()
+	id, _ := domain.IdentityFromContext(ctx)
+	enc := crypto.NewTestEncryptor()
+	field := crypto.NewEncryptedField[domain.SessionSensitiveData](enc)
+	if err := field.Set(ctx, p.SensitiveData, id.UserID.UUID[:]); err != nil {
+		t.Fatalf("encrypt sensitive data: %v", err)
+	}
+	return field.Value()
 }
 
 func TestWorkoutSessionStore_List(t *testing.T) {
@@ -82,8 +96,8 @@ func TestWorkoutSessionStore_List(t *testing.T) {
 		q2 := NewScopedQuerier(tx2, oID.String(), uID2.String())
 
 		s := NewWorkoutSessionStore()
-		activity := "Run"
-		if _, err := s.Create(ctx1, q1, WorkoutSessionParams{Activity: &activity}); err != nil {
+		p := WorkoutSessionParams{Activity: strPtr("Run")}
+		if _, err := s.Create(ctx1, q1, p, secureBytes(t, ctx1, p)); err != nil {
 			t.Fatal(err)
 		}
 		_ = tx1.Commit()
@@ -101,19 +115,19 @@ func TestWorkoutSessionStore_List(t *testing.T) {
 func TestWorkoutSessionStore_Get(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
 		s, q, ctx := newTestWorkoutSessionStore(t)
-		id, _ := domain.IdentityFromContext(ctx)
-		activity := "Swim"
-		created, err := s.Create(ctx, q, WorkoutSessionParams{Activity: &activity})
+		p := WorkoutSessionParams{Activity: strPtr("Swim")}
+		created, err := s.Create(ctx, q, p, secureBytes(t, ctx, p))
 		if err != nil {
 			t.Fatal(err)
 		}
+		id, _ := domain.IdentityFromContext(ctx)
 
 		got, err := s.Get(ctx, q, id.OrgID, created.ID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if got.Activity == nil || *got.Activity != activity {
-			t.Errorf("got activity %v, want %q", got.Activity, activity)
+		if got.Activity == nil || *got.Activity != "Swim" {
+			t.Errorf("got activity %v, want %q", got.Activity, "Swim")
 		}
 	})
 
@@ -131,49 +145,65 @@ func TestWorkoutSessionStore_Get(t *testing.T) {
 func TestWorkoutSessionStore_Create(t *testing.T) {
 	t.Run("creates with all fields", func(t *testing.T) {
 		s, q, ctx := newTestWorkoutSessionStore(t)
-		activity := "Bike"
-		notes := "felt great"
 		effort := 7
 		duration := 3600
-
-		ws, err := s.Create(ctx, q, WorkoutSessionParams{
-			Activity:        &activity,
-			SessionNotes:    &notes,
-			PerceivedEffort: &effort,
-			DurationS:       &duration,
-		})
+		notes := "felt great"
+		notesSS := crypto.NewSensitiveString(notes)
+		p := WorkoutSessionParams{
+			Activity:  strPtr("Bike"),
+			DurationS: &duration,
+			SensitiveData: domain.SessionSensitiveData{
+				PerceivedEffort: &effort,
+				SessionNotes:    &notesSS,
+			},
+		}
+		ws, err := s.Create(ctx, q, p, secureBytes(t, ctx, p))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if ws.ID == domain.WorkoutSessionID(0) {
 			t.Error("expected non-zero ID")
 		}
-		if ws.Activity == nil || *ws.Activity != activity {
-			t.Errorf("got activity %v, want %q", ws.Activity, activity)
-		}
-		if ws.SessionNotes == nil || *ws.SessionNotes != notes {
-			t.Errorf("got notes %v, want %q", ws.SessionNotes, notes)
-		}
-		if ws.PerceivedEffort == nil || *ws.PerceivedEffort != effort {
-			t.Errorf("got effort %v, want %d", ws.PerceivedEffort, effort)
+		if ws.Activity == nil || *ws.Activity != "Bike" {
+			t.Errorf("got activity %v, want %q", ws.Activity, "Bike")
 		}
 		if ws.DurationS == nil || *ws.DurationS != duration {
 			t.Errorf("got duration %v, want %d", ws.DurationS, duration)
+		}
+		// Verify the ciphertext was stored and can round-trip.
+		ws.SetEncryptor(crypto.NewTestEncryptor())
+		if err := ws.UseSensitiveData(ctx, func(private domain.SessionSensitiveData) error {
+			if private.PerceivedEffort == nil || *private.PerceivedEffort != effort {
+				t.Errorf("got effort %v, want %d", private.PerceivedEffort, effort)
+			}
+			if private.SessionNotes == nil || private.SessionNotes.String() != notes {
+				t.Errorf("got notes %v, want %q", private.SessionNotes, notes)
+			}
+			return nil
+		}); err != nil {
+			t.Fatalf("UseSensitiveData: %v", err)
 		}
 	})
 
 	t.Run("creates with no optional fields", func(t *testing.T) {
 		s, q, ctx := newTestWorkoutSessionStore(t)
-
-		ws, err := s.Create(ctx, q, WorkoutSessionParams{})
+		p := WorkoutSessionParams{}
+		ws, err := s.Create(ctx, q, p, secureBytes(t, ctx, p))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if ws.Activity != nil {
 			t.Errorf("expected nil activity, got %v", ws.Activity)
 		}
-		if ws.ProgramStructure != nil {
-			t.Errorf("expected nil program_structure, got %v", ws.ProgramStructure)
+		// Private data should decrypt to empty struct.
+		ws.SetEncryptor(crypto.NewTestEncryptor())
+		if err := ws.UseSensitiveData(ctx, func(private domain.SessionSensitiveData) error {
+			if private.ProgramStructure != nil {
+				t.Errorf("expected nil program_structure, got %v", private.ProgramStructure)
+			}
+			return nil
+		}); err != nil {
+			t.Fatalf("UseSensitiveData: %v", err)
 		}
 	})
 }
@@ -182,34 +212,40 @@ func TestWorkoutSessionStore_Update(t *testing.T) {
 	t.Run("updates fields", func(t *testing.T) {
 		s, q, ctx := newTestWorkoutSessionStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
-		activity := "Run"
-		created, err := s.Create(ctx, q, WorkoutSessionParams{Activity: &activity})
+		p0 := WorkoutSessionParams{Activity: strPtr("Run")}
+		created, err := s.Create(ctx, q, p0, secureBytes(t, ctx, p0))
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		newActivity := "Swim"
 		effort := 8
-		updated, err := s.Update(ctx, q, id.OrgID, created.ID, WorkoutSessionParams{
-			Activity:        &newActivity,
-			PerceivedEffort: &effort,
-		})
+		p1 := WorkoutSessionParams{
+			Activity:      strPtr("Swim"),
+			SensitiveData: domain.SessionSensitiveData{PerceivedEffort: &effort},
+		}
+		updated, err := s.Update(ctx, q, id.OrgID, created.ID, p1, secureBytes(t, ctx, p1))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if updated.Activity == nil || *updated.Activity != newActivity {
-			t.Errorf("got activity %v, want %q", updated.Activity, newActivity)
+		if updated.Activity == nil || *updated.Activity != "Swim" {
+			t.Errorf("got activity %v, want %q", updated.Activity, "Swim")
 		}
-		if updated.PerceivedEffort == nil || *updated.PerceivedEffort != effort {
-			t.Errorf("got effort %v, want %d", updated.PerceivedEffort, effort)
+		updated.SetEncryptor(crypto.NewTestEncryptor())
+		if err := updated.UseSensitiveData(ctx, func(private domain.SessionSensitiveData) error {
+			if private.PerceivedEffort == nil || *private.PerceivedEffort != effort {
+				t.Errorf("got effort %v, want %d", private.PerceivedEffort, effort)
+			}
+			return nil
+		}); err != nil {
+			t.Fatalf("UseSensitiveData: %v", err)
 		}
 	})
 
 	t.Run("not found", func(t *testing.T) {
 		s, q, ctx := newTestWorkoutSessionStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
-
-		_, err := s.Update(ctx, q, id.OrgID, domain.WorkoutSessionID(999), WorkoutSessionParams{})
+		p := WorkoutSessionParams{}
+		_, err := s.Update(ctx, q, id.OrgID, domain.WorkoutSessionID(999), p, secureBytes(t, ctx, p))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -220,7 +256,8 @@ func TestWorkoutSessionStore_Delete(t *testing.T) {
 	t.Run("deletes existing", func(t *testing.T) {
 		s, q, ctx := newTestWorkoutSessionStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
-		created, err := s.Create(ctx, q, WorkoutSessionParams{})
+		p := WorkoutSessionParams{}
+		created, err := s.Create(ctx, q, p, secureBytes(t, ctx, p))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -244,3 +281,5 @@ func TestWorkoutSessionStore_Delete(t *testing.T) {
 		}
 	})
 }
+
+func strPtr(s string) *string { return &s }

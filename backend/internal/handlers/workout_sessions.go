@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gosusnp/cove/backend/internal/crypto"
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
@@ -41,22 +42,88 @@ type workoutSessionRequest struct {
 	CompletedAt      *time.Time `json:"completed_at,omitempty"`
 }
 
+func sensitiveStringPtr(s *string) *crypto.SensitiveString {
+	if s == nil {
+		return nil
+	}
+	ss := crypto.NewSensitiveString(*s)
+	return &ss
+}
+
+func stringPtr(s *crypto.SensitiveString) *string {
+	if s == nil {
+		return nil
+	}
+	v := s.String()
+	return &v
+}
+
 func (req *workoutSessionRequest) toParams() store.WorkoutSessionParams {
 	p := store.WorkoutSessionParams{
-		ProgramName:      req.ProgramName,
-		ProgramStructure: req.ProgramStructure,
-		Activity:         req.Activity,
-		DurationS:        req.DurationS,
-		PerceivedEffort:  req.PerceivedEffort,
-		SessionNotes:     req.SessionNotes,
-		StartedAt:        req.StartedAt,
-		CompletedAt:      req.CompletedAt,
+		Activity:    req.Activity,
+		DurationS:   req.DurationS,
+		StartedAt:   req.StartedAt,
+		CompletedAt: req.CompletedAt,
+		SensitiveData: domain.SessionSensitiveData{
+			PerceivedEffort:  req.PerceivedEffort,
+			SessionNotes:     sensitiveStringPtr(req.SessionNotes),
+			ProgramName:      sensitiveStringPtr(req.ProgramName),
+			ProgramStructure: sensitiveStringPtr(req.ProgramStructure),
+		},
 	}
 	if req.ProgramID != nil {
 		id := domain.ProgramID(*req.ProgramID)
 		p.ProgramID = &id
 	}
 	return p
+}
+
+// workoutSessionResponse is the JSON shape returned to clients.
+// Sensitive fields are decrypted inline and flattened here; they go out of scope
+// immediately after the response is encoded.
+type workoutSessionResponse struct {
+	ID          domain.WorkoutSessionID `json:"id"`
+	OrgID       domain.OrgID            `json:"org_id"`
+	UserID      domain.UserID           `json:"user_id"`
+	ProgramID   *domain.ProgramID       `json:"program_id,omitempty"`
+	Activity    *string                 `json:"activity,omitempty"`
+	DurationS   *int                    `json:"duration_s,omitempty"`
+	StartedAt   *time.Time              `json:"started_at,omitempty"`
+	CompletedAt *time.Time              `json:"completed_at,omitempty"`
+	CreatedBy   domain.UserID           `json:"created_by"`
+	CreatedAt   time.Time               `json:"created_at"`
+	UpdatedBy   *domain.UserID          `json:"updated_by,omitempty"`
+	UpdatedAt   time.Time               `json:"updated_at"`
+	// Sensitive fields flattened:
+	PerceivedEffort  *int    `json:"perceived_effort,omitempty"`
+	SessionNotes     *string `json:"session_notes,omitempty"`
+	ProgramName      *string `json:"program_name,omitempty"`
+	ProgramStructure *string `json:"program_structure,omitempty"`
+}
+
+func toResponse(r *http.Request, ws *domain.WorkoutSession) (*workoutSessionResponse, error) {
+	resp := &workoutSessionResponse{
+		ID:          ws.ID,
+		OrgID:       ws.OrgID,
+		UserID:      ws.UserID,
+		ProgramID:   ws.ProgramID,
+		Activity:    ws.Activity,
+		DurationS:   ws.DurationS,
+		StartedAt:   ws.StartedAt,
+		CompletedAt: ws.CompletedAt,
+		CreatedBy:   ws.CreatedBy,
+		CreatedAt:   ws.CreatedAt,
+		UpdatedBy:   ws.UpdatedBy,
+		UpdatedAt:   ws.UpdatedAt,
+	}
+	err := ws.UseSensitiveData(r.Context(), func(private domain.SessionSensitiveData) error {
+		resp.PerceivedEffort = private.PerceivedEffort
+		resp.SessionNotes = stringPtr(private.SessionNotes)
+		resp.ProgramName = stringPtr(private.ProgramName)
+		resp.ProgramStructure = stringPtr(private.ProgramStructure)
+		return nil
+	})
+	return resp, err
 }
 
 func (h *WorkoutSessionHandler) create(w http.ResponseWriter, r *http.Request) {
@@ -74,7 +141,12 @@ func (h *WorkoutSessionHandler) create(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	jsonResponse(w, ws, http.StatusCreated)
+	resp, err := toResponse(r, ws)
+	if err != nil {
+		jsonError(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	jsonResponse(w, resp, http.StatusCreated)
 }
 
 func (h *WorkoutSessionHandler) update(w http.ResponseWriter, r *http.Request) {
@@ -101,7 +173,12 @@ func (h *WorkoutSessionHandler) update(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	jsonOK(w, ws)
+	resp, err := toResponse(r, ws)
+	if err != nil {
+		jsonError(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	jsonOK(w, resp)
 }
 
 func (h *WorkoutSessionHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -114,7 +191,16 @@ func (h *WorkoutSessionHandler) list(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	jsonOK(w, sessions)
+	resps := make([]*workoutSessionResponse, 0, len(sessions))
+	for _, ws := range sessions {
+		resp, err := toResponse(r, ws)
+		if err != nil {
+			jsonError(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		resps = append(resps, resp)
+	}
+	jsonOK(w, resps)
 }
 
 func (h *WorkoutSessionHandler) get(w http.ResponseWriter, r *http.Request) {
@@ -136,5 +222,10 @@ func (h *WorkoutSessionHandler) get(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	jsonOK(w, session)
+	resp, err := toResponse(r, session)
+	if err != nil {
+		jsonError(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	jsonOK(w, resp)
 }

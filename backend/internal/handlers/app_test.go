@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gosusnp/cove/backend/internal/crypto"
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/middleware"
 	"github.com/gosusnp/cove/backend/internal/service"
@@ -59,7 +60,7 @@ func NewTestApp(t *testing.T) *TestApp {
 	exSvc := service.NewExerciseService(database, exStore)
 	pSvc := service.NewProgramService(database, exStore)
 	uSvc := service.NewUserService(database, uStore, oStore)
-	wsSvc := service.NewWorkoutSessionService(database, wsStore)
+	wsSvc := service.NewWorkoutSessionService(database, wsStore, crypto.NewTestEncryptor())
 
 	// Create system user for raw mux auth
 	sysUser, _, err := uSvc.GetOrCreate(context.Background(), domain.Email("system@test.com"), domain.GoogleSub("system-sub"))

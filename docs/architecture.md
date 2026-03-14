@@ -17,6 +17,7 @@ backend/          — Go module (github.com/gosusnp/cove/backend)
     store/        — SQL queries and database error translation
     middleware/   — APIKey and OAuth auth, request logging
     mcp/          — MCP tool registration grouped by resource
+    crypto/       — Encryptor interface, AES-256-GCM impl, EncryptedField[T] hardened type, SensitiveString
     testutil/     — shared test infrastructure (testcontainers + pgtestdb)
   main.go         — HTTP server entry point
 frontend/         — Preact + Vite + Tailwind v4
@@ -451,6 +452,179 @@ All keys in `snake_case`. Success and error shapes are fixed:
 - **DO** use `jsonError(w, message, code)` for all error responses.
 - **DO** use `jsonResponse(w, data, http.StatusCreated)` for 201 responses.
 - **DON'T** write ad-hoc response shapes — always use the helpers.
+
+---
+
+## Sensitive Data at Rest
+
+Some domain fields contain user-private data (e.g. session notes, perceived effort) that must be encrypted in the database. Cove uses AES-256-GCM via the `internal/crypto` package.
+
+### Design Principles
+
+- **Plaintext never leaves the handler scope.** The only way to read sensitive fields is via `UseSensitiveData` — a callback pattern that decrypts into a `*T`, calls the handler, then zeros the struct in place before returning.
+- **String fields use `crypto.SensitiveString` (`[]byte`-backed).** Go string interning means `*string` fields cannot be reliably zeroed; `SensitiveString` avoids that risk. Zeroing the `*T` struct after the callback wipes the backing bytes.
+- **The service injects the encryptor; it never decrypts.** This keeps the plaintext lifetime as short as possible.
+- **The store is a pure byte pass-through.** It has no knowledge of encryption — it scans and writes raw `[]byte`.
+- **User ID is bound into every ciphertext via GCM additional data.** `UseSensitiveData` passes `ws.UserID.UUID[:]` as AAD; decryption will fail if the stored user_id does not match, preventing row-swapping attacks.
+- **Empty sensitive data is stored as NULL.** `[Entity]SensitiveData` must implement `IsEmpty() bool`; the service skips encryption and writes `NULL` when it returns true, avoiding spurious ciphertext for empty payloads.
+
+### Naming Conventions
+
+| Concept | Convention |
+|---|---|
+| DB column | `sensitive_data BYTEA` |
+| Domain field | `sensitiveData` (unexported) |
+| Sensitive payload struct | `[Entity]SensitiveData` (e.g. `SessionSensitiveData`) |
+| Decrypt callback method | `UseSensitiveData(ctx, fn)` on the domain entity |
+| Store params field | `SensitiveData [Entity]SensitiveData` |
+
+### Layer Responsibilities
+
+```
+Handler   → calls ws.UseSensitiveData(ctx, fn) — only place plaintext exists
+Service   → encrypts on write; calls ws.SetEncryptor after store read; never decrypts
+Store     → scans sensitive_data into ws.SensitiveDataScanner(); writes raw []byte
+```
+
+### Domain Entity Pattern
+
+```go
+// String fields use *crypto.SensitiveString instead of *string so their backing
+// bytes can be explicitly zeroed after use.
+type SessionSensitiveData struct {
+    PerceivedEffort  *int                    `json:"perceived_effort,omitempty"`
+    SessionNotes     *crypto.SensitiveString `json:"session_notes,omitempty"`
+    // ...
+}
+
+// IsEmpty is the single source of truth for "no sensitive data set".
+// The service uses it to write NULL to the DB instead of encrypting {}.
+// Update this whenever a new field is added to the struct.
+func (s SessionSensitiveData) IsEmpty() bool {
+    return s.PerceivedEffort == nil && s.SessionNotes == nil // ...
+}
+
+type WorkoutSession struct {
+    // ... public fields ...
+    // sensitiveData contains a sync.Mutex; always use *WorkoutSession, never copy.
+    sensitiveData crypto.EncryptedField[SessionSensitiveData] `json:"-"`
+}
+
+// UseSensitiveData is the only way to access sensitive fields. fn receives a
+// *SessionSensitiveData; the struct is zeroed in place after fn returns,
+// wiping SensitiveString backing bytes. UserID is passed as GCM AAD.
+func (ws *WorkoutSession) UseSensitiveData(ctx context.Context, fn func(SessionSensitiveData) error) error {
+    return ws.sensitiveData.Use(ctx, func(p *SessionSensitiveData) error {
+        return fn(*p)
+    }, ws.UserID.UUID[:])
+}
+
+// SetEncryptor is called by the service after a store read.
+func (ws *WorkoutSession) SetEncryptor(enc crypto.Encryptor) {
+    ws.sensitiveData.SetEncryptor(enc)
+}
+```
+
+### Service Pattern
+
+```go
+func (s *WorkoutSessionService) Create(ctx context.Context, p store.WorkoutSessionParams) (*domain.WorkoutSession, error) {
+    sensitiveData, err := s.encryptSensitiveData(ctx, p)  // encrypt before store write
+    if err != nil { return nil, err }
+
+    var ws *domain.WorkoutSession
+    err = withScopedTx(ctx, s.db, func(q store.Querier) error {
+        ws, err = s.store.Create(ctx, q, p, sensitiveData)
+        return err
+    })
+    ws.SetEncryptor(s.enc)  // attach encryptor; do NOT decrypt
+    return ws, err
+}
+```
+
+### Handler Pattern
+
+The response DTO uses `*string` for JSON output. Convert `*SensitiveString` → `*string` inline inside the callback; the short-lived `string` copy is collected promptly by the GC.
+
+```go
+func (h *WorkoutSessionHandler) get(w http.ResponseWriter, r *http.Request) {
+    ws, err := h.svc.Get(r.Context(), id)
+    // ...
+
+    var resp workoutSessionResponse
+    // copy public fields from ws first ...
+    if err := ws.UseSensitiveData(r.Context(), func(s domain.SessionSensitiveData) error {
+        resp.PerceivedEffort  = s.PerceivedEffort
+        resp.SessionNotes     = stringPtr(s.SessionNotes)  // *SensitiveString → *string
+        // ... other sensitive fields ...
+        return nil
+    }); err != nil {
+        jsonError(w, "internal error", http.StatusInternalServerError)
+        return
+    }
+    // sensitive local s is zeroed; resp holds only short-lived *string copies
+    jsonOK(w, resp)
+}
+```
+
+### Rules
+
+- **DO** define a `[Entity]SensitiveData` struct for each entity with sensitive fields.
+- **DO** use `*crypto.SensitiveString` (not `*string`) for all string fields in `[Entity]SensitiveData` — `[]byte`-backed for reliable zeroing.
+- **DO** implement `IsEmpty() bool` on every `[Entity]SensitiveData` struct, enumerating all fields. The service calls this to skip encryption and write `NULL` when no sensitive data is set.
+- **DO** keep `sensitiveData` unexported on the domain entity — expose only `UseSensitiveData` and `SetEncryptor`.
+- **DO** use `sensitive_data BYTEA` (nullable) as the DB column — `NULL` means no sensitive data was set.
+- **DO** inject `crypto.Encryptor` into the service constructor; wire from `SESSION_ENCRYPTION_KEY` env var in `main.go`.
+- **DO** call `SetEncryptor` on every `*[Entity]` returned by the store before handing it to the handler.
+- **DON'T** call `UseSensitiveData` in the service — decryption belongs in the handler.
+- **DON'T** add sensitive fields directly to the domain entity struct — they must go through `[Entity]SensitiveData`.
+- **DON'T** store the result of `UseSensitiveData` in a struct field or return value — use it inline only.
+- **DON'T** assign `*SensitiveString` fields directly to response structs — convert via `stringPtr(s.Field)` inside the callback.
+
+### Key Management
+
+| Environment | Implementation |
+|---|---|
+| Local / CI | `AESEncryptor` from `SESSION_ENCRYPTION_KEY` env var (base64-encoded 32-byte key) |
+| Production (k8s) | Swap `AESEncryptor` for a KMS/Vault implementation of `crypto.Encryptor` in `main.go` |
+
+Generate a local key with:
+```sh
+python3 -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())"
+```
+
+#### Ciphertext Format
+
+Every ciphertext produced by `AESEncryptor` is:
+
+```
+[1-byte version][12-byte nonce][AES-256-GCM ciphertext + 16-byte tag]
+```
+
+The version byte identifies which key was used to encrypt the payload. On decrypt, the version byte is read first and the matching key is selected from the key map. This enables lazy key rotation without a migration.
+
+#### AAD Binding
+
+The owning entity's `user_id` bytes are passed as GCM additional authenticated data (AAD) on every encrypt and decrypt call. The AAD is bound into the GCM authentication tag — decryption fails if the user_id does not match the one used during encryption. This prevents a ciphertext from one row being replayed against another user's row.
+
+#### Key Versioning and Rotation
+
+`NewAESEncryptor(currentVersion byte, keys map[byte]string)` accepts multiple versioned keys. New rows are always encrypted with the `currentVersion` key. Old rows are decrypted using whichever key version was stored in the ciphertext prefix.
+
+**To rotate to a new key:**
+
+1. Generate a new key and assign it the next version byte (e.g. `1`).
+2. Update the env var / secret to include both keys and set `currentVersion` to the new version:
+   ```go
+   // main.go
+   enc, err := crypto.NewAESEncryptor(1, map[byte]string{
+       0: oldKey,
+       1: newKey,
+   })
+   ```
+3. Deploy. New writes use key `1`; existing rows with version `0` continue to decrypt correctly.
+4. Re-encrypt existing rows at your own pace (lazy rotation on read, or a background job).
+5. Once no rows with version `0` remain, remove the old key from the map and redeploy.
 
 ---
 
