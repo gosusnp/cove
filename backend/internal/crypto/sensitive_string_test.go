@@ -5,6 +5,7 @@ package crypto
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 )
 
@@ -52,6 +53,27 @@ func TestSensitiveString_EmptyRoundTrip(t *testing.T) {
 	}
 	if got.String() != "" {
 		t.Errorf("String() = %q, want empty", got.String())
+	}
+}
+
+func TestSensitiveString_FormatRedacted(t *testing.T) {
+	s := NewSensitiveString("topsecret")
+	for _, tc := range []struct {
+		verb string
+		got  string
+	}{
+		{"%v", fmt.Sprintf("%v", s)},
+		{"%s", fmt.Sprintf("%s", s)},
+		{"%q", fmt.Sprintf("%q", s)},
+		{"%+v", fmt.Sprintf("%+v", s)},
+		{"%#v", fmt.Sprintf("%#v", s)},
+	} {
+		if tc.got == "topsecret" {
+			t.Errorf("verb %s leaked plaintext", tc.verb)
+		}
+		if tc.got != "SensitiveString[REDACTED]" {
+			t.Errorf("verb %s = %q, want SensitiveString[REDACTED]", tc.verb, tc.got)
+		}
 	}
 }
 

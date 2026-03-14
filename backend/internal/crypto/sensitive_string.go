@@ -6,6 +6,7 @@ package crypto
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 )
 
 // SensitiveString is a string value backed by []byte to allow explicit zeroing
@@ -43,6 +44,17 @@ func (s *SensitiveString) Zero() {
 		s.b[i] = 0
 	}
 	s.b = s.b[:0]
+}
+
+// Format implements fmt.Formatter. All verbs emit "[REDACTED]" to prevent
+// sensitive values from appearing in logs or error messages.
+func (s SensitiveString) Format(f fmt.State, _ rune) {
+	_, _ = io.WriteString(f, "SensitiveString[REDACTED]")
+}
+
+// GoString implements fmt.GoStringer so that %#v also emits "SensitiveString[REDACTED]".
+func (s SensitiveString) GoString() string {
+	return "SensitiveString[REDACTED]"
 }
 
 // MarshalJSON serializes the value as a JSON string.

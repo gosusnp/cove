@@ -5,6 +5,8 @@ package domain
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"time"
 
 	"github.com/gosusnp/cove/backend/internal/crypto"
@@ -26,6 +28,17 @@ type SessionSensitiveData struct {
 	SessionNotes     *crypto.SensitiveString `json:"session_notes,omitempty"`
 	ProgramName      *crypto.SensitiveString `json:"program_name,omitempty"`
 	ProgramStructure *crypto.SensitiveString `json:"program_structure,omitempty"`
+}
+
+// Format implements fmt.Formatter. All verbs emit "[REDACTED]" to prevent
+// sensitive fields from appearing in logs or error messages.
+func (s SessionSensitiveData) Format(f fmt.State, _ rune) {
+	_, _ = io.WriteString(f, "SessionSensitiveData[REDACTED]")
+}
+
+// GoString implements fmt.GoStringer so that %#v also emits "SessionSensitiveData[REDACTED]".
+func (s SessionSensitiveData) GoString() string {
+	return "SessionSensitiveData[REDACTED]"
 }
 
 // IsEmpty reports whether all sensitive fields are unset. When true, the

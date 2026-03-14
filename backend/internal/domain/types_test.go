@@ -4,6 +4,7 @@
 package domain
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/gosusnp/cove/backend/internal/crypto"
@@ -12,6 +13,28 @@ import (
 func sensitivePtr(s string) *crypto.SensitiveString {
 	ss := crypto.NewSensitiveString(s)
 	return &ss
+}
+
+func TestSessionSensitiveData_FormatRedacted(t *testing.T) {
+	effort := 7
+	sd := SessionSensitiveData{
+		PerceivedEffort: &effort,
+		SessionNotes:    sensitivePtr("my notes"),
+	}
+	for _, tc := range []struct {
+		verb string
+		got  string
+	}{
+		{"%v", fmt.Sprintf("%v", sd)},
+		{"%s", fmt.Sprintf("%s", sd)},
+		{"%q", fmt.Sprintf("%q", sd)},
+		{"%+v", fmt.Sprintf("%+v", sd)},
+		{"%#v", fmt.Sprintf("%#v", sd)},
+	} {
+		if tc.got != "SessionSensitiveData[REDACTED]" {
+			t.Errorf("verb %s = %q, want SessionSensitiveData[REDACTED]", tc.verb, tc.got)
+		}
+	}
 }
 
 func TestSessionSensitiveData_IsEmpty(t *testing.T) {
