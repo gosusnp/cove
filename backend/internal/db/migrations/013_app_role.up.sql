@@ -6,22 +6,15 @@
 -- migrations, at the infrastructure level (e.g. CNPG managed.roles).
 --
 -- Role creation requires CREATEROLE privilege (held by cove_migrator in production).
--- In dev/test environments running as an unprivileged user, the role creation and
--- subsequent grants are silently skipped — they are no-ops in those contexts.
+-- In dev/test environments running as an unprivileged user, the role creation is
+-- silently skipped — it is a no-op in those contexts.
+--
+-- Schema-specific grants are applied by db.Migrate() after migrations run,
+-- so they are always issued against the correct schema name.
 DO $$
 BEGIN
     CREATE ROLE cove_app_role;
 EXCEPTION
     WHEN duplicate_object THEN NULL;
     WHEN insufficient_privilege THEN NULL;
-END $$;
-
-DO $$
-BEGIN
-    IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'cove_app_role') THEN
-        GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO cove_app_role;
-        GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO cove_app_role;
-        EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO cove_app_role';
-        EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO cove_app_role';
-    END IF;
 END $$;

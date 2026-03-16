@@ -28,6 +28,7 @@ Personal fitness tracking app with an MCP interface for AI-assisted workout plan
    | `SESSION_ENCRYPTION_KEY` | — | yes | Base64-encoded 32-byte key; generate with `python3 -c "import os,base64; print(base64.b64encode(os.urandom(32)).decode())"` |
    | `COVE_ALLOWED_EMAILS` | _(empty = allow all)_ | no | Comma-separated allowlist |
    | `COVE_PORT` | `8080` | no | HTTP listen port |
+   | `COVE_DB_SCHEMA` | `cove` | no | Database schema; set to a unique name when sharing a Postgres instance |
    | `COVE_DEV` | _(unset)_ | no | Set to any non-empty value to enable dev mode (disk UI assets, dev login route, relaxed cookie security) |
 
    All variables support a `_FILE` variant that reads the value from a file (e.g. `SESSION_ENCRYPTION_KEY_FILE=/run/secrets/enc-key`). Set `COVE_SECRETS_DIR` to a directory and each key will be read from a file named after the variable — useful for k8s mounted secrets.

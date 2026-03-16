@@ -19,9 +19,13 @@ func TestMain(m *testing.M) {
 }
 
 func TestMigrations_Roundtrip(t *testing.T) {
-	db := testutil.NewEmptyDB(t)
+	testDB := testutil.NewEmptyDB(t)
 
-	driver, err := migratepostgres.WithInstance(db, &migratepostgres.Config{})
+	if _, err := testDB.Exec("CREATE SCHEMA IF NOT EXISTS " + DefaultSchema); err != nil {
+		t.Fatalf("create schema: %v", err)
+	}
+
+	driver, err := migratepostgres.WithInstance(testDB, &migratepostgres.Config{SchemaName: DefaultSchema})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,8 +46,9 @@ func TestMigrations_Roundtrip(t *testing.T) {
 	}
 
 	var count int
-	if err := db.QueryRow(
-		`SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name != 'schema_migrations'`,
+	if err := testDB.QueryRow(
+		`SELECT count(*) FROM information_schema.tables WHERE table_schema = $1 AND table_name != 'schema_migrations'`,
+		DefaultSchema,
 	).Scan(&count); err != nil {
 		t.Fatalf("query after Up(): %v", err)
 	}
@@ -55,8 +60,9 @@ func TestMigrations_Roundtrip(t *testing.T) {
 		t.Fatalf("down: %v", err)
 	}
 
-	if err := db.QueryRow(
-		`SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name != 'schema_migrations'`,
+	if err := testDB.QueryRow(
+		`SELECT count(*) FROM information_schema.tables WHERE table_schema = $1 AND table_name != 'schema_migrations'`,
+		DefaultSchema,
 	).Scan(&count); err != nil {
 		t.Fatalf("query after Down(): %v", err)
 	}

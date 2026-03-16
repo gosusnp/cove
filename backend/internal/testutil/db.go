@@ -25,6 +25,12 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
+// defaultSchema is the schema used when running test migrations.
+// It must match db.DefaultSchema ("cove"). A direct import of internal/db is
+// avoided here because db_test.go (package db) imports testutil, which would
+// create an import cycle.
+const defaultSchema = "cove"
+
 var (
 	testDSN        string
 	testMigrations embed.FS
@@ -84,7 +90,7 @@ func NewDB(t *testing.T) *sql.DB {
 	if testDSN == "" {
 		t.Fatal("testutil.NewDB called before RunMain or with empty DSN")
 	}
-	return pgtestdb.New(t, parseConfig(testDSN), &fsMigrator{fs: testMigrations})
+	return pgtestdb.New(t, parseConfig(testDSN), &fsMigrator{fs: testMigrations, schema: defaultSchema})
 }
 
 // NewEmptyDB creates an isolated empty test database with no migrations applied.
@@ -97,7 +103,8 @@ func NewEmptyDB(t *testing.T) *sql.DB {
 }
 
 type fsMigrator struct {
-	fs embed.FS
+	fs     embed.FS
+	schema string
 }
 
 func (m *fsMigrator) Hash() (string, error) {
@@ -116,8 +123,26 @@ func (m *fsMigrator) Hash() (string, error) {
 	return fmt.Sprintf("%x", h.Sum(nil)), err
 }
 
-func (m *fsMigrator) Migrate(_ context.Context, db *sql.DB, _ pgtestdb.Config) error {
-	driver, err := migratepostgres.WithInstance(db, &migratepostgres.Config{})
+func (m *fsMigrator) Migrate(_ context.Context, _ *sql.DB, config pgtestdb.Config) error {
+	// Build a DSN using pgtdbuser credentials (so it owns the created tables and
+	// can query them when tests run) with search_path set to the target schema.
+	q := url.Values{}
+	q.Set("sslmode", "disable")
+	q.Set("options", "-c search_path="+m.schema)
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?%s",
+		config.User, config.Password, config.Host, config.Port, config.Database, q.Encode())
+
+	database, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return fmt.Errorf("open migration db: %w", err)
+	}
+	defer database.Close()
+
+	if _, err := database.Exec(fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s`, m.schema)); err != nil {
+		return fmt.Errorf("create schema: %w", err)
+	}
+
+	driver, err := migratepostgres.WithInstance(database, &migratepostgres.Config{SchemaName: m.schema})
 	if err != nil {
 		return err
 	}
@@ -141,16 +166,20 @@ func (m *fsMigrator) Migrate(_ context.Context, db *sql.DB, _ pgtestdb.Config) e
 	return nil
 }
 
-func (m *fsMigrator) Verify(_ context.Context, db *sql.DB, _ pgtestdb.Config) error {
+func (m *fsMigrator) Verify(_ context.Context, database *sql.DB, _ pgtestdb.Config) error {
 	var count int
-	return db.QueryRow(
-		`SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name != 'schema_migrations'`,
+	return database.QueryRow(
+		`SELECT count(*) FROM information_schema.tables WHERE table_schema = $1 AND table_name != 'schema_migrations'`,
+		m.schema,
 	).Scan(&count)
 }
 
 func parseConfig(dsn string) pgtestdb.Config {
 	u, _ := url.Parse(dsn)
 	password, _ := u.User.Password()
+	q := url.Values{}
+	q.Set("sslmode", "disable")
+	q.Set("options", "-c search_path="+defaultSchema)
 	return pgtestdb.Config{
 		DriverName: "pgx",
 		Host:       u.Hostname(),
@@ -158,6 +187,9 @@ func parseConfig(dsn string) pgtestdb.Config {
 		User:       u.User.Username(),
 		Password:   password,
 		Database:   strings.TrimPrefix(u.Path, "/"),
-		Options:    "sslmode=disable",
+		// URL-encoded query params appended by pgtestdb to the connection DSN.
+		// options=-c search_path=<schema> ensures all test connections resolve
+		// unqualified table names against the cove schema.
+		Options: q.Encode(),
 	}
 }
