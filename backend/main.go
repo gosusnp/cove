@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/oauth2"
@@ -26,26 +27,47 @@ import (
 //go:embed ui
 var uiFS embed.FS
 
+// getSecret reads a config value using the following precedence:
+//  1. $COVE_SECRETS_DIR/<key>  — mounted secrets directory
+//  2. $<key>_FILE              — explicit file path (e.g. for CNPG-generated secrets)
+//  3. $<key>                   — plain env var (local dev)
+func getSecret(key string) string {
+	if dir := os.Getenv("COVE_SECRETS_DIR"); dir != "" {
+		data, err := os.ReadFile(filepath.Join(dir, key))
+		if err == nil {
+			return strings.TrimSpace(string(data))
+		}
+	}
+	if path := os.Getenv(key + "_FILE"); path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			log.Fatalf("read secret file for %s: %v", key, err)
+		}
+		return strings.TrimSpace(string(data))
+	}
+	return os.Getenv(key)
+}
+
 func main() {
-	dbURL := os.Getenv("DATABASE_URL")
+	dbURL := getSecret("DATABASE_URL")
 	if dbURL == "" {
 		log.Fatal("DATABASE_URL is required")
 	}
 
-	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
+	googleClientID := getSecret("GOOGLE_CLIENT_ID")
 	if googleClientID == "" {
 		log.Fatal("GOOGLE_CLIENT_ID is required")
 	}
-	googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
+	googleClientSecret := getSecret("GOOGLE_CLIENT_SECRET")
 	if googleClientSecret == "" {
 		log.Fatal("GOOGLE_CLIENT_SECRET is required")
 	}
-	googleRedirectURL := os.Getenv("GOOGLE_REDIRECT_URL")
+	googleRedirectURL := getSecret("GOOGLE_REDIRECT_URL")
 	if googleRedirectURL == "" {
 		log.Fatal("GOOGLE_REDIRECT_URL is required")
 	}
 
-	encryptionKey := os.Getenv("SESSION_ENCRYPTION_KEY")
+	encryptionKey := getSecret("SESSION_ENCRYPTION_KEY")
 	if encryptionKey == "" {
 		log.Fatal("SESSION_ENCRYPTION_KEY is required")
 	}
@@ -55,7 +77,7 @@ func main() {
 	}
 
 	var allowedEmails []string
-	if raw := os.Getenv("COVE_ALLOWED_EMAILS"); raw != "" {
+	if raw := getSecret("COVE_ALLOWED_EMAILS"); raw != "" {
 		allowedEmails = strings.Split(raw, ",")
 	}
 
@@ -122,7 +144,7 @@ func main() {
 	outer.Handle("/mcp/", mux)
 	outer.Handle("/", spaHandler)
 
-	port := os.Getenv("COVE_PORT")
+	port := getSecret("COVE_PORT")
 	if port == "" {
 		port = "8080"
 	}
