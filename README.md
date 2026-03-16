@@ -17,15 +17,22 @@ Personal fitness tracking app with an MCP interface for AI-assisted workout plan
 
 2. **Configure environment**
    Edit `backend/.env` and fill in the Google OAuth credentials:
-   | Variable | Default | Notes |
-   |---|---|---|
-   | `DATABASE_URL` | `postgres://cove:covedev@localhost:5432/cove` | Set by devenv |
-   | `GOOGLE_CLIENT_ID` | — | From Google Cloud Console |
-   | `GOOGLE_CLIENT_SECRET` | — | From Google Cloud Console |
-   | `GOOGLE_REDIRECT_URL` | `http://localhost:8080/auth/callback` | |
-   | `COVE_ALLOWED_EMAILS` | _(empty = allow all)_ | Comma-separated allowlist |
 
-   Migrations run automatically on startup.
+   | Variable | Default | Required | Notes |
+   |---|---|---|---|
+   | `DATABASE_URL` | `postgres://cove:covedev@localhost:5432/cove` | yes | Runtime app user (RLS enforced in prod) |
+   | `MIGRATION_DATABASE_URL` | _(falls back to `DATABASE_URL`)_ | prod only | Privileged migration user; falls back to `DATABASE_URL` when `COVE_DEV` is set |
+   | `GOOGLE_CLIENT_ID` | — | yes | From Google Cloud Console |
+   | `GOOGLE_CLIENT_SECRET` | — | yes | From Google Cloud Console |
+   | `GOOGLE_REDIRECT_URL` | `http://localhost:8080/auth/callback` | yes | |
+   | `SESSION_ENCRYPTION_KEY` | — | yes | Base64-encoded 32-byte key; generate with `python3 -c "import os,base64; print(base64.b64encode(os.urandom(32)).decode())"` |
+   | `COVE_ALLOWED_EMAILS` | _(empty = allow all)_ | no | Comma-separated allowlist |
+   | `COVE_PORT` | `8080` | no | HTTP listen port |
+   | `COVE_DEV` | _(unset)_ | no | Set to any non-empty value to enable dev mode (disk UI assets, dev login route, relaxed cookie security) |
+
+   All variables support a `_FILE` variant that reads the value from a file (e.g. `SESSION_ENCRYPTION_KEY_FILE=/run/secrets/enc-key`). Set `COVE_SECRETS_DIR` to a directory and each key will be read from a file named after the variable — useful for k8s mounted secrets.
+
+   Migrations run automatically on startup using `MIGRATION_DATABASE_URL`.
 
 3. **Install frontend dependencies**
    ```sh

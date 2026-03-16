@@ -48,10 +48,28 @@ func getSecret(key string) string {
 	return os.Getenv(key)
 }
 
+// resolveMigrationDSN returns the DSN to use for migrations and whether it is valid.
+// In dev mode, falls back to appDSN when MIGRATION_DATABASE_URL is unset.
+// In production, returns ("", false) when MIGRATION_DATABASE_URL is unset.
+func resolveMigrationDSN(appDSN string, dev bool) (string, bool) {
+	if dsn := getSecret("MIGRATION_DATABASE_URL"); dsn != "" {
+		return dsn, true
+	}
+	if dev {
+		return appDSN, true
+	}
+	return "", false
+}
+
 func main() {
 	dbURL := getSecret("DATABASE_URL")
 	if dbURL == "" {
 		log.Fatal("DATABASE_URL is required")
+	}
+
+	migrationDBURL, ok := resolveMigrationDSN(dbURL, os.Getenv("COVE_DEV") != "")
+	if !ok {
+		log.Fatal("MIGRATION_DATABASE_URL is required in production")
 	}
 
 	googleClientID := getSecret("GOOGLE_CLIENT_ID")
@@ -81,6 +99,7 @@ func main() {
 		allowedEmails = strings.Split(raw, ",")
 	}
 
+	db.Migrate(migrationDBURL)
 	database := db.Open(dbURL)
 	defer database.Close()
 

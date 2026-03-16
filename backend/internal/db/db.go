@@ -17,21 +17,19 @@ import (
 //go:embed migrations/*.sql
 var MigrationsFS embed.FS
 
-func Open(dsn string) *sql.DB {
+// Migrate runs all pending migrations using the provided DSN.
+// It opens a dedicated connection that is closed after migrations complete.
+func Migrate(dsn string) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
-		log.Fatalf("failed to open database: %v", err)
+		log.Fatalf("failed to open migration database: %v", err)
 	}
+	defer db.Close()
 
 	if err := db.Ping(); err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
+		log.Fatalf("failed to connect to migration database: %v", err)
 	}
 
-	runMigrations(db)
-	return db
-}
-
-func runMigrations(db *sql.DB) {
 	driver, err := migratepostgres.WithInstance(db, &migratepostgres.Config{})
 	if err != nil {
 		log.Fatalf("failed to create migration driver: %v", err)
@@ -52,4 +50,19 @@ func runMigrations(db *sql.DB) {
 	}
 
 	log.Println("migrations up to date")
+}
+
+// Open opens and returns the application database connection pool.
+// Migrations must be run separately via Migrate before calling Open.
+func Open(dsn string) *sql.DB {
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		log.Fatalf("failed to open database: %v", err)
+	}
+
+	if err := db.Ping(); err != nil {
+		log.Fatalf("failed to connect to database: %v", err)
+	}
+
+	return db
 }

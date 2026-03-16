@@ -62,6 +62,38 @@ func TestGetSecret(t *testing.T) {
 	})
 }
 
+func TestResolveMigrationDSN(t *testing.T) {
+	t.Run("uses MIGRATION_DATABASE_URL when set", func(t *testing.T) {
+		t.Setenv("MIGRATION_DATABASE_URL", "migration-dsn")
+		dsn, ok := resolveMigrationDSN("app-dsn", false)
+		if !ok || dsn != "migration-dsn" {
+			t.Errorf("got (%q, %v), want (\"migration-dsn\", true)", dsn, ok)
+		}
+	})
+
+	t.Run("falls back to appDSN in dev when MIGRATION_DATABASE_URL unset", func(t *testing.T) {
+		dsn, ok := resolveMigrationDSN("app-dsn", true)
+		if !ok || dsn != "app-dsn" {
+			t.Errorf("got (%q, %v), want (\"app-dsn\", true)", dsn, ok)
+		}
+	})
+
+	t.Run("returns false in production when MIGRATION_DATABASE_URL unset", func(t *testing.T) {
+		_, ok := resolveMigrationDSN("app-dsn", false)
+		if ok {
+			t.Error("expected ok=false in production without MIGRATION_DATABASE_URL")
+		}
+	})
+
+	t.Run("MIGRATION_DATABASE_URL via _FILE takes precedence in production", func(t *testing.T) {
+		t.Setenv("MIGRATION_DATABASE_URL_FILE", writeFile(t, "migration-from-file"))
+		dsn, ok := resolveMigrationDSN("app-dsn", false)
+		if !ok || dsn != "migration-from-file" {
+			t.Errorf("got (%q, %v), want (\"migration-from-file\", true)", dsn, ok)
+		}
+	})
+}
+
 func writeFile(t *testing.T, content string) string {
 	t.Helper()
 	f := filepath.Join(t.TempDir(), "secret")
