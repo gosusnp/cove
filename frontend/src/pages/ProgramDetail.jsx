@@ -46,6 +46,7 @@ import {
 import { useDialog } from "../hooks/useDialog.js";
 import { useSortableGroups } from "../hooks/useSortableGroups.js";
 import { cn } from "../lib/utils.js";
+import { apiFetch } from "../lib/api.js";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -313,9 +314,7 @@ export function ProgramDetail({ programId }) {
 		loading.value = true;
 		fetchError.value = "";
 		try {
-			const r = await fetch(`/api/programs/${programId}`, {
-				credentials: "include",
-			});
+			const r = await apiFetch(`/api/programs/${programId}`);
 			if (!r.ok) throw new Error("Failed to load program");
 			rawProgram.value = await r.json();
 			refreshKey.value += 1;
@@ -425,7 +424,7 @@ function ProgramDetailInner({ program: initialProgram, onRefresh }) {
 	const exerciseOptions = useSignal([]);
 
 	useEffect(() => {
-		fetch("/api/exercises", { credentials: "include" })
+		apiFetch("/api/exercises")
 			.then((r) => r.json())
 			.then((data) => {
 				const sorted = [...(data ?? [])].sort((a, b) =>
@@ -460,9 +459,8 @@ function ProgramDetailInner({ program: initialProgram, onRefresh }) {
 		renameSaving.value = true;
 		renameError.value = "";
 		try {
-			const r = await fetch(`/api/programs/${initialProgram.id}`, {
+			const r = await apiFetch(`/api/programs/${initialProgram.id}`, {
 				method: "PUT",
-				credentials: "include",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ name: renameField.value.trim() }),
 			});
@@ -529,9 +527,8 @@ function ProgramDetailInner({ program: initialProgram, onRefresh }) {
 			: `/api/programs/${initialProgram.id}/sets`;
 		const method = isEdit ? "PUT" : "POST";
 		try {
-			const r = await fetch(url, {
+			const r = await apiFetch(url, {
 				method,
-				credentials: "include",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					name: setNameField.value.trim() || undefined,
@@ -564,11 +561,10 @@ function ProgramDetailInner({ program: initialProgram, onRefresh }) {
 	const handleDeleteSet = async () => {
 		const s = deletingSet.value;
 		if (!s) return;
-		const r = await fetch(
+		const r = await apiFetch(
 			`/api/programs/${initialProgram.id}/sets/${s._rawId}`,
 			{
 				method: "DELETE",
-				credentials: "include",
 			},
 		);
 		if (!r.ok) throw new Error("Failed to delete set");
@@ -633,9 +629,8 @@ function ProgramDetailInner({ program: initialProgram, onRefresh }) {
 			pexWeight.value !== "" ? parseFloat(pexWeight.value) : null;
 
 		try {
-			const r = await fetch(url, {
+			const r = await apiFetch(url, {
 				method,
-				credentials: "include",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					exercise_id: pexExerciseId.value,
@@ -673,11 +668,10 @@ function ProgramDetailInner({ program: initialProgram, onRefresh }) {
 		const pex = removingPex.value;
 		const setRawId = removingPexSetId.value;
 		if (!pex || !setRawId) return;
-		const r = await fetch(
+		const r = await apiFetch(
 			`/api/programs/${initialProgram.id}/sets/${setRawId}/exercises/${pex._rawId}`,
 			{
 				method: "DELETE",
-				credentials: "include",
 			},
 		);
 		if (!r.ok) throw new Error("Failed to remove exercise");
@@ -742,9 +736,8 @@ function ProgramDetailInner({ program: initialProgram, onRefresh }) {
 		}));
 
 		reorderError.value = "";
-		fetch(`/api/programs/${initialProgram.id}/structure`, {
+		apiFetch(`/api/programs/${initialProgram.id}/structure`, {
 			method: "PUT",
-			credentials: "include",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(structure),
 		})

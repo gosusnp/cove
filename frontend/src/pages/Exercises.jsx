@@ -17,6 +17,7 @@ import { Row, Section } from "../components/ui/Section.jsx";
 import { Switch } from "../components/ui/Switch.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { useDialog } from "../hooks/useDialog.js";
+import { apiFetch } from "../lib/api.js";
 
 export function Exercises() {
 	const { user } = useAuth();
@@ -38,7 +39,7 @@ export function Exercises() {
 		if (!user) return;
 		loading.value = true;
 		try {
-			const r = await fetch("/api/exercises", { credentials: "include" });
+			const r = await apiFetch("/api/exercises");
 			if (!r.ok) throw new Error("Failed to fetch exercises");
 			const data = await r.json();
 			exercises.value = data;
@@ -96,9 +97,8 @@ export function Exercises() {
 			: "/api/exercises";
 
 		try {
-			const r = await fetch(url, {
+			const r = await apiFetch(url, {
 				method,
-				credentials: "include",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(payload),
 			});
@@ -127,9 +127,8 @@ export function Exercises() {
 	const handleDelete = async (id) => {
 		if (!confirm("Are you sure you want to delete this exercise?")) return;
 		try {
-			const r = await fetch(`/api/exercises/${id}`, {
+			const r = await apiFetch(`/api/exercises/${id}`, {
 				method: "DELETE",
-				credentials: "include",
 			});
 			if (!r.ok) throw new Error("Failed to delete exercise");
 			exercises.value = exercises.value.filter((ex) => ex.id !== id);

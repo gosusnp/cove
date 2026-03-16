@@ -104,7 +104,10 @@ describe("Settings", () => {
 				if (url.startsWith("/api/users/sessions")) {
 					return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
 				}
-				return Promise.resolve({ json: () => Promise.resolve(apiUser) });
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(apiUser),
+				});
 			});
 			const { auth } = renderSettings();
 			await waitFor(() =>
@@ -120,10 +123,12 @@ describe("Settings", () => {
 			);
 		});
 
-		it("logs out when /me returns 401", async () => {
-			vi.spyOn(global, "fetch").mockResolvedValue({ status: 401 });
-			const { auth } = renderSettings();
-			await waitFor(() => expect(auth.logout).toHaveBeenCalled());
+		it("redirects to /login when /me returns 401", async () => {
+			vi.spyOn(global, "fetch").mockResolvedValue({ status: 401, ok: false });
+			const assignSpy = vi.fn();
+			vi.stubGlobal("location", { ...window.location, assign: assignSpy });
+			renderSettings();
+			await waitFor(() => expect(assignSpy).toHaveBeenCalledWith("/login"));
 		});
 	});
 

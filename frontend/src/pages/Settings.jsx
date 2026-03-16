@@ -19,6 +19,7 @@ import { Row, Section } from "../components/ui/Section.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { useDialog } from "../hooks/useDialog.js";
 import { timeAgo } from "../lib/utils";
+import { apiFetch } from "../lib/api.js";
 
 function initials(user) {
 	if (user.name) {
@@ -42,14 +43,9 @@ export function Settings() {
 	// ── User profile ────────────────────────────────────────────────────
 	useEffect(() => {
 		if (!user) return;
-		fetch("/api/users/me", { credentials: "include" })
+		apiFetch("/api/users/me")
 			.then((r) => {
-				if (r.status === 401) {
-					logout();
-					route("/login");
-					return;
-				}
-				return r.json().then(updateUser);
+				if (r.ok) return r.json().then(updateUser);
 			})
 			.catch(() => {});
 	}, []);
@@ -66,7 +62,7 @@ export function Settings() {
 
 	useEffect(() => {
 		if (!user) return;
-		fetch("/api/users/tokens", { credentials: "include" })
+		apiFetch("/api/users/tokens")
 			.then((r) => (r.ok ? r.json() : []))
 			.then((data) => {
 				tokens.value = data;
@@ -84,7 +80,7 @@ export function Settings() {
 
 	useEffect(() => {
 		if (!user) return;
-		fetch("/api/users/sessions", { credentials: "include" })
+		apiFetch("/api/users/sessions")
 			.then((r) => (r.ok ? r.json() : Promise.reject()))
 			.then((data) => {
 				sessions.value = data;
@@ -115,9 +111,8 @@ export function Settings() {
 		creating.value = true;
 		createError.value = "";
 		try {
-			const r = await fetch("/api/users/tokens", {
+			const r = await apiFetch("/api/users/tokens", {
 				method: "POST",
-				credentials: "include",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ name }),
 			});
@@ -140,9 +135,8 @@ export function Settings() {
 
 	async function handleDelete(id) {
 		tokens.value = tokens.value.filter((t) => t.id !== id);
-		await fetch(`/api/users/tokens/${id}`, {
+		await apiFetch(`/api/users/tokens/${id}`, {
 			method: "DELETE",
-			credentials: "include",
 		});
 	}
 
@@ -152,9 +146,8 @@ export function Settings() {
 			handleSignOut();
 			return;
 		}
-		const r = await fetch(`/api/users/sessions/${id}`, {
+		const r = await apiFetch(`/api/users/sessions/${id}`, {
 			method: "DELETE",
-			credentials: "include",
 		});
 		if (r.ok) {
 			sessions.value = sessions.value.filter((sess) => sess.id !== id);

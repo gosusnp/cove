@@ -23,6 +23,7 @@ import {
 } from "../components/ui/Tooltip.jsx";
 import { useDialog } from "../hooks/useDialog.js";
 import { ProgramDetail } from "./ProgramDetail.jsx";
+import { apiFetch } from "../lib/api.js";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -176,9 +177,7 @@ export function Programs() {
 		loading.value = true;
 		fetchError.value = "";
 		try {
-			const r = await fetch("/api/programs", {
-				credentials: "include",
-			});
+			const r = await apiFetch("/api/programs");
 			if (!r.ok) throw new Error("Failed to fetch programs");
 			programs.value = await r.json();
 		} catch (err) {
@@ -231,9 +230,8 @@ export function Programs() {
 		const method = isEdit ? "PUT" : "POST";
 
 		try {
-			const r = await fetch(url, {
+			const r = await apiFetch(url, {
 				method,
-				credentials: "include",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ name: nameField.value.trim() }),
 			});
@@ -253,9 +251,8 @@ export function Programs() {
 	const handleDelete = async () => {
 		const p = deletingProgram.value;
 		if (!p) return;
-		const r = await fetch(`/api/programs/${p.id}`, {
+		const r = await apiFetch(`/api/programs/${p.id}`, {
 			method: "DELETE",
-			credentials: "include",
 		});
 		if (!r.ok) throw new Error("Failed to delete program");
 		if (selectedId === p.id) {

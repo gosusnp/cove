@@ -9,6 +9,7 @@ import { Button } from "../components/ui/Button.jsx";
 import { ListDetail } from "../components/ui/ListDetail.jsx";
 import { ListItem } from "../components/ui/ListItem.jsx";
 import { SessionDetail } from "./SessionDetail.jsx";
+import { apiFetch } from "../lib/api.js";
 
 function formatDate(iso) {
 	if (!iso) return null;
@@ -78,9 +79,7 @@ export function Sessions() {
 		if (!user) return;
 		loading.value = true;
 		fetchError.value = "";
-		fetch("/api/sessions", {
-			credentials: "include",
-		})
+		apiFetch("/api/sessions")
 			.then((r) => {
 				if (!r.ok) throw new Error("Failed to fetch sessions");
 				return r.json();

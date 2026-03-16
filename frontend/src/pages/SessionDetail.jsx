@@ -6,6 +6,7 @@ import { useEffect } from "preact/hooks";
 import { useAuth } from "../Auth.jsx";
 import { PageTitle } from "../components/ui/PageTitle.jsx";
 import { Row, Section } from "../components/ui/Section.jsx";
+import { apiFetch } from "../lib/api.js";
 
 function formatDate(iso) {
 	if (!iso) return null;
@@ -35,9 +36,7 @@ export function SessionDetail({ sessionId }) {
 		if (!user || !sessionId) return;
 		loading.value = true;
 		error.value = "";
-		fetch(`/api/sessions/${sessionId}`, {
-			credentials: "include",
-		})
+		apiFetch(`/api/sessions/${sessionId}`)
 			.then((r) => {
 				if (!r.ok) throw new Error("Failed to fetch session");
 				return r.json();

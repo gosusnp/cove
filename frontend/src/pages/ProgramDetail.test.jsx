@@ -848,9 +848,9 @@ describe("ProgramDetail — refresh after CRUD", () => {
 		fireEvent.click(screen.getByText("Confirm"));
 
 		// After refresh, "Push" should be gone and only "Pull" remains
-		await waitFor(() =>
-			expect(screen.queryByText("Push")).not.toBeInTheDocument(),
-		);
-		expect(screen.getByText("Pull")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(screen.queryByText("Push")).not.toBeInTheDocument();
+			expect(screen.getByText("Pull")).toBeInTheDocument();
+		});
 	});
 });

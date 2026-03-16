@@ -9,6 +9,7 @@ import { Button } from "../components/ui/Button.jsx";
 import { Combobox } from "../components/ui/Combobox.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { SessionSummaryDialog } from "./SessionSummaryDialog.jsx";
+import { apiFetch } from "../lib/api.js";
 
 // Formats elapsed seconds as HH:MM:SS.
 function formatElapsed(totalSeconds) {
@@ -58,7 +59,7 @@ export function SessionTracker() {
 	// Load programs list for the selector.
 	useEffect(() => {
 		if (!user) return;
-		fetch("/api/programs", { credentials: "include" })
+		apiFetch("/api/programs")
 			.then((r) => (r.ok ? r.json() : Promise.reject()))
 			.then((data) => {
 				programs.value = data;
@@ -70,9 +71,7 @@ export function SessionTracker() {
 	useEffect(() => {
 		programDetail.value = null;
 		if (!selectedProgramId.value) return;
-		fetch(`/api/programs/${selectedProgramId.value}`, {
-			credentials: "include",
-		})
+		apiFetch(`/api/programs/${selectedProgramId.value}`)
 			.then((r) => (r.ok ? r.json() : Promise.reject()))
 			.then((data) => {
 				programDetail.value = data;
@@ -107,9 +106,8 @@ export function SessionTracker() {
 					program_structure: prog.structure ?? null,
 				}),
 			};
-			const r = await fetch("/api/sessions", {
+			const r = await apiFetch("/api/sessions", {
 				method: "POST",
-				credentials: "include",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(body),
 			});
@@ -167,9 +165,8 @@ export function SessionTracker() {
 					program_structure: prog.structure ?? null,
 				}),
 			};
-			const r = await fetch(`/api/sessions/${sessionId.value}`, {
+			const r = await apiFetch(`/api/sessions/${sessionId.value}`, {
 				method: "PATCH",
-				credentials: "include",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(body),
 			});
