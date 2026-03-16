@@ -12,12 +12,13 @@ RUN npm --prefix frontend run build
 
 # Stage 2: build backend
 FROM golang:1.26 AS backend-build
+ARG TARGETARCH
 WORKDIR /app
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 COPY backend/ .
 COPY --from=frontend-build /workspace/backend/ui ./ui
-RUN CGO_ENABLED=0 go build -o bin/cove .
+RUN CGO_ENABLED=0 GOARCH=${TARGETARCH} go build -o bin/cove .
 
 # Stage 3: minimal runtime image
 FROM gcr.io/distroless/static-debian13
