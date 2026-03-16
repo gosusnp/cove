@@ -19,7 +19,7 @@ import { TextField } from "../components/ui/TextField.jsx";
 import { useDialog } from "../hooks/useDialog.js";
 
 export function Exercises() {
-	const { token } = useAuth();
+	const { user } = useAuth();
 	const exercises = useSignal([]);
 	const loading = useSignal(true);
 	const error = useSignal("");
@@ -35,12 +35,10 @@ export function Exercises() {
 	const formError = useSignal("");
 
 	const fetchExercises = async () => {
-		if (!token) return;
+		if (!user) return;
 		loading.value = true;
 		try {
-			const r = await fetch("/api/exercises", {
-				headers: { Authorization: `Bearer ${token}` },
-			});
+			const r = await fetch("/api/exercises", { credentials: "include" });
 			if (!r.ok) throw new Error("Failed to fetch exercises");
 			const data = await r.json();
 			exercises.value = data;
@@ -53,7 +51,7 @@ export function Exercises() {
 
 	useEffect(() => {
 		fetchExercises();
-	}, [token]);
+	}, [!!user]);
 
 	const openCreate = () => {
 		editingId.value = null;
@@ -100,10 +98,8 @@ export function Exercises() {
 		try {
 			const r = await fetch(url, {
 				method,
-				headers: {
-					Authorization: `Bearer ${token}`,
-					"Content-Type": "application/json",
-				},
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(payload),
 			});
 
@@ -133,7 +129,7 @@ export function Exercises() {
 		try {
 			const r = await fetch(`/api/exercises/${id}`, {
 				method: "DELETE",
-				headers: { Authorization: `Bearer ${token}` },
+				credentials: "include",
 			});
 			if (!r.ok) throw new Error("Failed to delete exercise");
 			exercises.value = exercises.value.filter((ex) => ex.id !== id);

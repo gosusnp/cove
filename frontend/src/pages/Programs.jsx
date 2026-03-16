@@ -150,7 +150,7 @@ function ProgramList({
 // ─── Programs (page) ─────────────────────────────────────────────────────────
 
 export function Programs() {
-	const { token } = useAuth();
+	const { user } = useAuth();
 	const { route } = useLocation();
 	const { params } = useRoute();
 	const selectedId = params?.id ? Number(params.id) : null;
@@ -172,12 +172,12 @@ export function Programs() {
 	const fetchError = useSignal("");
 
 	const fetchPrograms = async () => {
-		if (!token) return;
+		if (!user) return;
 		loading.value = true;
 		fetchError.value = "";
 		try {
 			const r = await fetch("/api/programs", {
-				headers: { Authorization: `Bearer ${token}` },
+				credentials: "include",
 			});
 			if (!r.ok) throw new Error("Failed to fetch programs");
 			programs.value = await r.json();
@@ -190,7 +190,7 @@ export function Programs() {
 
 	useEffect(() => {
 		fetchPrograms();
-	}, [token]);
+	}, [!!user]);
 
 	const handleSelect = (id) => {
 		route(`/programs/${id}`);
@@ -233,10 +233,8 @@ export function Programs() {
 		try {
 			const r = await fetch(url, {
 				method,
-				headers: {
-					Authorization: `Bearer ${token}`,
-					"Content-Type": "application/json",
-				},
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ name: nameField.value.trim() }),
 			});
 			if (!r.ok) {
@@ -257,7 +255,7 @@ export function Programs() {
 		if (!p) return;
 		const r = await fetch(`/api/programs/${p.id}`, {
 			method: "DELETE",
-			headers: { Authorization: `Bearer ${token}` },
+			credentials: "include",
 		});
 		if (!r.ok) throw new Error("Failed to delete program");
 		if (selectedId === p.id) {

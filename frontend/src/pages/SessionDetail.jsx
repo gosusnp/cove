@@ -26,17 +26,17 @@ function formatDuration(seconds) {
 }
 
 export function SessionDetail({ sessionId }) {
-	const { token } = useAuth();
+	const { user } = useAuth();
 	const session = useSignal(null);
 	const loading = useSignal(true);
 	const error = useSignal("");
 
 	useEffect(() => {
-		if (!token || !sessionId) return;
+		if (!user || !sessionId) return;
 		loading.value = true;
 		error.value = "";
 		fetch(`/api/sessions/${sessionId}`, {
-			headers: { Authorization: `Bearer ${token}` },
+			credentials: "include",
 		})
 			.then((r) => {
 				if (!r.ok) throw new Error("Failed to fetch session");
@@ -51,7 +51,7 @@ export function SessionDetail({ sessionId }) {
 			.finally(() => {
 				loading.value = false;
 			});
-	}, [sessionId, token]);
+	}, [sessionId, user]);
 
 	if (loading.value) {
 		return (

@@ -10,8 +10,6 @@ export function withProviders(ui, { path = "/", user = null } = {}) {
 	window.history.pushState({}, "", path);
 	const auth = {
 		user,
-		token: user ? "tok" : null,
-		login: vi.fn(),
 		logout: vi.fn(),
 		updateUser: vi.fn(),
 	};

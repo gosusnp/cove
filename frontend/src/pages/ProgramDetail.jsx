@@ -301,7 +301,7 @@ function SortableExerciseRow({ exercise, setId, onEdit, onRemove }) {
 // that useSortableGroups is seeded fresh whenever the program changes.
 
 export function ProgramDetail({ programId }) {
-	const { token } = useAuth();
+	const { user } = useAuth();
 
 	const rawProgram = useSignal(null);
 	const loading = useSignal(true);
@@ -309,12 +309,12 @@ export function ProgramDetail({ programId }) {
 	const refreshKey = useSignal(0);
 
 	const fetchProgram = async () => {
-		if (!programId || !token) return;
+		if (!programId || !user) return;
 		loading.value = true;
 		fetchError.value = "";
 		try {
 			const r = await fetch(`/api/programs/${programId}`, {
-				headers: { Authorization: `Bearer ${token}` },
+				credentials: "include",
 			});
 			if (!r.ok) throw new Error("Failed to load program");
 			rawProgram.value = await r.json();
@@ -328,7 +328,7 @@ export function ProgramDetail({ programId }) {
 
 	useEffect(() => {
 		fetchProgram();
-	}, [programId, token]);
+	}, [programId, user]);
 
 	if (loading.value) {
 		return (
@@ -356,7 +356,6 @@ export function ProgramDetail({ programId }) {
 		<ProgramDetailInner
 			key={`${programId}-${refreshKey.value}`}
 			program={rawProgram.value}
-			token={token}
 			onRefresh={fetchProgram}
 		/>
 	);
@@ -394,7 +393,7 @@ function toSortableSet(set) {
 // ── ProgramDetailInner ────────────────────────────────────────────────────────
 // Receives already-loaded program data and manages all CRUD + DnD.
 
-function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
+function ProgramDetailInner({ program: initialProgram, onRefresh }) {
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
 		useSensor(KeyboardSensor),
@@ -426,8 +425,7 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 	const exerciseOptions = useSignal([]);
 
 	useEffect(() => {
-		if (!token) return;
-		fetch("/api/exercises", { headers: { Authorization: `Bearer ${token}` } })
+		fetch("/api/exercises", { credentials: "include" })
 			.then((r) => r.json())
 			.then((data) => {
 				const sorted = [...(data ?? [])].sort((a, b) =>
@@ -439,7 +437,7 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 				}));
 			})
 			.catch(() => {});
-	}, [token]);
+	}, []);
 
 	// ── Rename dialog ─────────────────────────────────────────────────────────
 	const renameDialog = useDialog();
@@ -464,10 +462,8 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 		try {
 			const r = await fetch(`/api/programs/${initialProgram.id}`, {
 				method: "PUT",
-				headers: {
-					Authorization: `Bearer ${token}`,
-					"Content-Type": "application/json",
-				},
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ name: renameField.value.trim() }),
 			});
 			if (!r.ok) {
@@ -535,10 +531,8 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 		try {
 			const r = await fetch(url, {
 				method,
-				headers: {
-					Authorization: `Bearer ${token}`,
-					"Content-Type": "application/json",
-				},
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					name: setNameField.value.trim() || undefined,
 					rounds,
@@ -574,7 +568,7 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 			`/api/programs/${initialProgram.id}/sets/${s._rawId}`,
 			{
 				method: "DELETE",
-				headers: { Authorization: `Bearer ${token}` },
+				credentials: "include",
 			},
 		);
 		if (!r.ok) throw new Error("Failed to delete set");
@@ -641,10 +635,8 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 		try {
 			const r = await fetch(url, {
 				method,
-				headers: {
-					Authorization: `Bearer ${token}`,
-					"Content-Type": "application/json",
-				},
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					exercise_id: pexExerciseId.value,
 					laterality: pexLaterality.value ?? undefined,
@@ -685,7 +677,7 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 			`/api/programs/${initialProgram.id}/sets/${setRawId}/exercises/${pex._rawId}`,
 			{
 				method: "DELETE",
-				headers: { Authorization: `Bearer ${token}` },
+				credentials: "include",
 			},
 		);
 		if (!r.ok) throw new Error("Failed to remove exercise");
@@ -752,10 +744,8 @@ function ProgramDetailInner({ program: initialProgram, token, onRefresh }) {
 		reorderError.value = "";
 		fetch(`/api/programs/${initialProgram.id}/structure`, {
 			method: "PUT",
-			headers: {
-				Authorization: `Bearer ${token}`,
-				"Content-Type": "application/json",
-			},
+			credentials: "include",
+			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(structure),
 		})
 			.then((r) => {

@@ -65,7 +65,7 @@ function SessionList({ sessions, selectedId, onSelect, onNew, error }) {
 }
 
 export function Sessions() {
-	const { token } = useAuth();
+	const { user } = useAuth();
 	const { route } = useLocation();
 	const { params } = useRoute();
 	const selectedId = params?.id ? Number(params.id) : null;
@@ -75,11 +75,11 @@ export function Sessions() {
 	const fetchError = useSignal("");
 
 	useEffect(() => {
-		if (!token) return;
+		if (!user) return;
 		loading.value = true;
 		fetchError.value = "";
 		fetch("/api/sessions", {
-			headers: { Authorization: `Bearer ${token}` },
+			credentials: "include",
 		})
 			.then((r) => {
 				if (!r.ok) throw new Error("Failed to fetch sessions");
@@ -94,7 +94,7 @@ export function Sessions() {
 			.finally(() => {
 				loading.value = false;
 			});
-	}, [token]);
+	}, [!!user]);
 
 	const handleSelect = (id) => {
 		route(`/sessions/${id}`);

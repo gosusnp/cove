@@ -23,7 +23,7 @@ function formatElapsed(totalSeconds) {
 }
 
 export function SessionTracker() {
-	const { token } = useAuth();
+	const { user } = useAuth();
 	const { route } = useLocation();
 
 	// Programs for optional selector.
@@ -57,30 +57,28 @@ export function SessionTracker() {
 
 	// Load programs list for the selector.
 	useEffect(() => {
-		if (!token) return;
-		fetch("/api/programs", {
-			headers: { Authorization: `Bearer ${token}` },
-		})
+		if (!user) return;
+		fetch("/api/programs", { credentials: "include" })
 			.then((r) => (r.ok ? r.json() : Promise.reject()))
 			.then((data) => {
 				programs.value = data;
 			})
 			.catch(() => {});
-	}, [token]);
+	}, [!!user]);
 
 	// Fetch full program detail (including structure) when selection changes.
 	useEffect(() => {
 		programDetail.value = null;
-		if (!token || !selectedProgramId.value) return;
+		if (!selectedProgramId.value) return;
 		fetch(`/api/programs/${selectedProgramId.value}`, {
-			headers: { Authorization: `Bearer ${token}` },
+			credentials: "include",
 		})
 			.then((r) => (r.ok ? r.json() : Promise.reject()))
 			.then((data) => {
 				programDetail.value = data;
 			})
 			.catch(() => {});
-	}, [token, selectedProgramId.value]);
+	}, [user, selectedProgramId.value]);
 
 	// Timer tick.
 	useEffect(() => {
@@ -96,7 +94,7 @@ export function SessionTracker() {
 
 	// Start session: create server record, then start timer.
 	async function handleStart() {
-		if (!token) return;
+		if (!user) return;
 		saving.value = true;
 		saveError.value = "";
 		try {
@@ -111,10 +109,8 @@ export function SessionTracker() {
 			};
 			const r = await fetch("/api/sessions", {
 				method: "POST",
-				headers: {
-					Authorization: `Bearer ${token}`,
-					"Content-Type": "application/json",
-				},
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(body),
 			});
 			if (!r.ok) throw new Error("Failed to start session");
@@ -155,7 +151,7 @@ export function SessionTracker() {
 
 	// Save Session: patch with completed_at, duration, notes, effort, then navigate.
 	async function handleSave() {
-		if (!token || sessionId.value == null) return;
+		if (sessionId.value == null) return;
 		saving.value = true;
 		saveError.value = "";
 		try {
@@ -173,10 +169,8 @@ export function SessionTracker() {
 			};
 			const r = await fetch(`/api/sessions/${sessionId.value}`, {
 				method: "PATCH",
-				headers: {
-					Authorization: `Bearer ${token}`,
-					"Content-Type": "application/json",
-				},
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(body),
 			});
 			if (!r.ok) throw new Error("Failed to save session");

@@ -36,15 +36,13 @@ function initials(user) {
 }
 
 export function Settings() {
-	const { user, token, logout, updateUser } = useAuth();
+	const { user, logout, updateUser } = useAuth();
 	const { route } = useLocation();
 
 	// ── User profile ────────────────────────────────────────────────────
 	useEffect(() => {
-		if (!token) return;
-		fetch("/api/users/me", {
-			headers: { Authorization: `Bearer ${token}` },
-		})
+		if (!user) return;
+		fetch("/api/users/me", { credentials: "include" })
 			.then((r) => {
 				if (r.status === 401) {
 					logout();
@@ -54,7 +52,7 @@ export function Settings() {
 				return r.json().then(updateUser);
 			})
 			.catch(() => {});
-	}, [token]);
+	}, []);
 
 	// ── Tokens ───────────────────────────────────────────────────────────
 	const tokens = useSignal([]);
@@ -67,10 +65,8 @@ export function Settings() {
 	const copied = useSignal(false);
 
 	useEffect(() => {
-		if (!token) return;
-		fetch("/api/users/tokens", {
-			headers: { Authorization: `Bearer ${token}` },
-		})
+		if (!user) return;
+		fetch("/api/users/tokens", { credentials: "include" })
 			.then((r) => (r.ok ? r.json() : []))
 			.then((data) => {
 				tokens.value = data;
@@ -79,7 +75,7 @@ export function Settings() {
 			.finally(() => {
 				tokensLoading.value = false;
 			});
-	}, [token]);
+	}, [!!user]);
 
 	// ── Sessions ─────────────────────────────────────────────────────────
 	const sessions = useSignal([]);
@@ -87,10 +83,8 @@ export function Settings() {
 	const sessionsError = useSignal(false);
 
 	useEffect(() => {
-		if (!token) return;
-		fetch("/api/users/sessions", {
-			headers: { Authorization: `Bearer ${token}` },
-		})
+		if (!user) return;
+		fetch("/api/users/sessions", { credentials: "include" })
 			.then((r) => (r.ok ? r.json() : Promise.reject()))
 			.then((data) => {
 				sessions.value = data;
@@ -101,7 +95,7 @@ export function Settings() {
 			.finally(() => {
 				sessionsLoading.value = false;
 			});
-	}, [token]);
+	}, [!!user]);
 
 	function openCreateDialog() {
 		tokenName.value = "";
@@ -123,10 +117,8 @@ export function Settings() {
 		try {
 			const r = await fetch("/api/users/tokens", {
 				method: "POST",
-				headers: {
-					Authorization: `Bearer ${token}`,
-					"Content-Type": "application/json",
-				},
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ name }),
 			});
 			if (!r.ok) {
@@ -150,7 +142,7 @@ export function Settings() {
 		tokens.value = tokens.value.filter((t) => t.id !== id);
 		await fetch(`/api/users/tokens/${id}`, {
 			method: "DELETE",
-			headers: { Authorization: `Bearer ${token}` },
+			credentials: "include",
 		});
 	}
 
@@ -162,7 +154,7 @@ export function Settings() {
 		}
 		const r = await fetch(`/api/users/sessions/${id}`, {
 			method: "DELETE",
-			headers: { Authorization: `Bearer ${token}` },
+			credentials: "include",
 		});
 		if (r.ok) {
 			sessions.value = sessions.value.filter((sess) => sess.id !== id);

@@ -5,71 +5,89 @@ import { render, waitFor } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider, useAuth } from "./Auth.jsx";
 
-function TestComponent({ onLogout }) {
-	const { logout } = useAuth();
+function TestComponent() {
+	const { user, logout } = useAuth();
 	return (
-		<button
-			type="button"
-			onClick={() => {
-				logout();
-				if (onLogout) onLogout();
-			}}
-		>
-			Logout
-		</button>
+		<div>
+			<span data-testid="user">{user ? user.email : "none"}</span>
+			<button type="button" onClick={logout}>
+				Logout
+			</button>
+		</div>
 	);
 }
 
 describe("AuthContext", () => {
 	beforeEach(() => {
-		localStorage.clear();
-		vi.stubGlobal(
-			"fetch",
-			vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }),
-		);
+		vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
 	});
 
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
 
-	it("calls logout API when session exists", async () => {
-		const session = { token: "test-token", user: { id: "1" } };
-		localStorage.setItem("cove_session", JSON.stringify(session));
+	it("bootstraps user from /api/users/me on mount", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue({
+				ok: true,
+				json: () => Promise.resolve({ id: "1", email: "test@example.com" }),
+			}),
+		);
 
-		const { getByText } = render(
+		const { getByTestId } = render(
 			<AuthProvider>
 				<TestComponent />
 			</AuthProvider>,
 		);
-
-		getByText("Logout").click();
 
 		await waitFor(() =>
-			expect(global.fetch).toHaveBeenCalledWith(
-				"/api/users/logout",
-				expect.objectContaining({
-					method: "POST",
-					headers: { Authorization: "Bearer test-token" },
-				}),
-			),
+			expect(getByTestId("user").textContent).toBe("test@example.com"),
 		);
-
-		expect(localStorage.getItem("cove_session")).toBeNull();
+		expect(global.fetch).toHaveBeenCalledWith(
+			"/api/users/me",
+			expect.objectContaining({ credentials: "include" }),
+		);
 	});
 
-	it("does not call logout API when no session exists", async () => {
-		const { getByText } = render(
+	it("remains unauthenticated when /api/users/me returns 401", async () => {
+		const { getByTestId } = render(
 			<AuthProvider>
 				<TestComponent />
 			</AuthProvider>,
 		);
 
+		await waitFor(() => expect(getByTestId("user").textContent).toBe("none"));
+	});
+
+	it("calls logout API with credentials and clears user", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi
+				.fn()
+				.mockResolvedValueOnce({
+					ok: true,
+					json: () => Promise.resolve({ id: "1", email: "test@example.com" }),
+				})
+				.mockResolvedValue({ ok: true }),
+		);
+
+		const { getByTestId, getByText } = render(
+			<AuthProvider>
+				<TestComponent />
+			</AuthProvider>,
+		);
+
+		await waitFor(() =>
+			expect(getByTestId("user").textContent).toBe("test@example.com"),
+		);
+
 		getByText("Logout").click();
 
-		await waitFor(() => {
-			expect(global.fetch).not.toHaveBeenCalled();
-		});
-		expect(localStorage.getItem("cove_session")).toBeNull();
+		await waitFor(() => expect(getByTestId("user").textContent).toBe("none"));
+		expect(global.fetch).toHaveBeenCalledWith(
+			"/api/users/logout",
+			expect.objectContaining({ method: "POST", credentials: "include" }),
+		);
 	});
 });

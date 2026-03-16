@@ -82,13 +82,14 @@ describe("Settings", () => {
 	});
 
 	describe("fetch /api/users/me", () => {
-		it("sends bearer token", async () => {
+		it("sends credentials", async () => {
 			const fetchSpy = mockFetch();
 			renderSettings();
 			await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
-			expect(fetchSpy).toHaveBeenCalledWith("/api/users/me", {
-				headers: { Authorization: "Bearer tok" },
-			});
+			expect(fetchSpy).toHaveBeenCalledWith(
+				"/api/users/me",
+				expect.objectContaining({ credentials: "include" }),
+			);
 		});
 
 		it("calls updateUser with API response", async () => {
@@ -213,7 +214,7 @@ describe("Settings", () => {
 			fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 			expect(fetchSpy).toHaveBeenCalledWith("/api/users/tokens/abc-123", {
 				method: "DELETE",
-				headers: { Authorization: "Bearer tok" },
+				credentials: "include",
 			});
 		});
 
@@ -412,7 +413,7 @@ describe("Settings", () => {
 			fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
 			expect(fetchSpy).toHaveBeenCalledWith("/api/users/sessions/abc-456", {
 				method: "DELETE",
-				headers: { Authorization: "Bearer tok" },
+				credentials: "include",
 			});
 		});
 
