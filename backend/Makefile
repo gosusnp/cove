@@ -38,7 +38,7 @@ devenv.down:
 devenv.reset:
 	docker compose -f ../docker-compose.yml down -v
 
-check: lint test
+check: lint license-check test
 
 fix: license-fix fmt
 
