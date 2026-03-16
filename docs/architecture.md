@@ -27,7 +27,7 @@ frontend/         — Preact + Vite + Tailwind v4
       shared/     — cross-cutting app components (Nav, …)
       ui/         — gold standard primitives (Button, Dialog, Switch, NavigationMenu, NavigationMenuBrand, TopBar, Avatar)
     hooks/        — signal-based hooks (useDialog, …)
-    lib/          — shared utilities (cn)
+    lib/          — shared utilities (cn, apiFetch)
     pages/        — route-level page components
 docs/             — architecture and style guides
 ```
@@ -414,8 +414,15 @@ Middleware takes `http.Handler` and returns `http.Handler`.
 ```go
 func OAuth(us *store.UserStore, next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-        if !ok || token == "" {
+        // Cookie-first: browser sessions use an HttpOnly cookie.
+        // Bearer fallback: MCP clients and API keys use the Authorization header.
+        var token string
+        if c, err := r.Cookie("cove_session"); err == nil {
+            token = c.Value
+        } else if t, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
+            token = t
+        }
+        if token == "" {
             // respond 401 and return
         }
         next.ServeHTTP(w, r)
@@ -425,6 +432,7 @@ func OAuth(us *store.UserStore, next http.Handler) http.Handler {
 
 - **DO** write middleware as functions that accept dependencies and `next http.Handler`.
 - **DON'T** use a global middleware registry or middleware structs with `ServeHTTP`.
+- **DO** check the `cove_session` cookie before the `Authorization` header — browser clients set the cookie; API/MCP clients set the header.
 
 ---
 
@@ -452,6 +460,30 @@ All keys in `snake_case`. Success and error shapes are fixed:
 - **DO** use `jsonError(w, message, code)` for all error responses.
 - **DO** use `jsonResponse(w, data, http.StatusCreated)` for 201 responses.
 - **DON'T** write ad-hoc response shapes — always use the helpers.
+
+---
+
+## Credential & Sensitive Data Hygiene
+
+These rules apply everywhere in the codebase — backend, frontend, tests, and logs.
+
+### Session tokens
+
+- **DO** deliver session tokens as `HttpOnly; Secure; SameSite=Strict` cookies set by the server. The browser sends them automatically; JS never sees them.
+- **DON'T** write session tokens, API keys, or any auth credential to `localStorage`, `sessionStorage`, a JS variable, a URL parameter, or a log line — not even in development.
+- **DO** use `secureCookies: true` in production (`COVE_DEV == ""`). The flag is wired in `main.go`; tests pass `false` to allow HTTP.
+
+### Frontend
+
+- **DON'T** read or write auth state from `localStorage` or `sessionStorage`. Auth state is bootstrapped by `GET /api/users/me` on mount.
+- **DON'T** expose tokens in the `AuthContext` or any component prop. The context carries only the user object, `logout`, and `updateUser`.
+- **DO** use `apiFetch` from `src/lib/api.js` for all API calls — it adds `credentials: "include"` so the session cookie is sent automatically.
+
+### Logging
+
+- **DON'T** log request headers, cookie values, or any field that could contain a credential.
+- **DON'T** include user-supplied free-text fields (session notes, exercise descriptions) in error messages or structured log output.
+- **DO** log only opaque identifiers (IDs, status codes, durations) — never the values they reference.
 
 ---
 

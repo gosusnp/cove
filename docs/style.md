@@ -187,6 +187,7 @@ Supporting utilities:
 | Path | Description |
 |---|---|
 | `src/lib/utils.js` | `cn()` — class merging via clsx + tailwind-merge |
+| `src/lib/api.js` | `apiFetch(url, options?)` — fetch wrapper; adds `credentials: "include"` and redirects to `/login` on 401 |
 | `src/hooks/useDialog.js` | `useDialog(initialOpen?)` — signal-based dialog state |
 | `src/hooks/useSortableGroups.js` | `useSortableGroups(initialSets, opts?)` — drag-and-drop state for sortable accordion groups via `@dnd-kit` |
 
@@ -199,6 +200,7 @@ Rules:
 - **DO** add a `ComponentName.test.jsx` alongside every new `ui/` component covering its core variants and interactions.
 - **DON'T** rely solely on `/design-elements` for verification — visual showcase does not replace automated tests.
 - **DON'T** reach for low-level HTML tags for components that exist in `ui/`. If you need a field, use `TextField`. If you need a section, use `Section`.
+- **DO** use `apiFetch` from `src/lib/api.js` for all API calls in page files — never call `fetch` directly. It adds `credentials: "include"` and handles 401 globally.
 
 The `/design-elements` route (visible when `VITE_COVE_ENV=dev`) is the live showcase for all `ui/` components. Every primitive must be represented there with all meaningful states (variants, sizes, disabled, active, etc.).
 
