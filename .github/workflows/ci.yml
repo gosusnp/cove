@@ -23,6 +23,8 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+      - run: go mod download
+        working-directory: backend
       - run: npm ci
       - run: make check
 

@@ -24,10 +24,10 @@ fmt:
 	gofmt -w .
 
 license-check:
-	go tool addlicense -check -f ../.license_header.txt .
+	go tool addlicense -check -f ../.license_header.txt -ignore "ui/**" .
 
 license-fix:
-	go tool addlicense -f ../.license_header.txt .
+	go tool addlicense -f ../.license_header.txt -ignore "ui/**" .
 
 devenv.up:
 	docker compose -f ../docker-compose.yml up -d
