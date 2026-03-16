@@ -20,10 +20,10 @@ fmt-check:
 	npx biome format .
 
 license-check:
-	cd ../backend && go tool addlicense -check -f ../.license_header.txt -ignore "node_modules/**" -ignore "dist/**" ../frontend
+	cd ../backend && go tool addlicense -check -f ../.license_header.txt -ignore "**/node_modules/**" -ignore "**/dist/**" ../frontend
 
 license-fix:
-	cd ../backend && go tool addlicense -f ../.license_header.txt -ignore "node_modules/**" -ignore "dist/**" ../frontend
+	cd ../backend && go tool addlicense -f ../.license_header.txt -ignore "**/node_modules/**" -ignore "**/dist/**" ../frontend
 
 test:
 	npm run test
