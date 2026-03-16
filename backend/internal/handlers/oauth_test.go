@@ -53,7 +53,7 @@ func newTestOAuthHandler(t *testing.T, allowed []string, tokenURL, userinfoURL s
 			TokenURL: tokenURL,
 		},
 	}
-	h := NewOAuthHandler(cfg, svc, allowed)
+	h := NewOAuthHandler(cfg, svc, allowed, false)
 	h.userinfoURL = userinfoURL
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
@@ -128,7 +128,7 @@ func TestOAuthHandler_Callback(t *testing.T) {
 		}
 	})
 
-	t.Run("valid flow redirects with session token", func(t *testing.T) {
+	t.Run("valid flow sets session cookie and redirects to root", func(t *testing.T) {
 		tokenURL, userinfoURL := fakeOAuthServer(t, "user@example.com", "sub-123")
 		_, mux, _ := newTestOAuthHandler(t, nil, tokenURL, userinfoURL)
 
@@ -140,12 +140,24 @@ func TestOAuthHandler_Callback(t *testing.T) {
 		if w.Code != http.StatusFound {
 			t.Errorf("got status %d, want %d: %s", w.Code, http.StatusFound, w.Body.String())
 		}
-		loc := w.Header().Get("Location")
-		if loc == "" {
-			t.Fatal("expected non-empty Location header")
+		if loc := w.Header().Get("Location"); loc != "/" {
+			t.Errorf("expected redirect to /, got %q", loc)
 		}
-		if len(loc) <= len("/?token=") {
-			t.Errorf("expected token in Location, got %q", loc)
+		var sessionCookie *http.Cookie
+		for _, c := range w.Result().Cookies() {
+			if c.Name == sessionCookieName {
+				sessionCookie = c
+				break
+			}
+		}
+		if sessionCookie == nil {
+			t.Fatal("expected cove_session cookie to be set")
+		}
+		if !strings.HasPrefix(sessionCookie.Value, "sess_") {
+			t.Errorf("expected sess_ prefix in cookie value, got %q", sessionCookie.Value)
+		}
+		if !sessionCookie.HttpOnly {
+			t.Error("expected HttpOnly cookie")
 		}
 	})
 
@@ -163,7 +175,7 @@ func TestOAuthHandler_Callback(t *testing.T) {
 		}
 	})
 
-	t.Run("whitelisted email redirects with token", func(t *testing.T) {
+	t.Run("whitelisted email sets session cookie and redirects to root", func(t *testing.T) {
 		tokenURL, userinfoURL := fakeOAuthServer(t, "allowed@example.com", "sub-allowed")
 		_, mux, _ := newTestOAuthHandler(t, []string{"allowed@example.com"}, tokenURL, userinfoURL)
 
@@ -174,6 +186,9 @@ func TestOAuthHandler_Callback(t *testing.T) {
 
 		if w.Code != http.StatusFound {
 			t.Errorf("got status %d, want %d: %s", w.Code, http.StatusFound, w.Body.String())
+		}
+		if loc := w.Header().Get("Location"); loc != "/" {
+			t.Errorf("expected redirect to /, got %q", loc)
 		}
 	})
 
@@ -217,7 +232,7 @@ func TestOAuthHandler_Callback(t *testing.T) {
 }
 
 func TestOAuthHandler_DevLogin(t *testing.T) {
-	t.Run("success creates session", func(t *testing.T) {
+	t.Run("success creates session cookie", func(t *testing.T) {
 		tokenURL, userinfoURL := fakeOAuthServer(t, "dev@example.com", "sub-dev")
 		h, mux, _ := newTestOAuthHandler(t, nil, tokenURL, userinfoURL)
 		h.RegisterDevRoutes(mux)
@@ -227,13 +242,24 @@ func TestOAuthHandler_DevLogin(t *testing.T) {
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, r)
 
-		if w.Code != http.StatusOK {
-			t.Errorf("got status %d, want 200", w.Code)
+		if w.Code != http.StatusNoContent {
+			t.Errorf("got status %d, want 204", w.Code)
 		}
-		var got map[string]string
-		_ = json.NewDecoder(w.Body).Decode(&got)
-		if !strings.HasPrefix(got["token"], "sess_") {
-			t.Errorf("expected sess_ prefix, got %q", got["token"])
+		var sessionCookie *http.Cookie
+		for _, c := range w.Result().Cookies() {
+			if c.Name == sessionCookieName {
+				sessionCookie = c
+				break
+			}
+		}
+		if sessionCookie == nil {
+			t.Fatal("expected cove_session cookie to be set")
+		}
+		if !strings.HasPrefix(sessionCookie.Value, "sess_") {
+			t.Errorf("expected sess_ prefix in cookie value, got %q", sessionCookie.Value)
+		}
+		if !sessionCookie.HttpOnly {
+			t.Error("expected HttpOnly cookie")
 		}
 	})
 

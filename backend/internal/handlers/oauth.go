@@ -18,11 +18,39 @@ import (
 	"github.com/gosusnp/cove/backend/internal/service"
 )
 
+const sessionCookieName = "cove_session"
+
+// setSessionCookie writes an HttpOnly session cookie to the response.
+func setSessionCookie(w http.ResponseWriter, token string, secure bool) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    token,
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/",
+	})
+}
+
+// clearSessionCookie expires the session cookie.
+func clearSessionCookie(w http.ResponseWriter, secure bool) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    "",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   -1,
+		Path:     "/",
+	})
+}
+
 type OAuthHandler struct {
 	config        *oauth2.Config
 	userSvc       *service.UserService
 	allowedEmails map[string]struct{}
 	userinfoURL   string
+	secureCookies bool
 }
 
 func (h *OAuthHandler) createSession(r *http.Request, userID domain.UserID) (string, error) {
@@ -31,7 +59,7 @@ func (h *OAuthHandler) createSession(r *http.Request, userID domain.UserID) (str
 	return token, err
 }
 
-func NewOAuthHandler(cfg *oauth2.Config, svc *service.UserService, allowed []string) *OAuthHandler {
+func NewOAuthHandler(cfg *oauth2.Config, svc *service.UserService, allowed []string, secureCookies bool) *OAuthHandler {
 	m := make(map[string]struct{}, len(allowed))
 	for _, e := range allowed {
 		m[e] = struct{}{}
@@ -41,6 +69,7 @@ func NewOAuthHandler(cfg *oauth2.Config, svc *service.UserService, allowed []str
 		userSvc:       svc,
 		allowedEmails: m,
 		userinfoURL:   "https://www.googleapis.com/oauth2/v3/userinfo",
+		secureCookies: secureCookies,
 	}
 }
 
@@ -77,7 +106,8 @@ func (h *OAuthHandler) devLogin(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	jsonOK(w, map[string]string{"token": token})
+	setSessionCookie(w, token, h.secureCookies)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *OAuthHandler) login(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +172,8 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/?token="+sessionToken, http.StatusFound)
+	setSessionCookie(w, sessionToken, h.secureCookies)
+	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 type googleUserInfo struct {

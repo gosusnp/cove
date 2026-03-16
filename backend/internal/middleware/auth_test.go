@@ -140,6 +140,47 @@ func TestOAuth(t *testing.T) {
 		}
 	})
 
+	t.Run("non-Bearer authorization header returns 401", func(t *testing.T) {
+		handler := newOAuth(t, next)
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.Header.Set("Authorization", "SomeArbitraryToken")
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, r)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("got code %d, want 401", w.Code)
+		}
+	})
+
+	t.Run("valid session token via cookie succeeds", func(t *testing.T) {
+		database := testutil.NewDB(t)
+		us := store.NewUserStore()
+		orgs := store.NewOrgStore()
+		svc := service.NewUserService(database, us, orgs)
+
+		user, _, _ := svc.GetOrCreate(context.Background(), "cookie@example.com", "sub-cookie")
+		token, _, _ := svc.CreateSession(context.Background(), user.ID, "1.2.3.4", "Chrome", "macOS")
+
+		handler := OAuth(svc, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			got := UserIDFromContext(r.Context())
+			if got != user.ID {
+				t.Errorf("got userID %v, want %v", got, user.ID)
+			}
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.AddCookie(&http.Cookie{Name: "cove_session", Value: token})
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("got code %d, want 200", w.Code)
+		}
+	})
+
 	t.Run("expired token returns 401", func(t *testing.T) {
 		database := testutil.NewDB(t)
 		us := store.NewUserStore()

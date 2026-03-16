@@ -82,8 +82,10 @@ func main() {
 		Programs:  pSvc,
 	}
 
+	secureCookies := os.Getenv("COVE_DEV") == ""
+
 	mux := http.NewServeMux()
-	mux.Handle("/api/", NewAPIHandler(userStore, userSvc, svcs, wsSvc))
+	mux.Handle("/api/", NewAPIHandler(userStore, userSvc, svcs, wsSvc, secureCookies))
 	mux.Handle("/mcp/", middleware.OAuth(userSvc, covemcp.NewHTTPHandler(svcs)))
 
 	var staticFS fs.FS
@@ -111,7 +113,7 @@ func main() {
 
 	// Outer mux: UI at / (no auth), everything else to mux.
 	outer := http.NewServeMux()
-	oauthHandler := handlers.NewOAuthHandler(oauthCfg, userSvc, allowedEmails)
+	oauthHandler := handlers.NewOAuthHandler(oauthCfg, userSvc, allowedEmails, secureCookies)
 	oauthHandler.RegisterRoutes(outer)
 	if os.Getenv("COVE_DEV") != "" {
 		oauthHandler.RegisterDevRoutes(outer)

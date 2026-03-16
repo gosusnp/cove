@@ -19,12 +19,13 @@ import (
 
 // UserHandler handles user-related HTTP routes.
 type UserHandler struct {
-	svc *service.UserService
+	svc           *service.UserService
+	secureCookies bool
 }
 
 // NewUserHandler returns a new UserHandler.
-func NewUserHandler(s *service.UserService) *UserHandler {
-	return &UserHandler{svc: s}
+func NewUserHandler(s *service.UserService, secureCookies bool) *UserHandler {
+	return &UserHandler{svc: s, secureCookies: secureCookies}
 }
 
 // RegisterRoutes registers user routes on mux.
@@ -49,6 +50,7 @@ func (h *UserHandler) logout(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+	clearSessionCookie(w, h.secureCookies)
 	w.WriteHeader(http.StatusNoContent)
 }
 

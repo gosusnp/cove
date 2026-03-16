@@ -78,7 +78,7 @@ func NewTestApp(t *testing.T) *TestApp {
 	NewProgramHandler(pSvc).RegisterRoutes(apiMux)
 	NewProgramSetHandler(pSvc).RegisterRoutes(apiMux)
 	NewProgramExerciseHandler(pSvc).RegisterRoutes(apiMux)
-	NewUserHandler(uSvc).RegisterRoutes(apiMux)
+	NewUserHandler(uSvc, false).RegisterRoutes(apiMux)
 	NewWorkoutSessionHandler(wsSvc).RegisterRoutes(apiMux)
 
 	// Apply OAuth middleware with /api prefix as in server.go

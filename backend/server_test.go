@@ -36,7 +36,7 @@ func newTestAPIHandler(t *testing.T) http.Handler {
 		Exercises: exSvc,
 		Programs:  pSvc,
 	}
-	return NewAPIHandler(userStore, userSvc, svcs, wsSvc)
+	return NewAPIHandler(userStore, userSvc, svcs, wsSvc, false)
 }
 
 // TestAPIRoutesSmokeTest verifies every API route is wired correctly by sending

@@ -45,11 +45,18 @@ func TokenIDFromContext(ctx context.Context) uuid.UUID {
 }
 
 // OAuth guards routes by validating a session token via UserStore.
+// It reads the token from the cove_session cookie first, falling back to the
+// Authorization: Bearer header to support API keys and MCP clients.
 // On success, it stores the authenticated identity in the request context.
 func OAuth(uSvc *service.UserService, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if !ok || token == "" {
+		var token string
+		if c, err := r.Cookie("cove_session"); err == nil {
+			token = c.Value
+		} else if t, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
+			token = t
+		}
+		if token == "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
