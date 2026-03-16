@@ -16,11 +16,14 @@ lint:
 fmt:
 	npm run format
 
+fmt-check:
+	npx biome format .
+
 license-check:
-	cd ../backend && go tool addlicense -check -f ../.license_header.txt -ignore "node_modules/**" -ignore "dist/**" ../frontend
+	cd ../backend && go tool addlicense -check -f ../.license_header.txt -ignore "**/node_modules/**" -ignore "**/dist/**" ../frontend
 
 license-fix:
-	cd ../backend && go tool addlicense -f ../.license_header.txt -ignore "node_modules/**" -ignore "dist/**" ../frontend
+	cd ../backend && go tool addlicense -f ../.license_header.txt -ignore "**/node_modules/**" -ignore "**/dist/**" ../frontend
 
 test:
 	npm run test
@@ -33,7 +36,7 @@ e2e.ui:
 
 fix: license-fix fmt
 
-check: lint test
+check: lint fmt-check license-check test
 
 pre-commit: fix check
 
@@ -41,4 +44,4 @@ install:
 	npm install
 	npx playwright install --with-deps
 
-.PHONY: run watch build preview lint fmt license-fix test test.e2e e2e.ui fix check install
+.PHONY: run watch build preview lint fmt fmt-check license-fix license-check test test.e2e e2e.ui fix check install
