@@ -42,7 +42,7 @@ func (h *ProgramHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	jsonOK(w, programs)
@@ -64,7 +64,7 @@ func (h *ProgramHandler) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	jsonOK(w, program)
@@ -87,7 +87,7 @@ func (h *ProgramHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	jsonResponse(w, program, http.StatusCreated)
@@ -119,7 +119,7 @@ func (h *ProgramHandler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	jsonOK(w, program)
@@ -160,7 +160,7 @@ func (h *ProgramHandler) reorderStructure(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -182,7 +182,7 @@ func (h *ProgramHandler) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

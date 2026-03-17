@@ -38,7 +38,7 @@ type exerciseRequest struct {
 func (h *ExerciseHandler) list(w http.ResponseWriter, r *http.Request) {
 	exercises, err := h.svc.List(r.Context())
 	if err != nil {
-		h.handleError(w, err)
+		h.handleError(w, r, err)
 		return
 	}
 	jsonOK(w, exercises)
@@ -52,7 +52,7 @@ func (h *ExerciseHandler) get(w http.ResponseWriter, r *http.Request) {
 	}
 	exercise, err := h.svc.Get(r.Context(), id)
 	if err != nil {
-		h.handleError(w, err)
+		h.handleError(w, r, err)
 		return
 	}
 	jsonOK(w, exercise)
@@ -66,7 +66,7 @@ func (h *ExerciseHandler) create(w http.ResponseWriter, r *http.Request) {
 	}
 	exercise, err := h.svc.Create(r.Context(), req.Name, req.Progression, req.Description, req.IsPublic)
 	if err != nil {
-		h.handleError(w, err)
+		h.handleError(w, r, err)
 		return
 	}
 	jsonResponse(w, exercise, http.StatusCreated)
@@ -85,7 +85,7 @@ func (h *ExerciseHandler) update(w http.ResponseWriter, r *http.Request) {
 	}
 	exercise, err := h.svc.Update(r.Context(), id, req.Name, req.Progression, req.Description, req.IsPublic)
 	if err != nil {
-		h.handleError(w, err)
+		h.handleError(w, r, err)
 		return
 	}
 	jsonOK(w, exercise)
@@ -99,13 +99,13 @@ func (h *ExerciseHandler) delete(w http.ResponseWriter, r *http.Request) {
 	}
 	err = h.svc.Delete(r.Context(), id)
 	if err != nil {
-		h.handleError(w, err)
+		h.handleError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *ExerciseHandler) handleError(w http.ResponseWriter, err error) {
+func (h *ExerciseHandler) handleError(w http.ResponseWriter, r *http.Request, err error) {
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
 		jsonError(w, ve.Error(), http.StatusBadRequest)
@@ -119,5 +119,5 @@ func (h *ExerciseHandler) handleError(w http.ResponseWriter, err error) {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	jsonError(w, err.Error(), http.StatusInternalServerError)
+	internalError(w, r, err)
 }

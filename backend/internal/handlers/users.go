@@ -47,7 +47,7 @@ func (h *UserHandler) logout(w http.ResponseWriter, r *http.Request) {
 	}
 	tokenID := middleware.TokenIDFromContext(r.Context())
 	if err := h.svc.DeleteSession(r.Context(), userID, domain.SessionID{UUID: tokenID}); err != nil && !errors.Is(err, service.ErrNotFound) {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	clearSessionCookie(w, h.secureCookies)
@@ -72,7 +72,7 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	jsonOK(w, userResponse{
@@ -121,7 +121,7 @@ func (h *UserHandler) listTokens(w http.ResponseWriter, r *http.Request) {
 	}
 	pats, err := h.svc.ListPATs(r.Context(), userID)
 	if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	resp := make([]tokenResponse, len(pats))
@@ -152,7 +152,7 @@ func (h *UserHandler) createToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	jsonResponse(w, createTokenResponse{
@@ -179,7 +179,7 @@ func (h *UserHandler) deleteToken(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "token not found", http.StatusNotFound)
 		return
 	} else if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -194,7 +194,7 @@ func (h *UserHandler) listSessions(w http.ResponseWriter, r *http.Request) {
 	tokenID := middleware.TokenIDFromContext(r.Context())
 	sessions, err := h.svc.ListSessions(r.Context(), userID)
 	if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	resp := make([]sessionResponse, len(sessions))
@@ -231,7 +231,7 @@ func (h *UserHandler) deleteSession(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "session not found", http.StatusNotFound)
 		return
 	} else if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

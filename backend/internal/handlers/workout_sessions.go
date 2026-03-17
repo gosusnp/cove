@@ -138,12 +138,12 @@ func (h *WorkoutSessionHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	resp, err := toResponse(r, ws)
 	if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	jsonResponse(w, resp, http.StatusCreated)
@@ -170,12 +170,12 @@ func (h *WorkoutSessionHandler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	resp, err := toResponse(r, ws)
 	if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	jsonOK(w, resp)
@@ -188,14 +188,14 @@ func (h *WorkoutSessionHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	resps := make([]*workoutSessionResponse, 0, len(sessions))
 	for _, ws := range sessions {
 		resp, err := toResponse(r, ws)
 		if err != nil {
-			jsonError(w, "internal error", http.StatusInternalServerError)
+			internalError(w, r, err)
 			return
 		}
 		resps = append(resps, resp)
@@ -219,12 +219,12 @@ func (h *WorkoutSessionHandler) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	resp, err := toResponse(r, session)
 	if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	jsonOK(w, resp)

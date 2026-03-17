@@ -53,7 +53,7 @@ func (h *ProgramExerciseHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	jsonOK(w, exercises)
@@ -81,7 +81,7 @@ func (h *ProgramExerciseHandler) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	jsonOK(w, pe)
@@ -114,7 +114,7 @@ func (h *ProgramExerciseHandler) create(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	jsonResponse(w, pe, http.StatusCreated)
@@ -152,7 +152,7 @@ func (h *ProgramExerciseHandler) update(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	jsonOK(w, pe)
@@ -180,7 +180,7 @@ func (h *ProgramExerciseHandler) delete(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

@@ -93,11 +93,13 @@ func (h *ExerciseHandler) RegisterRoutes(mux *http.ServeMux) {
 
 - **DO** register all routes in a `RegisterRoutes(*http.ServeMux)` method.
 - **DO** use Go 1.22 method-path syntax in `HandleFunc`: `"GET /exercises"`, `"POST /exercises/{id}"`.
-- **DO** use `jsonOK`, `jsonError`, and `jsonResponse` from `handlers/helpers.go` for all responses.
+- **DO** use `jsonOK`, `jsonError`, `jsonResponse`, and `internalError` from `handlers/helpers.go` for all responses.
 - **DO** use `pathID[Type](r, "id")` from `handlers/helpers.go` to parse path parameters.
 - **DO** map `service.ErrUnauthorized` → `401 Unauthorized` and `service.ErrNotFound` → `404 Not Found` in the handler's error helper.
+- **DO** use `internalError(w, r, err)` for all unexpected server-side failures — it logs the error with method and path, then responds with `500 Internal Server Error`. Never use `jsonError(..., http.StatusInternalServerError)` directly.
 - **DON'T** perform business logic or validation in a handler — delegate to the service.
 - **DON'T** write inline `json.Marshal` or `w.Write` calls — use the helpers.
+- **DON'T** pass `err.Error()` to `jsonError` — internal error details must not be sent to the client.
 
 ### Request Decoding
 

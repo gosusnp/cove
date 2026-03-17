@@ -6,6 +6,7 @@ package handlers
 import (
 	"encoding/json"
 	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 )
@@ -29,4 +30,11 @@ func jsonResponse(w http.ResponseWriter, v any, status int) {
 
 func jsonError(w http.ResponseWriter, msg string, status int) {
 	jsonResponse(w, map[string]string{"error": msg}, status)
+}
+
+// internalError logs err and responds with 500. Use this instead of jsonError
+// for unexpected server-side failures so the cause is always visible in logs.
+func internalError(w http.ResponseWriter, r *http.Request, err error) {
+	slog.Error("internal error", "method", r.Method, "path", r.URL.Path, "err", err)
+	jsonError(w, "internal error", http.StatusInternalServerError)
 }

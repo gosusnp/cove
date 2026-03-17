@@ -98,12 +98,12 @@ func (h *OAuthHandler) devLogin(w http.ResponseWriter, r *http.Request) {
 		domain.GoogleSub("dev:"+req.Email),
 	)
 	if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, fmt.Errorf("get or create user: %w", err))
 		return
 	}
 	token, err := h.createSession(r, user.ID)
 	if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, fmt.Errorf("create session: %w", err))
 		return
 	}
 	setSessionCookie(w, token, h.secureCookies)
@@ -113,7 +113,7 @@ func (h *OAuthHandler) devLogin(w http.ResponseWriter, r *http.Request) {
 func (h *OAuthHandler) login(w http.ResponseWriter, r *http.Request) {
 	state, err := randomHex(16)
 	if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, err)
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
@@ -146,7 +146,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 	// Fetch user info from Google
 	info, err := fetchUserInfo(r.Context(), h.config, oauthToken, h.userinfoURL)
 	if err != nil {
-		jsonError(w, "failed to fetch user info", http.StatusInternalServerError)
+		internalError(w, r, fmt.Errorf("fetch user info: %w", err))
 		return
 	}
 
@@ -161,14 +161,14 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 	// Get or create user + org
 	user, _, err := h.userSvc.GetOrCreate(r.Context(), domain.Email(info.Email), domain.GoogleSub(info.Sub))
 	if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, fmt.Errorf("get or create user: %w", err))
 		return
 	}
 
 	// Issue session
 	sessionToken, err := h.createSession(r, user.ID)
 	if err != nil {
-		jsonError(w, "internal error", http.StatusInternalServerError)
+		internalError(w, r, fmt.Errorf("create session: %w", err))
 		return
 	}
 
