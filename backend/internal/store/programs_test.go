@@ -22,9 +22,9 @@ func newTestProgramStore(t *testing.T) (*ProgramStore, Querier, context.Context)
 	uID := domain.UserID{UUID: uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe01")}
 	oID := domain.OrgID{UUID: uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe02")}
 
-	_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'test@test.com', 'sub')`, uID)
-	_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'test-org')`, oID)
-	_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID)
+	_, _ = db.Exec(`INSERT INTO cove.users (id, email, google_sub) VALUES ($1, 'test@test.com', 'sub')`, uID)
+	_, _ = db.Exec(`INSERT INTO cove.orgs (id, name) VALUES ($1, 'test-org')`, oID)
+	_, _ = db.Exec(`INSERT INTO cove.org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID)
 
 	ctx := domain.NewContext(context.Background(), &domain.Identity{
 		UserID: uID,
@@ -253,12 +253,12 @@ func seedTwoOrgs(t *testing.T) (s *ProgramStore, programID domain.ProgramID, ctx
 	u2ID := domain.UserID{UUID: uuid.MustParse("019cb68a-0000-0000-0000-000000000003")}
 	o2ID := domain.OrgID{UUID: uuid.MustParse("019cb68a-0000-0000-0000-000000000004")}
 
-	_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'u1@test.com', 'sub1')`, u1ID)
-	_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'u2@test.com', 'sub2')`, u2ID)
-	_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'org1')`, o1ID)
-	_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'org2')`, o2ID)
-	_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, o1ID, u1ID)
-	_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, o2ID, u2ID)
+	_, _ = db.Exec(`INSERT INTO cove.users (id, email, google_sub) VALUES ($1, 'u1@test.com', 'sub1')`, u1ID)
+	_, _ = db.Exec(`INSERT INTO cove.users (id, email, google_sub) VALUES ($1, 'u2@test.com', 'sub2')`, u2ID)
+	_, _ = db.Exec(`INSERT INTO cove.orgs (id, name) VALUES ($1, 'org1')`, o1ID)
+	_, _ = db.Exec(`INSERT INTO cove.orgs (id, name) VALUES ($1, 'org2')`, o2ID)
+	_, _ = db.Exec(`INSERT INTO cove.org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, o1ID, u1ID)
+	_, _ = db.Exec(`INSERT INTO cove.org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, o2ID, u2ID)
 
 	ctx1 := domain.NewContext(context.Background(), &domain.Identity{UserID: u1ID, OrgID: o1ID})
 	tx1, err := db.BeginTx(ctx1, nil)
@@ -302,9 +302,9 @@ func TestProgramStore_CreateSet(t *testing.T) {
 		uID := domain.UserID{UUID: uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe01")}
 		oID := domain.OrgID{UUID: uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe02")}
 
-		_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'conc@test.com', 'sub-conc')`, uID)
-		_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'conc-org')`, oID)
-		_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID)
+		_, _ = db.Exec(`INSERT INTO cove.users (id, email, google_sub) VALUES ($1, 'conc@test.com', 'sub-conc')`, uID)
+		_, _ = db.Exec(`INSERT INTO cove.orgs (id, name) VALUES ($1, 'conc-org')`, oID)
+		_, _ = db.Exec(`INSERT INTO cove.org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID)
 
 		// Create a program outside any concurrent transaction.
 		ctx := domain.NewContext(context.Background(), &domain.Identity{UserID: uID, OrgID: oID})

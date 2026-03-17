@@ -211,8 +211,8 @@ func TestOAuthHandler_Callback(t *testing.T) {
 		err := db.QueryRowContext(
 			t.Context(),
 			`SELECT initial_ip_masked, initial_browser, initial_os
-			 FROM user_tokens t
-			 JOIN users u ON u.id = t.user_id
+			 FROM cove.user_tokens t
+			 JOIN cove.users u ON u.id = t.user_id
 			 WHERE u.email = 'user-info@example.com' AND t.kind = 'session'`,
 		).Scan(&ip, &browser, &os)
 		if err != nil {

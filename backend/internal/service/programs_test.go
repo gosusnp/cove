@@ -23,9 +23,9 @@ func newTestProgramService(t *testing.T) (*ProgramService, context.Context) {
 	uID := domain.UserID{UUID: uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe01")}
 	oID := domain.OrgID{UUID: uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe02")}
 
-	_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'test@test.com', 'sub')`, uID)
-	_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'test-org')`, oID)
-	_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID)
+	_, _ = db.Exec(`INSERT INTO cove.users (id, email, google_sub) VALUES ($1, 'test@test.com', 'sub')`, uID)
+	_, _ = db.Exec(`INSERT INTO cove.orgs (id, name) VALUES ($1, 'test-org')`, oID)
+	_, _ = db.Exec(`INSERT INTO cove.org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID)
 
 	ctx := domain.NewContext(context.Background(), &domain.Identity{
 		UserID: uID,
@@ -399,9 +399,9 @@ func TestProgramService_NameResolution(t *testing.T) {
 		// Seed a private exercise for a second org (invisible to org1) using raw SQL.
 		uID2 := domain.UserID{UUID: uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe02")}
 		oID2 := domain.OrgID{UUID: uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe03")}
-		_, _ = svc.db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'u2@fallback.test', 'sub-fb2')`, uID2)
-		_, _ = svc.db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'fallback-org2')`, oID2)
-		_, _ = svc.db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID2, uID2)
+		_, _ = svc.db.Exec(`INSERT INTO cove.users (id, email, google_sub) VALUES ($1, 'u2@fallback.test', 'sub-fb2')`, uID2)
+		_, _ = svc.db.Exec(`INSERT INTO cove.orgs (id, name) VALUES ($1, 'fallback-org2')`, oID2)
+		_, _ = svc.db.Exec(`INSERT INTO cove.org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID2, uID2)
 		ctx2 := domain.NewContext(t.Context(), &domain.Identity{UserID: uID2, OrgID: oID2})
 
 		exSvc2 := NewExerciseService(svc.db, store.NewExerciseStore())
@@ -455,7 +455,7 @@ func TestProgramService_NameResolution(t *testing.T) {
 
 		// Verify snapshot is preserved by reading the JSONB directly.
 		var setsJSON []byte
-		if err := svc.db.QueryRow(`SELECT sets FROM programs WHERE id = $1`, p.ID).Scan(&setsJSON); err != nil {
+		if err := svc.db.QueryRow(`SELECT sets FROM cove.programs WHERE id = $1`, p.ID).Scan(&setsJSON); err != nil {
 			t.Fatal(err)
 		}
 		if !strings.Contains(string(setsJSON), `"name_snapshot"`) {

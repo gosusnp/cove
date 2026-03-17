@@ -47,7 +47,7 @@ func NewProgramStore() *ProgramStore {
 
 func (s *ProgramStore) List(ctx context.Context, q Querier, orgID domain.OrgID) ([]domain.ProgramLite, error) {
 	rows, err := q.QueryContext(ctx, `
-		SELECT id, name, org_id, is_public FROM programs
+		SELECT id, name, org_id, is_public FROM cove.programs
 		WHERE org_id = $1 OR is_public = true
 		ORDER BY name
 	`, orgID)
@@ -70,7 +70,7 @@ func (s *ProgramStore) List(ctx context.Context, q Querier, orgID domain.OrgID) 
 func (s *ProgramStore) GetLite(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID) (*domain.ProgramLite, error) {
 	var p domain.ProgramLite
 	err := q.QueryRowContext(ctx, `
-		SELECT id, name, org_id, is_public FROM programs
+		SELECT id, name, org_id, is_public FROM cove.programs
 		WHERE id = $1 AND (org_id = $2 OR is_public = true)
 	`, id, orgID).
 		Scan(&p.ID, &p.Name, &p.OrgID, &p.IsPublic)
@@ -86,7 +86,7 @@ func (s *ProgramStore) GetLite(ctx context.Context, q Querier, orgID domain.OrgI
 func (s *ProgramStore) Create(ctx context.Context, q Querier, orgID domain.OrgID, name string, description *string, isPublic bool) (*domain.ProgramLite, error) {
 	var id domain.ProgramID
 	err := q.QueryRowContext(ctx,
-		`INSERT INTO programs (name, description, is_public) VALUES ($1, $2, $3) RETURNING id`,
+		`INSERT INTO cove.programs (name, description, is_public) VALUES ($1, $2, $3) RETURNING id`,
 		name, description, isPublic,
 	).Scan(&id)
 	if err != nil {
@@ -98,7 +98,7 @@ func (s *ProgramStore) Create(ctx context.Context, q Querier, orgID domain.OrgID
 
 func (s *ProgramStore) Update(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID, name string, description *string, isPublic bool) (*domain.ProgramLite, error) {
 	res, err := q.ExecContext(ctx,
-		`UPDATE programs SET name = $1, description = $2, is_public = $3
+		`UPDATE cove.programs SET name = $1, description = $2, is_public = $3
 		 WHERE id = $4 AND org_id = $5`,
 		name, description, isPublic, id, orgID,
 	)
@@ -121,7 +121,7 @@ func (s *ProgramStore) Get(ctx context.Context, q Querier, orgID domain.OrgID, i
 	var setsJSON []byte
 	err := q.QueryRowContext(ctx, `
 		SELECT id, name, description, org_id, is_public, created_by, created_at, updated_by, updated_at, sets
-		FROM programs
+		FROM cove.programs
 		WHERE id = $1 AND (org_id = $2 OR is_public = true)
 	`, id, orgID).Scan(
 		&p.ID, &p.Name, &p.Description, &p.OrgID, &p.IsPublic,
@@ -170,7 +170,7 @@ func (s *ProgramStore) Get(ctx context.Context, q Querier, orgID domain.OrgID, i
 func (s *ProgramStore) ListSets(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID) ([]ProgramSet, error) {
 	var setsJSON []byte
 	err := q.QueryRowContext(ctx, `
-		SELECT COALESCE(sets, '[]'::jsonb) FROM programs
+		SELECT COALESCE(sets, '[]'::jsonb) FROM cove.programs
 		WHERE id = $1 AND (org_id = $2 OR is_public = true)
 	`, programID, orgID).Scan(&setsJSON)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -219,7 +219,7 @@ func (s *ProgramStore) GetSet(ctx context.Context, q Querier, orgID domain.OrgID
 func (s *ProgramStore) lockProgram(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID) error {
 	var id domain.ProgramID
 	err := q.QueryRowContext(ctx,
-		`SELECT id FROM programs WHERE id = $1 AND org_id = $2 FOR UPDATE`,
+		`SELECT id FROM cove.programs WHERE id = $1 AND org_id = $2 FOR UPDATE`,
 		programID, orgID,
 	).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -236,7 +236,7 @@ func (s *ProgramStore) lockProgram(ctx context.Context, q Querier, orgID domain.
 func (s *ProgramStore) nextSetID(ctx context.Context, q Querier, programID domain.ProgramID) (int64, error) {
 	var setsJSON []byte
 	if err := q.QueryRowContext(ctx,
-		`SELECT COALESCE(sets, '[]'::jsonb) FROM programs WHERE id = $1`,
+		`SELECT COALESCE(sets, '[]'::jsonb) FROM cove.programs WHERE id = $1`,
 		programID,
 	).Scan(&setsJSON); err != nil {
 		return 0, fmt.Errorf("read sets for id: %w", err)
@@ -260,7 +260,7 @@ func (s *ProgramStore) nextSetID(ctx context.Context, q Querier, programID domai
 func (s *ProgramStore) nextExerciseID(ctx context.Context, q Querier, programID domain.ProgramID) (int64, error) {
 	var setsJSON []byte
 	if err := q.QueryRowContext(ctx,
-		`SELECT COALESCE(sets, '[]'::jsonb) FROM programs WHERE id = $1`,
+		`SELECT COALESCE(sets, '[]'::jsonb) FROM cove.programs WHERE id = $1`,
 		programID,
 	).Scan(&setsJSON); err != nil {
 		return 0, fmt.Errorf("read sets for exercise id: %w", err)
@@ -285,7 +285,7 @@ func (s *ProgramStore) nextExerciseID(ctx context.Context, q Querier, programID 
 func (s *ProgramStore) readSets(ctx context.Context, q Querier, programID domain.ProgramID) ([]jsonProgramSet, error) {
 	var setsJSON []byte
 	if err := q.QueryRowContext(ctx,
-		`SELECT COALESCE(sets, '[]'::jsonb) FROM programs WHERE id = $1`,
+		`SELECT COALESCE(sets, '[]'::jsonb) FROM cove.programs WHERE id = $1`,
 		programID,
 	).Scan(&setsJSON); err != nil {
 		return nil, fmt.Errorf("read sets: %w", err)
@@ -304,7 +304,7 @@ func (s *ProgramStore) writeSets(ctx context.Context, q Querier, orgID domain.Or
 		return fmt.Errorf("marshal sets: %w", err)
 	}
 	res, err := q.ExecContext(ctx,
-		`UPDATE programs SET sets = $1 WHERE id = $2 AND org_id = $3`,
+		`UPDATE cove.programs SET sets = $1 WHERE id = $2 AND org_id = $3`,
 		data, programID, orgID,
 	)
 	if err != nil {
@@ -569,7 +569,7 @@ func (s *ProgramStore) GetExercise(ctx context.Context, q Querier, orgID domain.
 func (s *ProgramStore) ListExercises(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID int64) ([]ProgramExercise, error) {
 	var setsJSON []byte
 	err := q.QueryRowContext(ctx, `
-		SELECT COALESCE(sets, '[]'::jsonb) FROM programs
+		SELECT COALESCE(sets, '[]'::jsonb) FROM cove.programs
 		WHERE id = $1 AND (org_id = $2 OR is_public = true)
 	`, programID, orgID).Scan(&setsJSON)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -617,7 +617,7 @@ func (s *ProgramStore) WriteSetsForNewProgram(ctx context.Context, q Querier, pr
 		return fmt.Errorf("marshal sets for new program: %w", err)
 	}
 	_, err = q.ExecContext(ctx,
-		`UPDATE programs SET sets = $1 WHERE id = $2`,
+		`UPDATE cove.programs SET sets = $1 WHERE id = $2`,
 		data, programID,
 	)
 	if err != nil {
@@ -708,7 +708,7 @@ func (s *ProgramStore) ReorderStructure(ctx context.Context, q Querier, orgID do
 }
 
 func (s *ProgramStore) Delete(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID) error {
-	res, err := q.ExecContext(ctx, `DELETE FROM programs WHERE id = $1 AND org_id = $2`, id, orgID)
+	res, err := q.ExecContext(ctx, `DELETE FROM cove.programs WHERE id = $1 AND org_id = $2`, id, orgID)
 	if err != nil {
 		return fmt.Errorf("delete program: %w", err)
 	}

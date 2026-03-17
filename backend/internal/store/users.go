@@ -37,7 +37,7 @@ func (s *UserStore) UpsertUser(
 	var created bool
 	err := q.QueryRowContext(
 		ctx,
-		`INSERT INTO users (id, email, google_sub)
+		`INSERT INTO cove.users (id, email, google_sub)
 		 VALUES ($1, $2, $3)
 		 ON CONFLICT (google_sub) DO UPDATE SET email = EXCLUDED.email
 		 RETURNING id, email, google_sub, created_at, (xmax = 0)`,
@@ -62,7 +62,7 @@ func (s *UserStore) GetByID(
 	err := q.QueryRowContext(
 		ctx,
 		`SELECT id, email, google_sub, created_at
-		 FROM users WHERE id = $1`,
+		 FROM cove.users WHERE id = $1`,
 		id,
 	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt)
 
@@ -90,7 +90,7 @@ func (s *UserStore) CreateSession(
 	var orgID domain.OrgID
 	if err := q.QueryRowContext(
 		ctx,
-		`SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`,
+		`SELECT org_id FROM cove.org_members WHERE user_id = $1 LIMIT 1`,
 		userID,
 	).Scan(&orgID); err != nil {
 		return "", domain.SessionID{}, fmt.Errorf("get org for session: %w", err)
@@ -106,7 +106,7 @@ func (s *UserStore) CreateSession(
 	expiresAt := time.Now().Add(30 * 24 * time.Hour)
 	_, err = q.ExecContext(
 		ctx,
-		`INSERT INTO user_tokens (id, user_id, org_id, kind, token, expires_at, initial_ip_masked, initial_browser, initial_os)
+		`INSERT INTO cove.user_tokens (id, user_id, org_id, kind, token, expires_at, initial_ip_masked, initial_browser, initial_os)
 		 VALUES ($1, $2, $3, 'session', $4, $5, $6, $7, $8)`,
 		sessionID, userID, orgID, hash, expiresAt, ipMasked, browser, os,
 	)
@@ -140,7 +140,7 @@ func (s *UserStore) CreatePAT(
 	var pat domain.PAT
 	err = q.QueryRowContext(
 		ctx,
-		`INSERT INTO user_tokens (id, user_id, org_id, kind, name, token, initial_ip_masked, initial_browser, initial_os)
+		`INSERT INTO cove.user_tokens (id, user_id, org_id, kind, name, token, initial_ip_masked, initial_browser, initial_os)
 		 VALUES ($1, $2, $3, 'pat', $4, $5, $6, $7, $8) RETURNING id, name, created_at`,
 		id, userID, orgID, name, hash, ipMasked, browser, os,
 	).Scan(&pat.ID, &pat.Name, &pat.CreatedAt)
@@ -155,7 +155,7 @@ func (s *UserStore) ListPATs(ctx context.Context, q Querier, userID domain.UserI
 	rows, err := q.QueryContext(
 		ctx,
 		`SELECT id, name, created_at, last_used_at
-		 FROM user_tokens
+		 FROM cove.user_tokens
 		 WHERE user_id = $1 AND kind = 'pat'
 		 ORDER BY created_at`,
 		userID,
@@ -181,7 +181,7 @@ func (s *UserStore) ListSessions(ctx context.Context, q Querier, userID domain.U
 	rows, err := q.QueryContext(
 		ctx,
 		`SELECT id, created_at, last_used_at, initial_ip_masked, initial_browser, initial_os, last_ip_masked, last_browser, last_os
-		 FROM user_tokens
+		 FROM cove.user_tokens
 		 WHERE user_id = $1 AND kind = 'session' AND (expires_at IS NULL OR expires_at > NOW())
 		 ORDER BY COALESCE(last_used_at, created_at) DESC`,
 		userID)
@@ -205,7 +205,7 @@ func (s *UserStore) ListSessions(ctx context.Context, q Querier, userID domain.U
 func (s *UserStore) DeletePAT(ctx context.Context, q Querier, userID domain.UserID, tokenID domain.TokenID) error {
 	res, err := q.ExecContext(
 		ctx,
-		`DELETE FROM user_tokens WHERE id = $1 AND user_id = $2 AND kind = 'pat'`,
+		`DELETE FROM cove.user_tokens WHERE id = $1 AND user_id = $2 AND kind = 'pat'`,
 		tokenID,
 		userID,
 	)
@@ -226,7 +226,7 @@ func (s *UserStore) DeletePAT(ctx context.Context, q Querier, userID domain.User
 func (s *UserStore) DeleteSession(ctx context.Context, q Querier, userID domain.UserID, sessionID domain.SessionID) error {
 	res, err := q.ExecContext(
 		ctx,
-		`DELETE FROM user_tokens WHERE id = $1 AND user_id = $2 AND kind = 'session'`,
+		`DELETE FROM cove.user_tokens WHERE id = $1 AND user_id = $2 AND kind = 'session'`,
 		sessionID,
 		userID,
 	)
@@ -277,7 +277,7 @@ func (s *UserStore) GetUserByToken(
 	err := q.QueryRowContext(
 		ctx,
 		`WITH t AS (
-			UPDATE user_tokens
+			UPDATE cove.user_tokens
 			SET last_used_at = CASE
 				WHEN last_used_at IS NULL
 				  OR last_used_at < NOW() - INTERVAL '1 minute'
@@ -296,7 +296,7 @@ func (s *UserStore) GetUserByToken(
 		)
 		SELECT u.id, u.email, u.google_sub, u.created_at, t.org_id, t.token_id
 		FROM t
-		JOIN users u ON u.id = t.user_id`,
+		JOIN cove.users u ON u.id = t.user_id`,
 		sha256TokenHash(token), ipMasked, browser, os,
 	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt, &org.ID, &tokenID)
 

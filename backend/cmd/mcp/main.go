@@ -21,12 +21,7 @@ func main() {
 		log.Fatal("DATABASE_URL is required")
 	}
 
-	schema := os.Getenv("COVE_DB_SCHEMA")
-	if schema == "" {
-		schema = db.DefaultSchema
-	}
-
-	database := db.Open(dbURL, schema)
+	database := db.Open(dbURL)
 	defer database.Close()
 
 	exStore := store.NewExerciseStore()

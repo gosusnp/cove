@@ -94,18 +94,13 @@ func main() {
 		log.Fatalf("init encryptor: %v", err)
 	}
 
-	schema := getSecret("COVE_DB_SCHEMA")
-	if schema == "" {
-		schema = db.DefaultSchema
-	}
-
 	var allowedEmails []string
 	if raw := getSecret("COVE_ALLOWED_EMAILS"); raw != "" {
 		allowedEmails = strings.Split(raw, ",")
 	}
 
-	db.Migrate(migrationDBURL, schema)
-	database := db.Open(dbURL, schema)
+	db.Migrate(migrationDBURL)
+	database := db.Open(dbURL)
 	defer database.Close()
 
 	userStore := store.NewUserStore()

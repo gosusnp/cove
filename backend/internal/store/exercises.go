@@ -21,7 +21,7 @@ func NewExerciseStore() *ExerciseStore {
 func (s *ExerciseStore) List(ctx context.Context, q Querier, orgID domain.OrgID) ([]domain.Exercise, error) {
 	rows, err := q.QueryContext(ctx, `
 		SELECT id, name, progression, description, org_id, is_public, created_by, created_at, updated_by, updated_at
-		FROM exercises 
+		FROM cove.exercises
 		WHERE org_id = $1 OR is_public = true
 		ORDER BY name
 	`, orgID)
@@ -58,7 +58,7 @@ func (s *ExerciseStore) GetByIDs(ctx context.Context, q Querier, orgID domain.Or
 
 	rows, err := q.QueryContext(ctx, `
 		SELECT id, name, progression, description, org_id, is_public, created_by, created_at, updated_by, updated_at
-		FROM exercises
+		FROM cove.exercises
 		WHERE id = ANY($1) AND (org_id = $2 OR is_public = true)
 		ORDER BY name
 	`, intIDs, orgID)
@@ -99,7 +99,7 @@ func (s *ExerciseStore) Get(ctx context.Context, q Querier, orgID domain.OrgID, 
 	var e domain.Exercise
 	err := q.QueryRowContext(ctx, `
 		SELECT id, name, progression, description, org_id, is_public, created_by, created_at, updated_by, updated_at
-		FROM exercises 
+		FROM cove.exercises
 		WHERE id = $1 AND (org_id = $2 OR is_public = true)
 	`, id, orgID).Scan(
 		&e.ID, &e.Name, &e.Progression, &e.Description, &e.OrgID, &e.IsPublic,
@@ -118,7 +118,7 @@ func (s *ExerciseStore) Create(ctx context.Context, q Querier, name string, prog
 	var id domain.ExerciseID
 	// Note: org_id and created_by are handled by the trigger via ScopedQuerier session variables.
 	err := q.QueryRowContext(ctx,
-		`INSERT INTO exercises (name, progression, description, is_public) VALUES ($1, $2, $3, $4) RETURNING id`,
+		`INSERT INTO cove.exercises (name, progression, description, is_public) VALUES ($1, $2, $3, $4) RETURNING id`,
 		name, progression, description, isPublic,
 	).Scan(&id)
 	if err != nil {
@@ -132,7 +132,7 @@ func (s *ExerciseStore) Create(ctx context.Context, q Querier, name string, prog
 
 func (s *ExerciseStore) Update(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ExerciseID, name string, progression *string, description *string, isPublic bool) (*domain.Exercise, error) {
 	res, err := q.ExecContext(ctx,
-		`UPDATE exercises SET name = $1, progression = $2, description = $3, is_public = $4 
+		`UPDATE cove.exercises SET name = $1, progression = $2, description = $3, is_public = $4
 		 WHERE id = $5 AND org_id = $6`,
 		name, progression, description, isPublic, id, orgID,
 	)
@@ -150,7 +150,7 @@ func (s *ExerciseStore) Update(ctx context.Context, q Querier, orgID domain.OrgI
 }
 
 func (s *ExerciseStore) Delete(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ExerciseID) error {
-	res, err := q.ExecContext(ctx, `DELETE FROM exercises WHERE id = $1 AND org_id = $2`, id, orgID)
+	res, err := q.ExecContext(ctx, `DELETE FROM cove.exercises WHERE id = $1 AND org_id = $2`, id, orgID)
 	if err != nil {
 		return fmt.Errorf("delete exercise: %w", err)
 	}

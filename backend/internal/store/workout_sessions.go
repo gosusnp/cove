@@ -53,7 +53,7 @@ const workoutSessionColumns = `
 func (s *WorkoutSessionStore) get(ctx context.Context, q Querier, orgID domain.OrgID, id domain.WorkoutSessionID) (*domain.WorkoutSession, error) {
 	row := q.QueryRowContext(ctx, `
 		SELECT`+workoutSessionColumns+`
-		FROM workout_sessions
+		FROM cove.workout_sessions
 		WHERE id = $1 AND org_id = $2
 	`, id, orgID)
 	ws, err := scanWorkoutSession(row)
@@ -66,7 +66,7 @@ func (s *WorkoutSessionStore) get(ctx context.Context, q Querier, orgID domain.O
 func (s *WorkoutSessionStore) List(ctx context.Context, q Querier, orgID domain.OrgID, userID domain.UserID) ([]*domain.WorkoutSession, error) {
 	rows, err := q.QueryContext(ctx, `
 		SELECT`+workoutSessionColumns+`
-		FROM workout_sessions
+		FROM cove.workout_sessions
 		WHERE org_id = $1 AND user_id = $2
 		ORDER BY COALESCE(started_at, created_at) DESC
 	`, orgID, userID)
@@ -106,7 +106,7 @@ func (s *WorkoutSessionStore) Create(ctx context.Context, q Querier, p WorkoutSe
 	idInfo, _ := domain.IdentityFromContext(ctx)
 	var id domain.WorkoutSessionID
 	err := q.QueryRowContext(ctx, `
-		INSERT INTO workout_sessions (
+		INSERT INTO cove.workout_sessions (
 			user_id,
 			program_id,
 			activity, duration_s,
@@ -130,7 +130,7 @@ func (s *WorkoutSessionStore) Create(ctx context.Context, q Querier, p WorkoutSe
 
 func (s *WorkoutSessionStore) Update(ctx context.Context, q Querier, orgID domain.OrgID, id domain.WorkoutSessionID, p WorkoutSessionParams, sensitiveData []byte) (*domain.WorkoutSession, error) {
 	res, err := q.ExecContext(ctx, `
-		UPDATE workout_sessions SET
+		UPDATE cove.workout_sessions SET
 			program_id = $1,
 			activity = $2, duration_s = $3,
 			started_at = $4, completed_at = $5,
@@ -157,7 +157,7 @@ func (s *WorkoutSessionStore) Update(ctx context.Context, q Querier, orgID domai
 }
 
 func (s *WorkoutSessionStore) Delete(ctx context.Context, q Querier, orgID domain.OrgID, id domain.WorkoutSessionID) error {
-	res, err := q.ExecContext(ctx, `DELETE FROM workout_sessions WHERE id = $1 AND org_id = $2`, id, orgID)
+	res, err := q.ExecContext(ctx, `DELETE FROM cove.workout_sessions WHERE id = $1 AND org_id = $2`, id, orgID)
 	if err != nil {
 		return fmt.Errorf("delete workout session: %w", err)
 	}

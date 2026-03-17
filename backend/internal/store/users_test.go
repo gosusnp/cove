@@ -43,7 +43,7 @@ func createTestUser(t *testing.T, db *sql.DB, s *UserStore, os *OrgStore, email 
 			t.Fatalf("CreateOrgMember: %v", err)
 		}
 	} else {
-		err = db.QueryRowContext(ctx, "SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1", user.ID).Scan(&orgID)
+		err = db.QueryRowContext(ctx, "SELECT org_id FROM cove.org_members WHERE user_id = $1 LIMIT 1", user.ID).Scan(&orgID)
 		if err != nil {
 			t.Fatalf("get existing org: %v", err)
 		}
@@ -128,7 +128,7 @@ func TestUserStore_CreateSession(t *testing.T) {
 		// Verify it exists (hashed)
 		hash := sha256TokenHash(token)
 		var count int
-		err = db.QueryRow("SELECT count(*) FROM user_tokens WHERE token = $1 AND kind = 'session'", hash).Scan(&count)
+		err = db.QueryRow("SELECT count(*) FROM cove.user_tokens WHERE token = $1 AND kind = 'session'", hash).Scan(&count)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -155,7 +155,7 @@ func TestUserStore_CreatePAT(t *testing.T) {
 		// Verify it exists (hashed)
 		hash := sha256TokenHash(token)
 		var count int
-		err = db.QueryRow("SELECT count(*) FROM user_tokens WHERE token = $1 AND kind = 'pat'", hash).Scan(&count)
+		err = db.QueryRow("SELECT count(*) FROM cove.user_tokens WHERE token = $1 AND kind = 'pat'", hash).Scan(&count)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -240,7 +240,7 @@ func TestUserStore_Deletes(t *testing.T) {
 
 		// Verify gone
 		var count int
-		err = db.QueryRow("SELECT count(*) FROM user_tokens WHERE id = $1", pat.ID).Scan(&count)
+		err = db.QueryRow("SELECT count(*) FROM cove.user_tokens WHERE id = $1", pat.ID).Scan(&count)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -259,7 +259,7 @@ func TestUserStore_Deletes(t *testing.T) {
 
 		// Verify gone
 		var count int
-		err = db.QueryRow("SELECT count(*) FROM user_tokens WHERE id = $1", sessionID).Scan(&count)
+		err = db.QueryRow("SELECT count(*) FROM cove.user_tokens WHERE id = $1", sessionID).Scan(&count)
 		if err != nil {
 			t.Fatal(err)
 		}

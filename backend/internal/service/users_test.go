@@ -39,7 +39,7 @@ func TestUserService_GetOrCreate(t *testing.T) {
 
 		// Verify org exists
 		var orgID domain.OrgID
-		err = svc.db.QueryRowContext(ctx, "SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1", user.ID).Scan(&orgID)
+		err = svc.db.QueryRowContext(ctx, "SELECT org_id FROM cove.org_members WHERE user_id = $1 LIMIT 1", user.ID).Scan(&orgID)
 		if err != nil {
 			t.Fatalf("verify org membership: %v", err)
 		}
@@ -125,7 +125,7 @@ func TestUserService_Tokens(t *testing.T) {
 	ctx, svc := newTestUserService(t)
 	user, _, _ := svc.GetOrCreate(ctx, "test@example.com", "sub")
 	var orgID domain.OrgID
-	_ = svc.db.QueryRowContext(ctx, "SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1", user.ID).Scan(&orgID)
+	_ = svc.db.QueryRowContext(ctx, "SELECT org_id FROM cove.org_members WHERE user_id = $1 LIMIT 1", user.ID).Scan(&orgID)
 
 	t.Run("session lifecycle", func(t *testing.T) {
 		token, tokenID, err := svc.CreateSession(ctx, user.ID, "1.1.1.1", "B1", "O1")

@@ -167,7 +167,7 @@ func (a *TestApp) SeedUserWithOrg(email, sub string) (domain.UserID, domain.OrgI
 	}
 	// Get org ID from org_members
 	var orgID domain.OrgID
-	err = a.DB.QueryRow(`SELECT org_id FROM org_members WHERE user_id = $1`, u.ID).Scan(&orgID)
+	err = a.DB.QueryRow(`SELECT org_id FROM cove.org_members WHERE user_id = $1`, u.ID).Scan(&orgID)
 	if err != nil {
 		a.T.Fatalf("get seeded org: %v", err)
 	}

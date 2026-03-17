@@ -21,9 +21,9 @@ func newTestWorkoutSessionStore(t *testing.T) (*WorkoutSessionStore, Querier, co
 	uID := domain.UserID{UUID: uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe01")}
 	oID := domain.OrgID{UUID: uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe02")}
 
-	_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'test@test.com', 'sub')`, uID)
-	_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'test-org')`, oID)
-	_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID)
+	_, _ = db.Exec(`INSERT INTO cove.users (id, email, google_sub) VALUES ($1, 'test@test.com', 'sub')`, uID)
+	_, _ = db.Exec(`INSERT INTO cove.orgs (id, name) VALUES ($1, 'test-org')`, oID)
+	_, _ = db.Exec(`INSERT INTO cove.org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID)
 
 	ctx := domain.NewContext(context.Background(), &domain.Identity{
 		UserID: uID,
@@ -78,11 +78,11 @@ func TestWorkoutSessionStore_List(t *testing.T) {
 		uID2 := domain.UserID{UUID: uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe02")}
 		oID := domain.OrgID{UUID: uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe02")}
 
-		_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'u1@test.com', 'sub1')`, uID1)
-		_, _ = db.Exec(`INSERT INTO users (id, email, google_sub) VALUES ($1, 'u2@test.com', 'sub2')`, uID2)
-		_, _ = db.Exec(`INSERT INTO orgs (id, name) VALUES ($1, 'test-org')`, oID)
-		_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID1)
-		_, _ = db.Exec(`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'member')`, oID, uID2)
+		_, _ = db.Exec(`INSERT INTO cove.users (id, email, google_sub) VALUES ($1, 'u1@test.com', 'sub1')`, uID1)
+		_, _ = db.Exec(`INSERT INTO cove.users (id, email, google_sub) VALUES ($1, 'u2@test.com', 'sub2')`, uID2)
+		_, _ = db.Exec(`INSERT INTO cove.orgs (id, name) VALUES ($1, 'test-org')`, oID)
+		_, _ = db.Exec(`INSERT INTO cove.org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID1)
+		_, _ = db.Exec(`INSERT INTO cove.org_members (org_id, user_id, role) VALUES ($1, $2, 'member')`, oID, uID2)
 
 		ctx1 := domain.NewContext(context.Background(), &domain.Identity{UserID: uID1, OrgID: oID})
 		ctx2 := domain.NewContext(context.Background(), &domain.Identity{UserID: uID2, OrgID: oID})

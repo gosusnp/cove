@@ -26,14 +26,14 @@ func createExpiredSession(t *testing.T, db *sql.DB, userID domain.UserID) string
 
 	var orgID domain.OrgID
 	if err := db.QueryRow(
-		`SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1`, userID,
+		`SELECT org_id FROM cove.org_members WHERE user_id = $1 LIMIT 1`, userID,
 	).Scan(&orgID); err != nil {
 		t.Fatalf("get org: %v", err)
 	}
 
 	expiresAt := time.Now().Add(-time.Hour)
 	if _, err := db.Exec(
-		`INSERT INTO user_tokens (id, user_id, org_id, kind, token, expires_at, initial_ip_masked, initial_browser, initial_os) VALUES ($1, $2, $3, 'session', $4, $5, '', '', '')`,
+		`INSERT INTO cove.user_tokens (id, user_id, org_id, kind, token, expires_at, initial_ip_masked, initial_browser, initial_os) VALUES ($1, $2, $3, 'session', $4, $5, '', '', '')`,
 		domain.NewSessionID(), userID, orgID, hash, expiresAt,
 	); err != nil {
 		t.Fatalf("insert expired session: %v", err)
@@ -115,7 +115,7 @@ func TestOAuth(t *testing.T) {
 
 		user, _, _ := svc.GetOrCreate(context.Background(), "test@example.com", "sub123")
 		var orgID domain.OrgID
-		err := database.QueryRowContext(context.Background(), "SELECT org_id FROM org_members WHERE user_id = $1 LIMIT 1", user.ID).Scan(&orgID)
+		err := database.QueryRowContext(context.Background(), "SELECT org_id FROM cove.org_members WHERE user_id = $1 LIMIT 1", user.ID).Scan(&orgID)
 		if err != nil {
 			t.Fatalf("get org for pat: %v", err)
 		}

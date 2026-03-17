@@ -23,7 +23,7 @@ func (s *OrgStore) CreateOrg(
 	id domain.OrgID,
 	name string,
 ) error {
-	if _, err := q.ExecContext(ctx, `INSERT INTO orgs (id, name) VALUES ($1, $2)`, id, name); err != nil {
+	if _, err := q.ExecContext(ctx, `INSERT INTO cove.orgs (id, name) VALUES ($1, $2)`, id, name); err != nil {
 		return fmt.Errorf("create org: %w", err)
 	}
 	return nil
@@ -39,7 +39,7 @@ func (s *OrgStore) CreateOrgMember(
 ) error {
 	if _, err := q.ExecContext(
 		ctx,
-		`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, $3)`,
+		`INSERT INTO cove.org_members (org_id, user_id, role) VALUES ($1, $2, $3)`,
 		orgID,
 		userID,
 		role,

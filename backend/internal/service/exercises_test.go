@@ -24,7 +24,7 @@ func newTestExerciseService(t *testing.T) (*ExerciseService, context.Context) {
 
 	// Get org ID from org_members
 	var orgID domain.OrgID
-	_ = db.QueryRow(`SELECT org_id FROM org_members WHERE user_id = $1`, user.ID).Scan(&orgID)
+	_ = db.QueryRow(`SELECT org_id FROM cove.org_members WHERE user_id = $1`, user.ID).Scan(&orgID)
 
 	ctx := domain.NewContext(context.Background(), &domain.Identity{
 		UserID: user.ID,

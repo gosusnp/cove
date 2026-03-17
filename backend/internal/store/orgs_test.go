@@ -29,7 +29,7 @@ func TestOrgStore_CreateOrg(t *testing.T) {
 
 		// Verify it was created
 		var count int
-		err = db.QueryRow("SELECT count(*) FROM orgs WHERE id = $1", id).Scan(&count)
+		err = db.QueryRow("SELECT count(*) FROM cove.orgs WHERE id = $1", id).Scan(&count)
 		if err != nil {
 			t.Fatalf("query: %v", err)
 		}
@@ -63,7 +63,7 @@ func TestOrgStore_CreateOrgMember(t *testing.T) {
 
 		// Verify it was created
 		var count int
-		err = db.QueryRow("SELECT count(*) FROM org_members WHERE org_id = $1 AND user_id = $2", orgID, userID).Scan(&count)
+		err = db.QueryRow("SELECT count(*) FROM cove.org_members WHERE org_id = $1 AND user_id = $2", orgID, userID).Scan(&count)
 		if err != nil {
 			t.Fatalf("query: %v", err)
 		}

@@ -23,7 +23,7 @@ func newTestWorkoutSessionService(t *testing.T) (*WorkoutSessionService, context
 	user, _, _ := uSvc.GetOrCreate(context.Background(), "test@example.com", "sub123")
 
 	var orgID domain.OrgID
-	_ = db.QueryRow(`SELECT org_id FROM org_members WHERE user_id = $1`, user.ID).Scan(&orgID)
+	_ = db.QueryRow(`SELECT org_id FROM cove.org_members WHERE user_id = $1`, user.ID).Scan(&orgID)
 
 	ctx := domain.NewContext(context.Background(), &domain.Identity{
 		UserID: user.ID,
@@ -43,8 +43,8 @@ func TestWorkoutSessionService_List(t *testing.T) {
 		user2, _, _ := uSvc.GetOrCreate(context.Background(), "u2@example.com", "sub2")
 
 		var orgID1, orgID2 domain.OrgID
-		_ = db.QueryRow(`SELECT org_id FROM org_members WHERE user_id = $1`, user1.ID).Scan(&orgID1)
-		_ = db.QueryRow(`SELECT org_id FROM org_members WHERE user_id = $1`, user2.ID).Scan(&orgID2)
+		_ = db.QueryRow(`SELECT org_id FROM cove.org_members WHERE user_id = $1`, user1.ID).Scan(&orgID1)
+		_ = db.QueryRow(`SELECT org_id FROM cove.org_members WHERE user_id = $1`, user2.ID).Scan(&orgID2)
 
 		ctx1 := domain.NewContext(context.Background(), &domain.Identity{UserID: user1.ID, OrgID: orgID1})
 		ctx2 := domain.NewContext(context.Background(), &domain.Identity{UserID: user2.ID, OrgID: orgID2})
