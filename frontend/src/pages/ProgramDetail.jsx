@@ -35,7 +35,6 @@ import {
 	DialogContent,
 	DialogTitle,
 } from "../components/ui/Dialog.jsx";
-import { PageTitle } from "../components/ui/PageTitle.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { ToggleGroup } from "../components/ui/ToggleGroup.jsx";
 import {
@@ -419,6 +418,70 @@ function ProgramDetailInner({ program: initialProgram, onRefresh }) {
 	setsRef.current = sets;
 
 	const programName = useSignal(initialProgram.name);
+	const programDescription = useSignal(initialProgram.description ?? "");
+
+	// ── Inline edit ───────────────────────────────────────────────────────────
+	// editingField: null | "name" | "description"
+	const editingField = useSignal(null);
+	const editValue = useSignal("");
+	const editSaving = useSignal(false);
+	const editError = useSignal("");
+
+	const startEdit = (field) => {
+		editingField.value = field;
+		editValue.value =
+			field === "name" ? programName.value : programDescription.value;
+		editError.value = "";
+	};
+
+	const cancelEdit = () => {
+		editingField.value = null;
+		editError.value = "";
+	};
+
+	const nameInputRef = useRef(null);
+	const descInputRef = useRef(null);
+
+	useEffect(() => {
+		if (editingField.value === "name") nameInputRef.current?.focus();
+		else if (editingField.value === "description")
+			descInputRef.current?.focus();
+	}, [editingField.value]);
+
+	const saveEdit = async () => {
+		if (editingField.value === "name" && !editValue.value.trim()) {
+			editError.value = "Name is required.";
+			return;
+		}
+		editSaving.value = true;
+		editError.value = "";
+		const name =
+			editingField.value === "name"
+				? editValue.value.trim()
+				: programName.value;
+		const desc =
+			editingField.value === "description"
+				? editValue.value.trim()
+				: programDescription.value;
+		try {
+			const r = await apiFetch(`/api/programs/${initialProgram.id}`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ name, description: desc || undefined }),
+			});
+			if (!r.ok) {
+				const d = await r.json();
+				throw new Error(d.error || "Failed to save");
+			}
+			programName.value = name;
+			programDescription.value = desc;
+			editingField.value = null;
+		} catch (err) {
+			editError.value = err.message;
+		} finally {
+			editSaving.value = false;
+		}
+	};
 
 	// ── Exercises list for the combobox ───────────────────────────────────────
 	const exerciseOptions = useSignal([]);
@@ -437,45 +500,6 @@ function ProgramDetailInner({ program: initialProgram, onRefresh }) {
 			})
 			.catch(() => {});
 	}, []);
-
-	// ── Rename dialog ─────────────────────────────────────────────────────────
-	const renameDialog = useDialog();
-	const renameField = useSignal(initialProgram.name);
-	const renameSaving = useSignal(false);
-	const renameError = useSignal("");
-
-	const openRename = () => {
-		renameField.value = programName.value;
-		renameError.value = "";
-		renameDialog.show();
-	};
-
-	const handleRename = async (e) => {
-		e.preventDefault();
-		if (!renameField.value.trim()) {
-			renameError.value = "Name is required.";
-			return;
-		}
-		renameSaving.value = true;
-		renameError.value = "";
-		try {
-			const r = await apiFetch(`/api/programs/${initialProgram.id}`, {
-				method: "PUT",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: renameField.value.trim() }),
-			});
-			if (!r.ok) {
-				const d = await r.json();
-				throw new Error(d.error || "Failed to rename program");
-			}
-			programName.value = renameField.value.trim();
-			renameDialog.hide();
-		} catch (err) {
-			renameError.value = err.message;
-		} finally {
-			renameSaving.value = false;
-		}
-	};
 
 	// ── Add / Edit Set dialog ─────────────────────────────────────────────────
 	const setDialog = useDialog();
@@ -771,25 +795,139 @@ function ProgramDetailInner({ program: initialProgram, onRefresh }) {
 		<>
 			<div class="p-6 max-w-3xl mx-auto w-full flex flex-col gap-6">
 				{/* Header */}
-				<div class="flex items-center justify-between gap-4 flex-wrap">
-					<PageTitle>{programName.value}</PageTitle>
-					<div class="flex gap-2">
-						<Tooltip>
-							<TooltipTrigger>
-								<Button
-									variant="outline"
-									size="icon"
-									aria-label="Rename program"
-									onClick={(e) => {
-										e.currentTarget.blur();
-										openRename();
-									}}
+				<div class="flex items-start justify-between gap-4 flex-wrap">
+					<div class="flex flex-col gap-1 flex-1 min-w-0">
+						{/* Name */}
+						{editingField.value === "name" ? (
+							<div class="flex flex-col gap-1">
+								<div class="flex items-center gap-3">
+									<TextField
+										inline
+										inputRef={nameInputRef}
+										containerClass="flex-1 min-w-0"
+										class="text-2xl font-semibold"
+										value={editValue.value}
+										onInput={(e) => {
+											editValue.value = e.target.value;
+										}}
+										onKeyDown={(e) => {
+											if (e.key === "Escape") cancelEdit();
+											if (e.key === "Enter") saveEdit();
+										}}
+									/>
+									<div class="flex gap-2 shrink-0">
+										<Button
+											size="sm"
+											onClick={saveEdit}
+											disabled={editSaving.value}
+										>
+											{editSaving.value ? "Saving…" : "Save"}
+										</Button>
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={cancelEdit}
+											disabled={editSaving.value}
+										>
+											Cancel
+										</Button>
+									</div>
+								</div>
+								{editError.value && (
+									<p class="text-xs" style={{ color: "var(--color-error)" }}>
+										{editError.value}
+									</p>
+								)}
+							</div>
+						) : (
+							<button
+								type="button"
+								class="text-left group flex items-center justify-between w-full cursor-text"
+								onClick={() => startEdit("name")}
+								aria-label="Edit program name"
+							>
+								<h1
+									class="text-2xl font-semibold"
+									style={{ color: "var(--color-text)" }}
 								>
-									<PencilIcon />
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>Rename</TooltipContent>
-						</Tooltip>
+									{programName.value}
+								</h1>
+								<PencilIcon
+									class="opacity-0 group-hover:opacity-30 transition-opacity shrink-0"
+									style={{ color: "var(--color-muted)" }}
+									aria-hidden="true"
+								/>
+							</button>
+						)}
+
+						{/* Description */}
+						{editingField.value === "description" ? (
+							<div class="flex flex-col gap-2">
+								<TextField
+									inline
+									multiline
+									inputRef={descInputRef}
+									class="text-sm"
+									rows="3"
+									value={editValue.value}
+									onInput={(e) => {
+										editValue.value = e.target.value;
+									}}
+									onKeyDown={(e) => {
+										if (e.key === "Escape") cancelEdit();
+									}}
+								/>
+								{editError.value && (
+									<p class="text-xs" style={{ color: "var(--color-error)" }}>
+										{editError.value}
+									</p>
+								)}
+								<div class="flex justify-end gap-2">
+									<Button
+										size="sm"
+										onClick={saveEdit}
+										disabled={editSaving.value}
+									>
+										{editSaving.value ? "Saving…" : "Save"}
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={cancelEdit}
+										disabled={editSaving.value}
+									>
+										Cancel
+									</Button>
+								</div>
+							</div>
+						) : (
+							<button
+								type="button"
+								class="text-left group flex items-center justify-between w-full cursor-text"
+								onClick={() => startEdit("description")}
+								aria-label="Edit program description"
+							>
+								{programDescription.value ? (
+									<p class="text-sm" style={{ color: "var(--color-muted)" }}>
+										{programDescription.value}
+									</p>
+								) : (
+									<p
+										class="text-sm italic"
+										style={{ color: "var(--color-muted)", opacity: 0.5 }}
+									>
+										Add a description…
+									</p>
+								)}
+								<PencilIcon
+									class="opacity-0 group-hover:opacity-30 transition-opacity shrink-0"
+									style={{ color: "var(--color-muted)" }}
+									aria-hidden="true"
+								/>
+							</button>
+						)}
+					</div>
+					<div class="flex gap-2 shrink-0">
 						<Button
 							variant="primary"
 							size="sm"
@@ -965,40 +1103,6 @@ function ProgramDetailInner({ program: initialProgram, onRefresh }) {
 					</DndContext>
 				)}
 			</div>
-
-			{/* ── Rename dialog ──────────────────────────────────────────────── */}
-			<Dialog openSignal={renameDialog.open}>
-				<DialogContent>
-					<form onSubmit={handleRename}>
-						<DialogTitle>Rename Program</DialogTitle>
-						<div class="mt-4 flex flex-col gap-4">
-							<TextField
-								label="Name"
-								value={renameField.value}
-								onInput={(e) => {
-									renameField.value = e.target.value;
-								}}
-								autoFocus
-							/>
-							{renameError.value && (
-								<p class="text-sm" style={{ color: "var(--color-error)" }}>
-									{renameError.value}
-								</p>
-							)}
-						</div>
-						<div class="mt-6 flex justify-end gap-2">
-							<DialogClose>
-								<Button variant="outline" size="sm" type="button">
-									Cancel
-								</Button>
-							</DialogClose>
-							<Button size="sm" type="submit" disabled={renameSaving.value}>
-								{renameSaving.value ? "Saving…" : "Save"}
-							</Button>
-						</div>
-					</form>
-				</DialogContent>
-			</Dialog>
 
 			{/* ── Add / Edit Set dialog ──────────────────────────────────────── */}
 			<Dialog openSignal={setDialog.open}>

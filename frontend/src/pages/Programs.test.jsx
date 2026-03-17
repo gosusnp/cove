@@ -265,59 +265,6 @@ describe("Programs — new program dialog", () => {
 	});
 });
 
-describe("Programs — rename dialog", () => {
-	it("opens rename dialog pre-filled with current name", async () => {
-		vi.spyOn(global, "fetch").mockResolvedValue({
-			ok: true,
-			json: () => Promise.resolve(MOCK_PROGRAMS),
-		});
-		renderPrograms();
-		await waitFor(() =>
-			expect(screen.getByText("Strength A/B")).toBeInTheDocument(),
-		);
-		fireEvent.click(screen.getAllByRole("button", { name: "Rename" })[0]);
-		expect(screen.getByText("Rename Program")).toBeInTheDocument();
-		expect(screen.getByDisplayValue("Strength A/B")).toBeInTheDocument();
-	});
-
-	it("renames a program via PUT", async () => {
-		const fetchSpy = vi
-			.spyOn(global, "fetch")
-			.mockImplementation((_url, opts) => {
-				if (opts?.method === "PUT") {
-					return Promise.resolve({
-						ok: true,
-						json: () => Promise.resolve({ id: 1, name: "Updated Name" }),
-					});
-				}
-				return Promise.resolve({
-					ok: true,
-					json: () => Promise.resolve(MOCK_PROGRAMS),
-				});
-			});
-
-		renderPrograms();
-		await waitFor(() =>
-			expect(screen.getByText("Strength A/B")).toBeInTheDocument(),
-		);
-		fireEvent.click(screen.getAllByRole("button", { name: "Rename" })[0]);
-		fireEvent.input(screen.getByLabelText("Name"), {
-			target: { value: "Updated Name" },
-		});
-		fireEvent.submit(screen.getByLabelText("Name").closest("form"));
-
-		await waitFor(() =>
-			expect(fetchSpy).toHaveBeenCalledWith(
-				"/api/programs/1",
-				expect.objectContaining({
-					method: "PUT",
-					body: JSON.stringify({ name: "Updated Name" }),
-				}),
-			),
-		);
-	});
-});
-
 describe("Programs — delete", () => {
 	it("opens confirm dialog on Delete click", async () => {
 		vi.spyOn(global, "fetch").mockResolvedValue({

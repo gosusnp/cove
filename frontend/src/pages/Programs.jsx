@@ -27,23 +27,6 @@ import { apiFetch } from "../lib/api.js";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
-function PencilIcon() {
-	return (
-		<svg
-			width="14"
-			height="14"
-			viewBox="0 0 16 16"
-			fill="none"
-			aria-hidden="true"
-		>
-			<path
-				d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.609Z"
-				fill="currentColor"
-			/>
-		</svg>
-	);
-}
-
 function TrashIcon() {
 	return (
 		<svg
@@ -70,7 +53,6 @@ function ProgramList({
 	selectedId,
 	onSelect,
 	onNew,
-	onRename,
 	onDelete,
 	error,
 }) {
@@ -112,34 +94,19 @@ function ProgramList({
 						isLast={i === programs.length - 1}
 						onClick={() => onSelect(p.id)}
 						actions={
-							<>
-								<Tooltip>
-									<TooltipTrigger>
-										<Button
-											variant="ghost"
-											size="icon"
-											aria-label="Rename"
-											onClick={() => onRename(p)}
-										>
-											<PencilIcon />
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent>Rename</TooltipContent>
-								</Tooltip>
-								<Tooltip>
-									<TooltipTrigger>
-										<Button
-											variant="ghost"
-											size="icon"
-											aria-label="Delete"
-											onClick={() => onDelete(p)}
-										>
-											<TrashIcon />
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent>Delete</TooltipContent>
-								</Tooltip>
-							</>
+							<Tooltip>
+								<TooltipTrigger>
+									<Button
+										variant="ghost"
+										size="icon"
+										aria-label="Delete"
+										onClick={() => onDelete(p)}
+									>
+										<TrashIcon />
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent>Delete</TooltipContent>
+							</Tooltip>
 						}
 					/>
 				))
@@ -159,9 +126,8 @@ export function Programs() {
 	const programs = useSignal([]);
 	const loading = useSignal(true);
 
-	// New / rename dialog
+	// New program dialog
 	const programDialog = useDialog();
-	const editingProgram = useSignal(null); // null = new, object = rename
 	const nameField = useSignal("");
 	const saving = useSignal(false);
 	const formError = useSignal("");
@@ -196,15 +162,7 @@ export function Programs() {
 	};
 
 	const openNew = () => {
-		editingProgram.value = null;
 		nameField.value = "";
-		formError.value = "";
-		programDialog.show();
-	};
-
-	const openRename = (p) => {
-		editingProgram.value = p;
-		nameField.value = p.name;
 		formError.value = "";
 		programDialog.show();
 	};
@@ -222,22 +180,15 @@ export function Programs() {
 		}
 		saving.value = true;
 		formError.value = "";
-
-		const isEdit = !!editingProgram.value;
-		const url = isEdit
-			? `/api/programs/${editingProgram.value.id}`
-			: "/api/programs";
-		const method = isEdit ? "PUT" : "POST";
-
 		try {
-			const r = await apiFetch(url, {
-				method,
+			const r = await apiFetch("/api/programs", {
+				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ name: nameField.value.trim() }),
 			});
 			if (!r.ok) {
 				const data = await r.json();
-				throw new Error(data.error || "Failed to save program");
+				throw new Error(data.error || "Failed to create program");
 			}
 			await fetchPrograms();
 			programDialog.hide();
@@ -272,7 +223,6 @@ export function Programs() {
 						selectedId={selectedId}
 						onSelect={handleSelect}
 						onNew={openNew}
-						onRename={openRename}
 						onDelete={openDelete}
 						error={fetchError.value}
 					/>
@@ -280,13 +230,11 @@ export function Programs() {
 				detail={selectedId ? <ProgramDetail programId={selectedId} /> : null}
 			/>
 
-			{/* New / Rename dialog */}
+			{/* New Program dialog */}
 			<Dialog openSignal={programDialog.open}>
 				<DialogContent>
 					<form onSubmit={handleSave}>
-						<DialogTitle>
-							{editingProgram.value ? "Rename Program" : "New Program"}
-						</DialogTitle>
+						<DialogTitle>New Program</DialogTitle>
 						<div class="mt-4 flex flex-col gap-4">
 							<TextField
 								id="program-name"

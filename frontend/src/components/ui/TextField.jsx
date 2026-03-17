@@ -3,15 +3,13 @@
 
 import { cn } from "../../lib/utils";
 
-const fieldClass = (className) =>
+const fieldClass = (className, inline) =>
 	cn(
-		"w-full rounded-lg border px-3 text-sm",
-		"bg-(--color-surface) text-(--color-text)",
-		"border-(--color-border)",
-		"placeholder:text-(--color-muted)",
-		"transition-colors",
-		"focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-accent)",
-		"disabled:opacity-50 disabled:pointer-events-none",
+		"w-full text-sm text-(--color-text) placeholder:text-(--color-muted)",
+		"transition-colors disabled:opacity-50 disabled:pointer-events-none",
+		inline
+			? "bg-transparent border-0 border-b-2 border-(--color-accent) rounded-none px-0 focus:outline-none focus:ring-0 focus:ring-offset-0"
+			: "rounded-lg border px-3 bg-(--color-surface) border-(--color-border) focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-accent)",
 		className,
 	);
 
@@ -19,11 +17,14 @@ export function TextField({
 	label,
 	id,
 	multiline,
+	inline,
+	containerClass,
+	inputRef,
 	class: className,
 	...props
 }) {
 	return (
-		<div class="flex flex-col gap-1.5">
+		<div class={cn("flex flex-col gap-1.5", containerClass)}>
 			{label && (
 				<label
 					for={id}
@@ -35,19 +36,26 @@ export function TextField({
 			)}
 			{multiline ? (
 				<textarea
+					ref={inputRef}
 					id={id}
-					class={fieldClass(cn("py-2.5 resize-none", className))}
+					class={fieldClass(
+						cn(!inline && "py-2.5", "resize-none", className),
+						inline,
+					)}
 					{...props}
 				/>
 			) : (
 				<input
+					ref={inputRef}
 					id={id}
 					class={fieldClass(
 						cn(
-							"h-10",
-							"read-only:bg-(--color-bg) read-only:cursor-default read-only:focus:ring-0 read-only:focus:ring-offset-0",
+							!inline && "h-10",
+							!inline &&
+								"read-only:bg-(--color-bg) read-only:cursor-default read-only:focus:ring-0 read-only:focus:ring-offset-0",
 							className,
 						),
+						inline,
 					)}
 					{...props}
 				/>

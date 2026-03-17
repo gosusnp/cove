@@ -341,33 +341,48 @@ describe("ProgramDetail — set display", () => {
 	});
 });
 
-// ── Rename dialog ─────────────────────────────────────────────────────────────
+// ── Inline edit ───────────────────────────────────────────────────────────────
 
-describe("ProgramDetail — rename dialog", () => {
-	it("opens rename dialog with current program name pre-filled", async () => {
+describe("ProgramDetail — inline name edit", () => {
+	it("clicking name shows input pre-filled with current name", async () => {
 		mockDefaultFetch();
 		renderDetail();
 		await waitFor(() =>
 			expect(screen.getByText("Strength A/B")).toBeInTheDocument(),
 		);
-		fireEvent.click(screen.getByRole("button", { name: "Rename program" }));
-		expect(screen.getByText("Rename Program")).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "Edit program name" }));
 		expect(screen.getByDisplayValue("Strength A/B")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+	});
+
+	it("cancel restores the original name display", async () => {
+		mockDefaultFetch();
+		renderDetail();
+		await waitFor(() =>
+			screen.getByRole("button", { name: "Edit program name" }),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Edit program name" }));
+		fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+		expect(screen.getByText("Strength A/B")).toBeInTheDocument();
+		expect(screen.queryByDisplayValue("Strength A/B")).not.toBeInTheDocument();
 	});
 
 	it("shows validation error when name is empty", async () => {
 		mockDefaultFetch();
 		renderDetail();
-		await waitFor(() => screen.getByRole("button", { name: "Rename program" }));
-		fireEvent.click(screen.getByRole("button", { name: "Rename program" }));
-		const form = screen.getByText("Rename Program").closest("form");
-		const input = within(form).getByDisplayValue("Strength A/B");
-		fireEvent.input(input, { target: { value: "" } });
-		fireEvent.submit(form);
+		await waitFor(() =>
+			screen.getByRole("button", { name: "Edit program name" }),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Edit program name" }));
+		fireEvent.input(screen.getByDisplayValue("Strength A/B"), {
+			target: { value: "" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Save" }));
 		expect(screen.getByText("Name is required.")).toBeInTheDocument();
 	});
 
-	it("renames program via PUT and updates displayed name", async () => {
+	it("saves new name via PUT and updates display", async () => {
 		const fetchSpy = vi
 			.spyOn(global, "fetch")
 			.mockImplementation((url, opts) => {
@@ -390,12 +405,14 @@ describe("ProgramDetail — rename dialog", () => {
 			});
 
 		renderDetail();
-		await waitFor(() => screen.getByRole("button", { name: "Rename program" }));
-		fireEvent.click(screen.getByRole("button", { name: "Rename program" }));
-		const form = screen.getByText("Rename Program").closest("form");
-		const input = within(form).getByDisplayValue("Strength A/B");
-		fireEvent.input(input, { target: { value: "Renamed Program" } });
-		fireEvent.submit(form);
+		await waitFor(() =>
+			screen.getByRole("button", { name: "Edit program name" }),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Edit program name" }));
+		fireEvent.input(screen.getByDisplayValue("Strength A/B"), {
+			target: { value: "Renamed Program" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() =>
 			expect(fetchSpy).toHaveBeenCalledWith(
@@ -406,13 +423,12 @@ describe("ProgramDetail — rename dialog", () => {
 				}),
 			),
 		);
-
 		await waitFor(() =>
 			expect(screen.getByText("Renamed Program")).toBeInTheDocument(),
 		);
 	});
 
-	it("shows API error on rename failure", async () => {
+	it("shows API error on save failure", async () => {
 		vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
 			if (opts?.method === "PUT") {
 				return Promise.resolve({
@@ -433,15 +449,85 @@ describe("ProgramDetail — rename dialog", () => {
 		});
 
 		renderDetail();
-		await waitFor(() => screen.getByRole("button", { name: "Rename program" }));
-		fireEvent.click(screen.getByRole("button", { name: "Rename program" }));
-		const form = screen.getByText("Rename Program").closest("form");
-		const input = within(form).getByDisplayValue("Strength A/B");
-		fireEvent.input(input, { target: { value: "Taken Name" } });
-		fireEvent.submit(form);
+		await waitFor(() =>
+			screen.getByRole("button", { name: "Edit program name" }),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Edit program name" }));
+		fireEvent.input(screen.getByDisplayValue("Strength A/B"), {
+			target: { value: "Taken Name" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() =>
 			expect(screen.getByText("Name already taken")).toBeInTheDocument(),
+		);
+	});
+});
+
+describe("ProgramDetail — inline description edit", () => {
+	it("shows placeholder when no description and clicking opens textarea", async () => {
+		mockDefaultFetch();
+		renderDetail();
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Edit program description" }),
+			).toBeInTheDocument(),
+		);
+		expect(screen.getByText("Add a description…")).toBeInTheDocument();
+		fireEvent.click(
+			screen.getByRole("button", { name: "Edit program description" }),
+		);
+		expect(screen.getByRole("textbox")).toBeInTheDocument();
+	});
+
+	it("saves description via PUT and updates display", async () => {
+		const fetchSpy = vi
+			.spyOn(global, "fetch")
+			.mockImplementation((url, opts) => {
+				if (opts?.method === "PUT" && String(url) === "/api/programs/1") {
+					return Promise.resolve({
+						ok: true,
+						json: () => Promise.resolve({ id: 1, name: "Strength A/B" }),
+					});
+				}
+				if (String(url).includes("/api/exercises")) {
+					return Promise.resolve({
+						ok: true,
+						json: () => Promise.resolve(MOCK_EXERCISES),
+					});
+				}
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_PROGRAM),
+				});
+			});
+
+		renderDetail();
+		await waitFor(() =>
+			screen.getByRole("button", { name: "Edit program description" }),
+		);
+		fireEvent.click(
+			screen.getByRole("button", { name: "Edit program description" }),
+		);
+		fireEvent.input(screen.getByRole("textbox"), {
+			target: { value: "A great strength program" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(fetchSpy).toHaveBeenCalledWith(
+				"/api/programs/1",
+				expect.objectContaining({
+					method: "PUT",
+					body: JSON.stringify({
+						name: "Strength A/B",
+						description: "A great strength program",
+					}),
+				}),
+			),
+		);
+		await waitFor(() =>
+			expect(screen.getByText("A great strength program")).toBeInTheDocument(),
 		);
 	});
 });
@@ -686,9 +772,8 @@ describe("ProgramDetail — add exercise dialog", () => {
 			).toBeGreaterThan(1),
 		);
 
-		fireEvent.change(screen.getByTestId("mock-combobox"), {
-			target: { value: "5" },
-		});
+		const combobox = screen.getByTestId("mock-combobox");
+		fireEvent.change(combobox, { target: { value: "5" } });
 		const form = screen
 			.getByRole("heading", { name: "Add Exercise" })
 			.closest("form");
