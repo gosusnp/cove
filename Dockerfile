@@ -11,7 +11,7 @@ COPY frontend/ ./frontend/
 RUN npm --prefix frontend run build
 
 # Stage 2: build backend
-FROM golang:1.26 AS backend-build
+FROM golang:1.26-alpine AS backend-build
 ARG TARGETARCH
 WORKDIR /app
 COPY backend/go.mod backend/go.sum ./

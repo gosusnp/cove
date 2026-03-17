@@ -1,0 +1,24 @@
+# Copyright (c) 2026 Jimmy Ma
+# SPDX-License-Identifier: Elastic-2.0
+
+# Git
+.git
+.gitignore
+
+# Frontend build artifacts and deps (Docker installs its own)
+frontend/node_modules
+frontend/dist
+frontend/test-results
+frontend/playwright-report
+frontend/e2e
+
+# Backend artifacts and local state
+backend/bin
+backend/tmp
+backend/ui
+backend/.env
+backend/cove.db
+
+# Docs and tooling
+docs
+*.md
