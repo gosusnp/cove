@@ -34,6 +34,7 @@ func applyRoleGrants(database *sql.DB) error {
 	}
 
 	stmts := []string{
+		`GRANT USAGE ON SCHEMA cove TO cove_app_role`,
 		`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA cove TO cove_app_role`,
 		`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA cove TO cove_app_role`,
 		`ALTER DEFAULT PRIVILEGES IN SCHEMA cove GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO cove_app_role`,
