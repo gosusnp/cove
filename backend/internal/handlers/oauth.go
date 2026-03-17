@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"golang.org/x/oauth2"
 
@@ -173,6 +174,25 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	setSessionCookie(w, sessionToken, h.secureCookies)
+
+	// After OAuth login, complete a pending MCP authorization flow if one was started.
+	if c, err := r.Cookie(oauthReturnToCookieName); err == nil {
+		returnTo := c.Value
+		if strings.HasPrefix(returnTo, "/oauth/authorize?") {
+			http.SetCookie(w, &http.Cookie{
+				Name:     oauthReturnToCookieName,
+				Value:    "",
+				HttpOnly: true,
+				Secure:   h.secureCookies,
+				SameSite: http.SameSiteLaxMode,
+				MaxAge:   -1,
+				Path:     "/",
+			})
+			http.Redirect(w, r, returnTo, http.StatusFound)
+			return
+		}
+	}
+
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 

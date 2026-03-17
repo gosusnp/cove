@@ -243,6 +243,50 @@ func (s *UserStore) DeleteSession(ctx context.Context, q Querier, userID domain.
 	return nil
 }
 
+// CreateOAuthToken generates an OAuth access token (prefixed with "pat_") that never expires.
+// Used by the OAuth 2.0 authorization server after a successful code exchange.
+// The raw token is returned once; only its SHA-256 hash is stored.
+func (s *UserStore) CreateOAuthToken(
+	ctx context.Context,
+	q Querier,
+	userID domain.UserID,
+	orgID domain.OrgID,
+	name string,
+) (string, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return "", fmt.Errorf("generate oauth token id: %w", err)
+	}
+	token, err := generateToken("pat_")
+	if err != nil {
+		return "", err
+	}
+	hash := sha256TokenHash(token)
+	_, err = q.ExecContext(ctx,
+		`INSERT INTO cove.user_tokens (id, user_id, org_id, kind, name, token)
+		 VALUES ($1, $2, $3, 'oauth', $4, $5)`,
+		id, userID, orgID, name, hash,
+	)
+	if err != nil {
+		return "", fmt.Errorf("create oauth token: %w", err)
+	}
+	return token, nil
+}
+
+// RevokeToken deletes a pat or oauth token by its raw value.
+// It is a no-op if the token does not exist, per RFC 7009 §2.2.
+func (s *UserStore) RevokeToken(ctx context.Context, q Querier, token string) error {
+	hash := sha256TokenHash(token)
+	_, err := q.ExecContext(ctx,
+		`DELETE FROM cove.user_tokens WHERE token = $1 AND kind IN ('pat', 'oauth')`,
+		hash,
+	)
+	if err != nil {
+		return fmt.Errorf("revoke token: %w", err)
+	}
+	return nil
+}
+
 func generateToken(prefix string) (string, error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {

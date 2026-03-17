@@ -118,6 +118,7 @@ func main() {
 	exSvc := service.NewExerciseService(database, exStore)
 	pSvc := service.NewProgramService(database, exStore)
 	wsSvc := service.NewWorkoutSessionService(database, store.NewWorkoutSessionStore(), enc)
+	oauthSvc := service.NewOAuthService(database, store.NewOAuthStore(), userStore)
 	svcs := covemcp.Services{
 		Exercises: exSvc,
 		Programs:  pSvc,
@@ -156,6 +157,7 @@ func main() {
 	outer := http.NewServeMux()
 	oauthHandler := handlers.NewOAuthHandler(oauthCfg, userSvc, allowedEmails, secureCookies)
 	oauthHandler.RegisterRoutes(outer)
+	handlers.NewOAuthServerHandler(oauthSvc, userSvc, secureCookies).RegisterRoutes(outer)
 	if os.Getenv("COVE_DEV") != "" {
 		oauthHandler.RegisterDevRoutes(outer)
 	}
