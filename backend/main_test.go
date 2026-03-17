@@ -72,6 +72,7 @@ func TestResolveMigrationDSN(t *testing.T) {
 	})
 
 	t.Run("falls back to appDSN in dev when MIGRATION_DATABASE_URL unset", func(t *testing.T) {
+		t.Setenv("MIGRATION_DATABASE_URL", "")
 		dsn, ok := resolveMigrationDSN("app-dsn", true)
 		if !ok || dsn != "app-dsn" {
 			t.Errorf("got (%q, %v), want (\"app-dsn\", true)", dsn, ok)
@@ -79,6 +80,7 @@ func TestResolveMigrationDSN(t *testing.T) {
 	})
 
 	t.Run("returns false in production when MIGRATION_DATABASE_URL unset", func(t *testing.T) {
+		t.Setenv("MIGRATION_DATABASE_URL", "")
 		_, ok := resolveMigrationDSN("app-dsn", false)
 		if ok {
 			t.Error("expected ok=false in production without MIGRATION_DATABASE_URL")

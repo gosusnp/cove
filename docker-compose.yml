@@ -9,11 +9,27 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    configs:
+      - source: postgres_dev_init
+        target: /docker-entrypoint-initdb.d/01_roles.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U cove -d cove"]
       interval: 5s
       timeout: 5s
       retries: 5
+
+# Inline init SQL so there is no separate file that could be accidentally
+# included in a production image or deployment.
+configs:
+  postgres_dev_init:
+    content: |
+      -- Mirrors the production user split in local dev.
+      -- cove (POSTGRES_USER) is used for migrations via MIGRATION_DATABASE_URL.
+      -- cove_app is the restricted login user used by the app via DATABASE_URL.
+      -- cove_app_role holds all runtime permissions; granted by db.Migrate().
+      CREATE ROLE cove_app_role;
+      CREATE ROLE cove_app WITH LOGIN PASSWORD 'coveapp';
+      GRANT cove_app_role TO cove_app;
 
 volumes:
   postgres_data:
