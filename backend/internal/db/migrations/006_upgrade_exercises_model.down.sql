@@ -27,6 +27,6 @@ DROP COLUMN IF EXISTS updated_at,
 DROP COLUMN IF EXISTS description;
 
 -- Drop RLS helper functions
-DROP FUNCTION IF EXISTS update_bookkeeping_columns() CASCADE;
-DROP FUNCTION IF EXISTS current_app_org_id() CASCADE;
-DROP FUNCTION IF EXISTS current_app_user_id() CASCADE;
+DROP FUNCTION IF EXISTS cove.update_bookkeeping_columns() CASCADE;
+DROP FUNCTION IF EXISTS cove.current_app_org_id() CASCADE;
+DROP FUNCTION IF EXISTS cove.current_app_user_id() CASCADE;

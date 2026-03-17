@@ -27,7 +27,7 @@ CREATE INDEX idx_programs_rls ON programs (org_id, is_public);
 
 CREATE TRIGGER programs_bookkeeping
 BEFORE INSERT OR UPDATE ON programs
-FOR EACH ROW EXECUTE FUNCTION update_bookkeeping_columns();
+FOR EACH ROW EXECUTE FUNCTION cove.update_bookkeeping_columns();
 
 -- -----------------------------------------------------------------------------
 -- RLS Policies
@@ -39,20 +39,20 @@ ALTER TABLE programs FORCE ROW LEVEL SECURITY;
 -- Select: users can see programs from their org or public ones
 CREATE POLICY programs_select ON programs
 FOR SELECT TO PUBLIC
-USING (is_public = true OR org_id = current_app_org_id());
+USING (is_public = true OR org_id = cove.current_app_org_id());
 
 -- Insert: strictly same org
 CREATE POLICY programs_insert ON programs
 FOR INSERT TO PUBLIC
-WITH CHECK (org_id = current_app_org_id());
+WITH CHECK (org_id = cove.current_app_org_id());
 
 -- Update: strictly same org
 CREATE POLICY programs_update ON programs
 FOR UPDATE TO PUBLIC
-USING (org_id = current_app_org_id())
-WITH CHECK (org_id = current_app_org_id());
+USING (org_id = cove.current_app_org_id())
+WITH CHECK (org_id = cove.current_app_org_id());
 
 -- Delete: strictly same org
 CREATE POLICY programs_delete ON programs
 FOR DELETE TO PUBLIC
-USING (org_id = current_app_org_id());
+USING (org_id = cove.current_app_org_id());

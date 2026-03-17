@@ -31,24 +31,24 @@ CREATE INDEX idx_workout_sessions_org ON workout_sessions (org_id);
 
 CREATE TRIGGER workout_sessions_bookkeeping
 BEFORE INSERT OR UPDATE ON workout_sessions
-FOR EACH ROW EXECUTE FUNCTION update_bookkeeping_columns();
+FOR EACH ROW EXECUTE FUNCTION cove.update_bookkeeping_columns();
 
 ALTER TABLE workout_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workout_sessions FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY workout_sessions_select ON workout_sessions
 FOR SELECT TO PUBLIC
-USING (org_id = current_app_org_id());
+USING (org_id = cove.current_app_org_id());
 
 CREATE POLICY workout_sessions_insert ON workout_sessions
 FOR INSERT TO PUBLIC
-WITH CHECK (org_id = current_app_org_id());
+WITH CHECK (org_id = cove.current_app_org_id());
 
 CREATE POLICY workout_sessions_update ON workout_sessions
 FOR UPDATE TO PUBLIC
 USING (org_id = current_app_org_id())
-WITH CHECK (org_id = current_app_org_id());
+WITH CHECK (org_id = cove.current_app_org_id());
 
 CREATE POLICY workout_sessions_delete ON workout_sessions
 FOR DELETE TO PUBLIC
-USING (org_id = current_app_org_id());
+USING (org_id = cove.current_app_org_id());

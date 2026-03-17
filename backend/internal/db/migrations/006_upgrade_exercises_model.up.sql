@@ -6,7 +6,7 @@
 -- -----------------------------------------------------------------------------
 
 -- Function to get current user ID from session
-CREATE OR REPLACE FUNCTION current_app_user_id() RETURNS UUID AS $$
+CREATE OR REPLACE FUNCTION cove.current_app_user_id() RETURNS UUID AS $$
 BEGIN
     RETURN NULLIF(current_setting('app.current_user_id', true), '')::UUID;
 EXCEPTION WHEN OTHERS THEN
@@ -15,7 +15,7 @@ END;
 $$ LANGUAGE plpgsql STABLE;
 
 -- Function to get current org ID from session
-CREATE OR REPLACE FUNCTION current_app_org_id() RETURNS UUID AS $$
+CREATE OR REPLACE FUNCTION cove.current_app_org_id() RETURNS UUID AS $$
 BEGIN
     RETURN NULLIF(current_setting('app.current_org_id', true), '')::UUID;
 EXCEPTION WHEN OTHERS THEN
@@ -24,16 +24,16 @@ END;
 $$ LANGUAGE plpgsql STABLE;
 
 -- Trigger function to update bookkeeping columns
-CREATE OR REPLACE FUNCTION update_bookkeeping_columns() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION cove.update_bookkeeping_columns() RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = NOW();
-    NEW.updated_by = COALESCE(NULLIF(current_app_user_id(), NULL), NEW.updated_by);
-    
+    NEW.updated_by = COALESCE(NULLIF(cove.current_app_user_id(), NULL), NEW.updated_by);
+
     -- On INSERT, set created columns from session if not provided
     IF (TG_OP = 'INSERT') THEN
         NEW.created_at = COALESCE(NEW.created_at, NOW());
-        NEW.created_by = COALESCE(NEW.created_by, current_app_user_id());
-        NEW.org_id = COALESCE(NEW.org_id, current_app_org_id());
+        NEW.created_by = COALESCE(NEW.created_by, cove.current_app_user_id());
+        NEW.org_id = COALESCE(NEW.org_id, cove.current_app_org_id());
     END IF;
     
     -- Validation: Ensure required fields are present
@@ -72,7 +72,7 @@ CREATE INDEX idx_exercises_rls ON exercises (org_id, is_public);
 
 CREATE TRIGGER exercises_bookkeeping
 BEFORE INSERT OR UPDATE ON exercises
-FOR EACH ROW EXECUTE FUNCTION update_bookkeeping_columns();
+FOR EACH ROW EXECUTE FUNCTION cove.update_bookkeeping_columns();
 
 -- -----------------------------------------------------------------------------
 -- RLS Policies
@@ -84,20 +84,20 @@ ALTER TABLE exercises FORCE ROW LEVEL SECURITY;
 -- Select: users can see exercises from their org or public ones
 CREATE POLICY exercises_select ON exercises
 FOR SELECT TO PUBLIC
-USING (is_public = true OR org_id = current_app_org_id());
+USING (is_public = true OR org_id = cove.current_app_org_id());
 
 -- Insert: strictly same org
 CREATE POLICY exercises_insert ON exercises
 FOR INSERT TO PUBLIC
-WITH CHECK (org_id = current_app_org_id());
+WITH CHECK (org_id = cove.current_app_org_id());
 
 -- Update: strictly same org
 CREATE POLICY exercises_update ON exercises
 FOR UPDATE TO PUBLIC
-USING (org_id = current_app_org_id())
-WITH CHECK (org_id = current_app_org_id());
+USING (org_id = cove.current_app_org_id())
+WITH CHECK (org_id = cove.current_app_org_id());
 
 -- Delete: strictly same org
 CREATE POLICY exercises_delete ON exercises
 FOR DELETE TO PUBLIC
-USING (org_id = current_app_org_id());
+USING (org_id = cove.current_app_org_id());

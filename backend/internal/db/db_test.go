@@ -72,6 +72,45 @@ func TestRoleGrants(t *testing.T) {
 	}
 }
 
+func TestFunctions_SchemaQualified(t *testing.T) {
+	testDB := testutil.NewDB(t)
+
+	var dbName string
+	if err := testDB.QueryRow(`SELECT current_database()`).Scan(&dbName); err != nil {
+		t.Fatalf("get database name: %v", err)
+	}
+
+	// Connect to the same per-test database without any search_path override,
+	// simulating the application connection which has no search_path configured.
+	u, _ := url.Parse(containerDSN)
+	u.Path = "/" + dbName
+	q := u.Query()
+	q.Del("options")
+	u.RawQuery = q.Encode()
+
+	noPathDB, err := sql.Open("pgx", u.String())
+	if err != nil {
+		t.Fatalf("open no-search-path db: %v", err)
+	}
+	defer noPathDB.Close()
+
+	// Each function must be callable using its schema-qualified name.
+	// With no session variables set they must both return NULL.
+	var userID, orgID *string
+	if err := noPathDB.QueryRow(`SELECT cove.current_app_user_id()`).Scan(&userID); err != nil {
+		t.Fatalf("cove.current_app_user_id(): %v", err)
+	}
+	if err := noPathDB.QueryRow(`SELECT cove.current_app_org_id()`).Scan(&orgID); err != nil {
+		t.Fatalf("cove.current_app_org_id(): %v", err)
+	}
+	if userID != nil {
+		t.Errorf("expected NULL from cove.current_app_user_id, got %q", *userID)
+	}
+	if orgID != nil {
+		t.Errorf("expected NULL from cove.current_app_org_id, got %q", *orgID)
+	}
+}
+
 func TestMigrations_Roundtrip(t *testing.T) {
 	testDB := testutil.NewEmptyDB(t)
 
