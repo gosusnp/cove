@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Elastic-2.0
 
 # Stage 1: build frontend
-FROM node:22-alpine AS frontend-build
+FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend-build
 WORKDIR /workspace
 COPY frontend/package*.json ./frontend/
 RUN npm --prefix frontend ci
@@ -11,7 +11,7 @@ COPY frontend/ ./frontend/
 RUN npm --prefix frontend run build
 
 # Stage 2: build backend
-FROM golang:1.26-alpine AS backend-build
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS backend-build
 ARG TARGETARCH
 WORKDIR /app
 COPY backend/go.mod backend/go.sum ./
