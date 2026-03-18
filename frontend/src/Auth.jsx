@@ -8,6 +8,7 @@ export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
 	const [user, setUser] = useState(null);
+	const [loading, setLoading] = useState(true);
 
 	// Bootstrap: check if we have an active session via the HttpOnly cookie.
 	useEffect(() => {
@@ -15,7 +16,8 @@ export function AuthProvider({ children }) {
 			.then((r) => {
 				if (r.ok) return r.json().then(setUser);
 			})
-			.catch(() => {});
+			.catch(() => {})
+			.finally(() => setLoading(false));
 	}, []);
 
 	function logout() {
@@ -31,7 +33,7 @@ export function AuthProvider({ children }) {
 	}
 
 	return (
-		<AuthContext.Provider value={{ user, logout, updateUser }}>
+		<AuthContext.Provider value={{ user, loading, logout, updateUser }}>
 			{children}
 		</AuthContext.Provider>
 	);

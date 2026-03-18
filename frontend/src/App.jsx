@@ -24,21 +24,23 @@ const PROTECTED_ROUTES = [
 
 function Layout() {
 	const { url, route } = useLocation();
-	const { user } = useAuth();
+	const { user, loading } = useAuth();
 
 	const isProtected = PROTECTED_ROUTES.some(
 		(p) => url === p || url.startsWith(`${p}/`),
 	);
 
 	useEffect(() => {
+		if (loading) return;
 		if (!user && isProtected) {
 			route("/login");
 		} else if (user && url === "/login") {
 			route("/");
 		}
-	}, [user, url]);
+	}, [user, url, loading]);
 
-	// Suppress render until the redirect fires to avoid a flash of wrong content.
+	// Suppress render until auth is resolved to avoid a flash of wrong content.
+	if (loading) return null;
 	if (!user && isProtected) return null;
 	if (user && url === "/login") return null;
 
