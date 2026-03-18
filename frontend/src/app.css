@@ -85,6 +85,7 @@ body {
 
 /* Layout shell: bottom padding for mobile nav, left padding for desktop sidebar */
 .app-shell {
+	padding-top: var(--safe-area-top);
 	padding-bottom: calc(var(--nav-h-mobile) + var(--safe-area-bottom));
 }
 
