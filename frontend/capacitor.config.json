@@ -8,6 +8,11 @@
 	"plugins": {
 		"CapacitorHttp": {
 			"enabled": true
+		},
+		"SocialLogin": {
+			"providers": {
+				"google": true
+			}
 		}
 	}
 }

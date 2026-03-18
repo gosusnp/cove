@@ -157,6 +157,7 @@ func main() {
 	outer := http.NewServeMux()
 	oauthHandler := handlers.NewOAuthHandler(oauthCfg, userSvc, allowedEmails, secureCookies)
 	oauthHandler.RegisterRoutes(outer)
+	oauthHandler.RegisterMobileRoutes(outer)
 	handlers.NewOAuthServerHandler(oauthSvc, userSvc, secureCookies).RegisterRoutes(outer)
 	if os.Getenv("COVE_DEV") != "" {
 		oauthHandler.RegisterDevRoutes(outer)

@@ -51,6 +51,7 @@ type OAuthHandler struct {
 	userSvc       *service.UserService
 	allowedEmails map[string]struct{}
 	userinfoURL   string
+	tokenInfoURL  string
 	secureCookies bool
 }
 
@@ -70,6 +71,7 @@ func NewOAuthHandler(cfg *oauth2.Config, svc *service.UserService, allowed []str
 		userSvc:       svc,
 		allowedEmails: m,
 		userinfoURL:   "https://www.googleapis.com/oauth2/v3/userinfo",
+		tokenInfoURL:  "https://oauth2.googleapis.com/tokeninfo",
 		secureCookies: secureCookies,
 	}
 }

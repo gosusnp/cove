@@ -1,6 +1,15 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
+import { Capacitor } from "@capacitor/core";
+import { SocialLogin } from "@capgo/capacitor-social-login";
+import { useEffect, useState } from "preact/hooks";
+import { useLocation } from "preact-iso";
+import { Button } from "../components/ui/Button.jsx";
+import { PageTitle } from "../components/ui/PageTitle.jsx";
+import { useAuth } from "../Auth.jsx";
+import { apiFetch } from "../lib/api.js";
+
 function GoogleIcon() {
 	return (
 		<svg
@@ -31,9 +40,46 @@ function GoogleIcon() {
 	);
 }
 
-import { PageTitle } from "../components/ui/PageTitle.jsx";
-
 export function Login() {
+	const { route } = useLocation();
+	const { updateUser } = useAuth();
+	const isNative = Capacitor.isNativePlatform();
+	const [ready, setReady] = useState(!isNative);
+	const [error, setError] = useState(null);
+
+	useEffect(() => {
+		if (!isNative) return;
+		SocialLogin.initialize({
+			google: { webClientId: import.meta.env.VITE_GOOGLE_CLIENT_ID },
+		})
+			.then(() => setReady(true))
+			.catch((e) => console.error("SocialLogin.initialize failed:", e));
+	}, [isNative]);
+
+	async function signInWithGoogle() {
+		setError(null);
+		try {
+			const result = await SocialLogin.login({
+				provider: "google",
+				options: {},
+			});
+			const tokenRes = await apiFetch("/auth/google/token", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ id_token: result.result.idToken }),
+			});
+			if (!tokenRes.ok) throw new Error(`auth failed: ${tokenRes.status}`);
+			const me = await apiFetch("/api/users/me");
+			if (me.ok) {
+				updateUser(await me.json());
+				route("/");
+			}
+		} catch (e) {
+			console.error("signInWithGoogle failed:", e);
+			setError("Sign-in failed. Please try again.");
+		}
+	}
+
 	return (
 		<main class="flex min-h-dvh flex-col items-center justify-center gap-8 px-4">
 			<div class="flex flex-col items-center gap-2">
@@ -43,19 +89,34 @@ export function Login() {
 				</p>
 			</div>
 
-			<a
-				href="/auth/login"
-				onClick={(e) => e.stopPropagation()}
-				class="flex items-center gap-3 rounded-xl px-5 py-3 text-sm font-medium transition-opacity hover:opacity-80"
-				style={{
-					background: "var(--color-surface)",
-					border: "1px solid var(--color-border)",
-					color: "var(--color-text)",
-				}}
-			>
-				<GoogleIcon />
-				Continue with Google
-			</a>
+			{error && (
+				<p class="text-sm" style={{ color: "var(--color-error)" }}>
+					{error}
+				</p>
+			)}
+
+			{isNative ? (
+				<Button
+					variant="outline"
+					size="lg"
+					onClick={signInWithGoogle}
+					disabled={!ready}
+				>
+					<GoogleIcon />
+					Continue with Google
+				</Button>
+			) : (
+				<Button
+					variant="outline"
+					size="lg"
+					onClick={() => {
+						window.location.href = "/auth/login";
+					}}
+				>
+					<GoogleIcon />
+					Continue with Google
+				</Button>
+			)}
 		</main>
 	);
 }

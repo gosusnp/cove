@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { createContext } from "preact";
+import { API_BASE, apiFetch } from "./lib/api.js";
 import { useContext, useEffect, useState } from "preact/hooks";
 
 export const AuthContext = createContext(null);
@@ -12,7 +13,7 @@ export function AuthProvider({ children }) {
 
 	// Bootstrap: check if we have an active session via the HttpOnly cookie.
 	useEffect(() => {
-		fetch("/api/users/me", { credentials: "include" })
+		fetch(`${API_BASE}/api/users/me`, { credentials: "include" })
 			.then((r) => {
 				if (r.ok) return r.json().then(setUser);
 			})
@@ -21,10 +22,7 @@ export function AuthProvider({ children }) {
 	}, []);
 
 	function logout() {
-		fetch("/api/users/logout", {
-			method: "POST",
-			credentials: "include",
-		}).catch(() => {});
+		apiFetch("/api/users/logout", { method: "POST" }).catch(() => {});
 		setUser(null);
 	}
 

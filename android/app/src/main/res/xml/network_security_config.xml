@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+ Copyright (c) 2026 Jimmy Ma
+ SPDX-License-Identifier: Elastic-2.0
+-->
+
+<!--
+  Allows cleartext HTTP for local dev builds (connecting to local backend).
+  Production builds should use HTTPS and this can be tightened before release.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">localhost</domain>
+    </domain-config>
+</network-security-config>

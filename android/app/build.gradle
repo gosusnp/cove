@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 apply plugin: 'com.android.application'
+apply plugin: 'com.google.gms.google-services'
 
 android {
     namespace = "com.cove.app"

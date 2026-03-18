@@ -25,6 +25,14 @@ export default defineConfig({
 		setupFiles: ["./src/test-setup.js"],
 		exclude: ["e2e/**", "node_modules/**"],
 		alias: {
+			"@capacitor/core": resolve(
+				import.meta.dirname,
+				"src/__mocks__/capacitor-core.js",
+			),
+			"@capgo/capacitor-social-login": resolve(
+				import.meta.dirname,
+				"src/__mocks__/capacitor-social-login.js",
+			),
 			"react-markdown": resolve(
 				import.meta.dirname,
 				"src/__mocks__/react-markdown.jsx",

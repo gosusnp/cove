@@ -1,5 +1,8 @@
 # Using Android gitignore template: https://github.com/github/gitignore/blob/HEAD/Android.gitignore
 
+# Google Services config (contains project/client IDs — not secret but not committed)
+app/google-services.json
+
 # Built application files
 *.apk
 *.aar
