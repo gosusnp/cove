@@ -29,6 +29,10 @@ export default defineConfig({
 				import.meta.dirname,
 				"src/__mocks__/capacitor-core.js",
 			),
+			"@capacitor-community/keep-awake": resolve(
+				import.meta.dirname,
+				"src/__mocks__/capacitor-keep-awake.js",
+			),
 			"@capgo/capacitor-social-login": resolve(
 				import.meta.dirname,
 				"src/__mocks__/capacitor-social-login.js",

@@ -2,5 +2,8 @@
 include ':capacitor-android'
 project(':capacitor-android').projectDir = new File('../frontend/node_modules/@capacitor/android/capacitor')
 
+include ':capacitor-community-keep-awake'
+project(':capacitor-community-keep-awake').projectDir = new File('../frontend/node_modules/@capacitor-community/keep-awake/android')
+
 include ':capgo-capacitor-social-login'
 project(':capgo-capacitor-social-login').projectDir = new File('../frontend/node_modules/@capgo/capacitor-social-login/android')

@@ -4,6 +4,7 @@
 import { useSignal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
 import { useLocation } from "preact-iso";
+import { KeepAwake } from "@capacitor-community/keep-awake";
 import { useAuth } from "../Auth.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { Combobox } from "../components/ui/Combobox.jsx";
@@ -78,6 +79,16 @@ export function SessionTracker() {
 			})
 			.catch(() => {});
 	}, [user, selectedProgramId.value]);
+
+	// Wake lock: keep screen on while timer is running.
+	useEffect(() => {
+		if (running.value) {
+			KeepAwake.keepAwake().catch(() => {});
+			return () => {
+				KeepAwake.allowSleep().catch(() => {});
+			};
+		}
+	}, [running.value]);
 
 	// Timer tick.
 	useEffect(() => {
