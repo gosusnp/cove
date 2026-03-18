@@ -35,6 +35,7 @@ import {
 	DialogContent,
 	DialogTitle,
 } from "../components/ui/Dialog.jsx";
+import { Markdown } from "../components/ui/Markdown.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { ToggleGroup } from "../components/ui/ToggleGroup.jsx";
 import {
@@ -901,16 +902,9 @@ function ProgramDetailInner({ program: initialProgram, onRefresh }) {
 								</div>
 							</div>
 						) : (
-							<button
-								type="button"
-								class="text-left group flex items-center justify-between w-full cursor-text"
-								onClick={() => startEdit("description")}
-								aria-label="Edit program description"
-							>
+							<div class="group flex items-start justify-between w-full gap-2">
 								{programDescription.value ? (
-									<p class="text-sm" style={{ color: "var(--color-muted)" }}>
-										{programDescription.value}
-									</p>
+									<Markdown>{programDescription.value}</Markdown>
 								) : (
 									<p
 										class="text-sm italic"
@@ -919,12 +913,18 @@ function ProgramDetailInner({ program: initialProgram, onRefresh }) {
 										Add a description…
 									</p>
 								)}
-								<PencilIcon
-									class="opacity-0 group-hover:opacity-30 transition-opacity shrink-0"
-									style={{ color: "var(--color-muted)" }}
-									aria-hidden="true"
-								/>
-							</button>
+								<button
+									type="button"
+									class="opacity-0 group-hover:opacity-30 transition-opacity shrink-0 cursor-pointer"
+									onClick={() => startEdit("description")}
+									aria-label="Edit program description"
+								>
+									<PencilIcon
+										style={{ color: "var(--color-muted)" }}
+										aria-hidden="true"
+									/>
+								</button>
+							</div>
 						)}
 					</div>
 					<div class="flex gap-2 shrink-0">
