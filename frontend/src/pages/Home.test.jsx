@@ -6,14 +6,42 @@ import { describe, expect, it } from "vitest";
 import { withProviders } from "../test-utils.jsx";
 import { Home } from "./Home.jsx";
 
+const MOCK_USER = { email: "jane@example.com", name: "Jane Smith" };
+
 describe("Home", () => {
-	it("renders the heading", () => {
+	it("renders the heading when signed out", () => {
 		withProviders(<Home />);
 		expect(screen.getByRole("heading", { name: "Cove" })).toBeInTheDocument();
 	});
 
-	it("renders the tagline", () => {
+	it("renders the tagline when signed out", () => {
 		withProviders(<Home />);
 		expect(screen.getByText("Your space.")).toBeInTheDocument();
+	});
+
+	it("shows nav items when signed in", () => {
+		withProviders(<Home />, { user: MOCK_USER });
+		expect(screen.getByRole("link", { name: "Workout" })).toHaveAttribute(
+			"href",
+			"/workout",
+		);
+		expect(screen.getByRole("link", { name: "Exercises" })).toHaveAttribute(
+			"href",
+			"/exercises",
+		);
+		expect(screen.getByRole("link", { name: "Programs" })).toHaveAttribute(
+			"href",
+			"/programs",
+		);
+		expect(screen.getByRole("link", { name: "Sessions" })).toHaveAttribute(
+			"href",
+			"/sessions",
+		);
+	});
+
+	it("hides nav items and shows splash when signed out", () => {
+		withProviders(<Home />);
+		expect(screen.queryByRole("link", { name: "Workout" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "Exercises" })).toBeNull();
 	});
 });

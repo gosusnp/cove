@@ -17,19 +17,24 @@ describe("Nav", () => {
 
 	it("avatar links to /settings when signed in", () => {
 		withProviders(<Nav />, { user: MOCK_USER });
-		const link = screen.getByRole("link", { name: "Account settings" });
-		expect(link).toHaveAttribute("href", "/settings");
+		const links = screen.getAllByRole("link", { name: "Account settings" });
+		expect(links.length).toBeGreaterThan(0);
+		for (const link of links) {
+			expect(link).toHaveAttribute("href", "/settings");
+		}
 	});
 
 	it("shows user initials avatar when signed in", () => {
 		withProviders(<Nav />, { user: MOCK_USER });
-		// Initials from "Jane Smith" → "JS"
-		expect(screen.getByText("JS")).toBeInTheDocument();
+		// Initials from "Jane Smith" → "JS" (appears in desktop and mobile nav)
+		const avatars = screen.getAllByText("JS");
+		expect(avatars.length).toBeGreaterThan(0);
 	});
 
 	it("shows user email as avatar aria-label when signed in", () => {
 		withProviders(<Nav />, { user: MOCK_USER });
-		expect(screen.getByLabelText(MOCK_USER.email)).toBeInTheDocument();
+		const avatars = screen.getAllByLabelText(MOCK_USER.email);
+		expect(avatars.length).toBeGreaterThan(0);
 	});
 
 	it("hides Exercises and Programs links when not signed in", () => {

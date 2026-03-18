@@ -118,32 +118,43 @@ function MobileBottomBar({ user, url }) {
 			}}
 		>
 			{user ? (
-				AUTH_NAV_ITEMS.map(({ label, href }) => (
+				<>
 					<a
-						key={href}
-						href={href}
-						aria-current={isActive(href, url) ? "page" : undefined}
+						href="/"
+						aria-current={url === "/" ? "page" : undefined}
+						aria-label="Home"
 						class={cn(
-							"flex flex-1 flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors touch-manipulation select-none",
-							isActive(href, url)
+							"flex flex-1 items-center justify-center text-base font-semibold tracking-tight transition-colors touch-manipulation select-none",
+							url === "/" ? "text-(--color-accent)" : "text-(--color-muted)",
+						)}
+						style={{ textDecoration: "none" }}
+					>
+						Cove
+					</a>
+					<a
+						href="/settings"
+						aria-current={url === "/settings" ? "page" : undefined}
+						aria-label="Account settings"
+						class={cn(
+							"flex flex-1 flex-col items-center justify-center gap-0.5 transition-colors touch-manipulation select-none",
+							url === "/settings"
 								? "text-(--color-accent)"
 								: "text-(--color-muted)",
 						)}
 						style={{ textDecoration: "none" }}
 					>
-						{label}
+						<Avatar initials={initials(user)} label={user.email} />
 					</a>
-				))
+				</>
 			) : (
 				<a
 					href="/login"
 					aria-current={url === "/login" ? "page" : undefined}
-					class="flex flex-1 items-center justify-center text-sm font-medium"
-					style={{
-						textDecoration: "none",
-						color:
-							url === "/login" ? "var(--color-accent)" : "var(--color-muted)",
-					}}
+					class={cn(
+						"flex flex-1 items-center justify-center text-sm font-medium touch-manipulation select-none",
+						url === "/login" ? "text-(--color-accent)" : "text-(--color-muted)",
+					)}
+					style={{ textDecoration: "none" }}
 				>
 					Sign in
 				</a>
