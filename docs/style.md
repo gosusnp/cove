@@ -170,7 +170,7 @@ All interactive and reusable UI elements **must** come from `src/components/ui/`
 
 | Component | File | Description |
 |---|---|---|
-| `Button` | `components/ui/Button.jsx` | 3 variants (`primary`, `outline`, `ghost`), 3 sizes (`sm`, `md`, `lg`) |
+| `Button` | `components/ui/Button.jsx` | 4 variants (`primary`, `outline`, `ghost`, `destructive`), 4 sizes (`sm`, `md`, `lg`, `icon`) |
 | `Dialog` + sub-components | `components/ui/Dialog.jsx` | Modal dialog; open state managed via signal |
 | `Switch` | `components/ui/Switch.jsx` | Toggle; accepts optional `checkedSignal` |
 | `NavigationMenu`, `NavigationMenuItem`, `NavigationMenuLink`, `NavigationMenuBrand` | `components/ui/NavigationMenu.jsx` | Accessible nav links via Radix |
@@ -181,6 +181,12 @@ All interactive and reusable UI elements **must** come from `src/components/ui/`
 | `Section`, `Row`, `Divider` | `components/ui/Section.jsx` | Page section card with title; labeled row with right-side slot; `last` prop on `Row` drops the bottom border |
 | `Accordion`, `AccordionItem`, `AccordionTrigger`, `AccordionContent`, `AccordionDragHandle` | `components/ui/Accordion.jsx` | Collapsible sections via Radix; `AccordionItem` becomes sortable when given an `id` prop (place inside `@dnd-kit/sortable` `SortableContext`); `AccordionDragHandle` auto-wires drag listeners from nearest `AccordionItem` |
 | `PageTitle` | `components/ui/PageTitle.jsx` | Page-level heading with consistent typography |
+| `Combobox` | `components/ui/Combobox.jsx` | Searchable dropdown with keyboard navigation; `value`, `onChange`, `options`, `label`, `placeholder`, `disabled` props |
+| `ToggleGroup` | `components/ui/ToggleGroup.jsx` | Segmented button group (radio-like); `value`, `onChange`, `options`, `label`, `nullable`, `disabled` props |
+| `ConfirmDialog` | `components/ui/ConfirmDialog.jsx` | Pre-wired confirmation dialog built on `Dialog`; `openSignal`, `title`, `description`, `confirmLabel`, `onConfirm` props |
+| `ListDetail` | `components/ui/ListDetail.jsx` | Responsive two-column list+detail layout; collapses to single panel on mobile; `list`, `detail`, `emptyState`, `hasDetail` props |
+| `ListItem` | `components/ui/ListItem.jsx` | Clickable list row with label, optional sublabel, active highlight, and right-side `actions` slot |
+| `Markdown` | `components/ui/Markdown.jsx` | Renders a markdown string as styled HTML using design-token typography; `children`, `class` props |
 
 Supporting utilities:
 

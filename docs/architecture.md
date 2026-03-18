@@ -323,22 +323,37 @@ All domain entities and identifiers live in `backend/internal/domain/`.
 
 ### Type-Safe Identifiers
 
-To prevent logic errors (e.g., passing a `ProgramID` where an `ExerciseID` is required), we use a generic `ID[T]` wrapper with phantom types.
+To prevent logic errors (e.g., passing a `ProgramID` where an `ExerciseID` is required), we use generic wrapper types with phantom types. There are two variants depending on the underlying database column type:
 
 ```go
 // internal/domain/types.go
 
+// ID[T] wraps uuid.UUID — use for identity tables (users, orgs, sessions, API keys).
 type ID[T any] struct {
     uuid.UUID
 }
 
 type UserID ID[struct{ userID struct{} }]
 type OrgID  ID[struct{ orgID struct{} }]
+
+// IntID[T] wraps int64 — use for resource tables with BIGSERIAL primary keys.
+type IntID[T any] int64
+
+type ExerciseID IntID[struct{ exerciseID struct{} }]
+type ProgramID  IntID[struct{ programID struct{} }]
 ```
 
-- **DO** use hardened IDs for all new entities.
+Choose the wrapper based on the SQL column type:
+
+| SQL column | Go wrapper | When to use |
+|---|---|---|
+| `UUID PRIMARY KEY` | `ID[T]` | Identity/auth tables: users, orgs, sessions, API keys |
+| `BIGSERIAL PRIMARY KEY` | `IntID[T]` | Resource tables: exercises, programs, workout sessions |
+
+- **DO** use hardened IDs for all new entities — never use raw `uuid.UUID`, `int64`, or `string` for primary keys.
 - **DO** define the phantom type using an unexported field in a struct: `struct{ name struct{} }`.
-- **DO** use the `ID[T]` helper for `Scan`, `Value`, and `MarshalJSON` support.
+- **DO** use `ID[T]` for `Scan`, `Value`, and `MarshalJSON` support on UUID columns.
+- **DO** use `IntID[T]` for `Scan`, `Value`, and `MarshalJSON` support on `BIGSERIAL` columns.
 
 ### Entities
 
@@ -352,8 +367,8 @@ type User struct {
 
 - **DO** define full types (e.g., `Exercise`, `Program`) and lite types (e.g., `ExerciseLite`, `ProgramLite`) separately when a trimmed projection is needed — e.g. for list endpoints that don't need the full hierarchy.
 - **DO** use `*T` pointer fields with `omitempty` for nullable columns.
-- **DO** use hardened `ID[T]` (wrapping `uuid.UUID`) for primary keys on all new tables.
-- **DO** pay specific attention to identity tables (users, sessions, API keys) which **must** use these hardened UUIDs to follow the `UUID PRIMARY KEY` SQL convention.
+- **DO** use hardened `ID[T]` or `IntID[T]` for primary keys on all new tables — see the Type-Safe Identifiers section for which to choose.
+- **DO** use `ID[T]` (UUID) for identity tables (users, orgs, sessions, API keys) and `IntID[T]` (int64) for resource tables (exercises, programs, sessions).
 - **DO** use `time.Time` for all timestamp columns (`created_at`, `updated_at`) — never `string`.
 - **DON'T** add computed or presentation fields to domain types — those belong in a service or handler response struct.
 - **DON'T** define domain types inside handler or service files.
