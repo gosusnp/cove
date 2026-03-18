@@ -36,6 +36,8 @@ export function SessionTracker() {
 	const elapsed = useSignal(0); // seconds
 	const running = useSignal(false);
 	const intervalRef = useRef(null);
+	const segmentStartRef = useRef(null); // Date.now() when current segment began
+	const accumulatedRef = useRef(0); // total seconds from all prior segments
 
 	// Session state.
 	const sessionId = useSignal(null); // null until session is created
@@ -90,17 +92,34 @@ export function SessionTracker() {
 		}
 	}, [running.value]);
 
-	// Timer tick.
+	// Timer tick: compute elapsed from timestamp so backgrounding doesn't lose time.
 	useEffect(() => {
 		if (running.value) {
 			intervalRef.current = setInterval(() => {
-				elapsed.value += 1;
+				if (!segmentStartRef.current) return;
+				elapsed.value =
+					Math.floor((Date.now() - segmentStartRef.current) / 1000) +
+					accumulatedRef.current;
 			}, 1000);
 		} else {
 			clearInterval(intervalRef.current);
 		}
 		return () => clearInterval(intervalRef.current);
 	}, [running.value]);
+
+	// Snap elapsed immediately when the app is foregrounded.
+	useEffect(() => {
+		function handleVisibility() {
+			if (!document.hidden && running.value && segmentStartRef.current) {
+				elapsed.value =
+					Math.floor((Date.now() - segmentStartRef.current) / 1000) +
+					accumulatedRef.current;
+			}
+		}
+		document.addEventListener("visibilitychange", handleVisibility);
+		return () =>
+			document.removeEventListener("visibilitychange", handleVisibility);
+	}, []);
 
 	// Start session: create server record, then start timer.
 	async function handleStart() {
@@ -125,6 +144,7 @@ export function SessionTracker() {
 			if (!r.ok) throw new Error("Failed to start session");
 			const data = await r.json();
 			sessionId.value = data.id;
+			segmentStartRef.current = Date.now();
 			running.value = true;
 		} catch (err) {
 			saveError.value = err.message;
@@ -134,25 +154,40 @@ export function SessionTracker() {
 	}
 
 	function handlePause() {
+		accumulatedRef.current += Math.floor(
+			(Date.now() - segmentStartRef.current) / 1000,
+		);
+		elapsed.value = accumulatedRef.current;
+		segmentStartRef.current = null;
 		running.value = false;
 	}
 
 	function handleResume() {
+		segmentStartRef.current = Date.now();
 		running.value = true;
 	}
 
 	// End Session tapped: pause timer and open summary dialog.
 	function handleStopClick() {
 		if (sessionId.value == null) return;
+		const now = Date.now();
+		if (segmentStartRef.current !== null) {
+			accumulatedRef.current += Math.floor(
+				(now - segmentStartRef.current) / 1000,
+			);
+		}
+		elapsed.value = accumulatedRef.current;
+		segmentStartRef.current = null;
 		running.value = false;
-		completedAtRef.current = new Date();
-		summaryElapsed.value = elapsed.value;
+		completedAtRef.current = new Date(now);
+		summaryElapsed.value = accumulatedRef.current;
 		showSummary.value = true;
 	}
 
 	// Cancel from summary dialog: resume timer.
 	function handleSummaryCancel() {
 		showSummary.value = false;
+		segmentStartRef.current = Date.now();
 		running.value = true;
 		completedAtRef.current = null;
 		saveError.value = "";

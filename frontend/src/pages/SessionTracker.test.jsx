@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { fireEvent, screen, waitFor } from "@testing-library/preact";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { withProviders } from "../test-utils.jsx";
 import { SessionTracker } from "./SessionTracker.jsx";
 
@@ -100,6 +100,103 @@ describe("SessionTracker", () => {
 		await startSession();
 		fireEvent.click(screen.getByRole("button", { name: "End Session" }));
 		expect(screen.getByTestId("mock-summary-dialog")).toBeInTheDocument();
+	});
+
+	describe("timer", () => {
+		// Only fake setInterval and Date — leave setTimeout real so waitFor keeps working.
+		beforeEach(() => {
+			vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		it("counts up based on elapsed wall-clock time since start", async () => {
+			mockFetch();
+			renderTracker();
+			await startSession();
+
+			vi.advanceTimersByTime(5000);
+
+			await waitFor(() =>
+				expect(screen.getByText("00:00:05")).toBeInTheDocument(),
+			);
+		});
+
+		it("pause freezes elapsed and resume accumulates correctly", async () => {
+			mockFetch();
+			renderTracker();
+			await startSession();
+
+			vi.advanceTimersByTime(10000);
+			await waitFor(() =>
+				expect(screen.getByText("00:00:10")).toBeInTheDocument(),
+			);
+
+			fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+			// Time passing while paused must not be counted.
+			vi.advanceTimersByTime(5000);
+			await waitFor(() =>
+				expect(screen.getByText("00:00:10")).toBeInTheDocument(),
+			);
+
+			// Resume and wait for the effect to set up the new interval before advancing.
+			fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: "Pause" }),
+				).toBeInTheDocument(),
+			);
+
+			vi.advanceTimersByTime(3000);
+
+			await waitFor(() =>
+				expect(screen.getByText("00:00:13")).toBeInTheDocument(),
+			);
+		});
+
+		it("stop while paused uses accumulated elapsed without corrupting it", async () => {
+			mockFetch();
+			renderTracker();
+			await startSession();
+
+			vi.advanceTimersByTime(10000);
+			await waitFor(() =>
+				expect(screen.getByText("00:00:10")).toBeInTheDocument(),
+			);
+
+			fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+			await waitFor(() =>
+				expect(screen.getByText("00:00:10")).toBeInTheDocument(),
+			);
+
+			// End Session while paused — segmentStartRef is null at this point.
+			fireEvent.click(screen.getByRole("button", { name: "End Session" }));
+
+			expect(screen.getByTestId("mock-summary-dialog")).toBeInTheDocument();
+			// summaryElapsed must equal the 10s accumulated before pause, not a corrupted value.
+			expect(screen.getByText("00:00:10")).toBeInTheDocument();
+		});
+
+		it("snaps elapsed immediately on visibilitychange without waiting for the next tick", async () => {
+			mockFetch();
+			renderTracker();
+			await startSession();
+
+			// Advance only the clock (no interval ticks) to simulate a background gap.
+			vi.setSystemTime(Date.now() + 7000);
+
+			Object.defineProperty(document, "hidden", {
+				value: false,
+				configurable: true,
+			});
+			fireEvent(document, new Event("visibilitychange"));
+
+			await waitFor(() =>
+				expect(screen.getByText("00:00:07")).toBeInTheDocument(),
+			);
+		});
 	});
 
 	it("clears saveError when summary dialog is cancelled after a failed save", async () => {
