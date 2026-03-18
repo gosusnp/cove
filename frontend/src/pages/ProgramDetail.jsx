@@ -445,13 +445,22 @@ function ProgramDetailInner({
 		editError.value = "";
 	};
 
+	const autoResizeDesc = () => {
+		const el = descInputRef.current;
+		if (!el) return;
+		el.style.height = "auto";
+		el.style.height = `${el.scrollHeight}px`;
+	};
+
 	const nameInputRef = useRef(null);
 	const descInputRef = useRef(null);
 
 	useEffect(() => {
 		if (editingField.value === "name") nameInputRef.current?.focus();
-		else if (editingField.value === "description")
+		else if (editingField.value === "description") {
 			descInputRef.current?.focus();
+			queueMicrotask(autoResizeDesc);
+		}
 	}, [editingField.value]);
 
 	const saveEdit = async () => {
@@ -802,80 +811,86 @@ function ProgramDetailInner({
 		<>
 			<div class="p-6 max-w-3xl mx-auto w-full flex flex-col gap-6">
 				{/* Header */}
-				<div class="flex items-start justify-between gap-4 flex-wrap">
-					<div class="flex flex-col gap-1 flex-1 min-w-0">
-						{/* Name */}
-						{editingField.value === "name" ? (
-							<div class="flex flex-col gap-1">
-								<div class="flex items-center gap-3">
-									<TextField
-										inline
-										inputRef={nameInputRef}
-										containerClass="flex-1 min-w-0"
-										class="text-2xl font-semibold"
-										value={editValue.value}
-										onInput={(e) => {
-											editValue.value = e.target.value;
-										}}
-										onKeyDown={(e) => {
-											if (e.key === "Escape") cancelEdit();
-											if (e.key === "Enter") saveEdit();
-										}}
-									/>
-									<div class="flex gap-2 shrink-0">
-										<Button
-											size="sm"
-											onClick={saveEdit}
-											disabled={editSaving.value}
-										>
-											{editSaving.value ? "Saving…" : "Save"}
-										</Button>
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={cancelEdit}
-											disabled={editSaving.value}
-										>
-											Cancel
-										</Button>
-									</div>
+				<div class="flex flex-col gap-4">
+					{/* Name */}
+					{editingField.value === "name" ? (
+						<div class="flex flex-col gap-1">
+							<div class="flex items-center gap-3">
+								<TextField
+									inline
+									inputRef={nameInputRef}
+									containerClass="flex-1 min-w-0"
+									class="text-2xl font-semibold"
+									value={editValue.value}
+									onInput={(e) => {
+										editValue.value = e.target.value;
+									}}
+									onKeyDown={(e) => {
+										if (e.key === "Escape") cancelEdit();
+										if (e.key === "Enter") saveEdit();
+									}}
+								/>
+								<div class="flex gap-2 shrink-0">
+									<Button
+										size="sm"
+										onClick={saveEdit}
+										disabled={editSaving.value}
+									>
+										{editSaving.value ? "Saving…" : "Save"}
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={cancelEdit}
+										disabled={editSaving.value}
+									>
+										Cancel
+									</Button>
 								</div>
-								{editError.value && (
-									<p class="text-xs" style={{ color: "var(--color-error)" }}>
-										{editError.value}
-									</p>
-								)}
 							</div>
-						) : (
+							{editError.value && (
+								<p class="text-xs" style={{ color: "var(--color-error)" }}>
+									{editError.value}
+								</p>
+							)}
+						</div>
+					) : (
+						<div class="group flex items-center justify-between w-full gap-2">
+							<h1
+								class="text-2xl font-semibold"
+								style={{ color: "var(--color-text)" }}
+							>
+								{programName.value}
+							</h1>
 							<button
 								type="button"
-								class="text-left group flex items-center justify-between w-full cursor-text"
+								class="opacity-0 group-hover:opacity-30 transition-opacity shrink-0 cursor-pointer"
 								onClick={() => startEdit("name")}
 								aria-label="Edit program name"
 							>
-								<h1
-									class="text-2xl font-semibold"
-									style={{ color: "var(--color-text)" }}
-								>
-									{programName.value}
-								</h1>
 								<PencilIcon
-									class="opacity-0 group-hover:opacity-30 transition-opacity shrink-0"
 									style={{ color: "var(--color-muted)" }}
 									aria-hidden="true"
 								/>
 							</button>
-						)}
+						</div>
+					)}
 
-						{/* Description */}
+					{/* Description */}
+					<div class="flex flex-col gap-1">
+						<p
+							class="text-xs font-medium uppercase tracking-wide"
+							style={{ color: "var(--color-muted)" }}
+						>
+							Description
+						</p>
 						{editingField.value === "description" ? (
 							<div class="flex flex-col gap-2">
 								<TextField
-									inline
 									multiline
 									inputRef={descInputRef}
-									class="text-sm"
-									rows="3"
+									class="text-sm resize-y"
+									rows="4"
 									value={editValue.value}
 									onInput={(e) => {
 										editValue.value = e.target.value;
@@ -910,7 +925,9 @@ function ProgramDetailInner({
 						) : (
 							<div class="group flex items-start justify-between w-full gap-2">
 								{programDescription.value ? (
-									<Markdown>{programDescription.value}</Markdown>
+									<div class="flex-1 rounded-md border border-(--color-border) px-3 py-2 text-sm">
+										<Markdown>{programDescription.value}</Markdown>
+									</div>
 								) : (
 									<p
 										class="text-sm italic"
@@ -933,39 +950,27 @@ function ProgramDetailInner({
 							</div>
 						)}
 					</div>
-					<div class="flex gap-2 shrink-0">
-						<Button
-							variant="primary"
-							size="sm"
-							onClick={(e) => {
-								e.currentTarget.blur();
-								openAddSet();
-							}}
-						>
-							+ Add Set
-						</Button>
-					</div>
 				</div>
 
-				{/* Structure preview */}
-				{initialProgram.structure && (
-					<details class="rounded-lg border border-(--color-border) bg-(--color-surface)">
-						<summary
-							class="cursor-pointer select-none px-4 py-3 text-sm font-medium"
-							style={{ color: "var(--color-text)" }}
-						>
-							Structure preview
-						</summary>
-						<pre
-							class="px-4 pb-4 text-xs leading-relaxed whitespace-pre-wrap"
-							style={{ color: "var(--color-muted)" }}
-						>
-							{initialProgram.structure}
-						</pre>
-					</details>
-				)}
-
 				{/* Sets */}
+				<div class="flex items-center justify-between">
+					<h2
+						class="text-sm font-medium uppercase tracking-wide"
+						style={{ color: "var(--color-muted)" }}
+					>
+						Sets
+					</h2>
+					<Button
+						variant="primary"
+						size="sm"
+						onClick={(e) => {
+							e.currentTarget.blur();
+							openAddSet();
+						}}
+					>
+						+ Add Set
+					</Button>
+				</div>
 				{reorderError.value && (
 					<p class="text-sm" style={{ color: "var(--color-error)" }}>
 						{reorderError.value}
@@ -1107,6 +1112,24 @@ function ProgramDetailInner({
 							)}
 						</DragOverlay>
 					</DndContext>
+				)}
+
+				{/* Structure preview */}
+				{initialProgram.structure && (
+					<details class="rounded-lg border border-(--color-border) bg-(--color-surface)">
+						<summary
+							class="cursor-pointer select-none px-4 py-3 text-sm font-medium"
+							style={{ color: "var(--color-text)" }}
+						>
+							Structure preview
+						</summary>
+						<pre
+							class="px-4 pb-4 text-xs leading-relaxed whitespace-pre-wrap"
+							style={{ color: "var(--color-muted)" }}
+						>
+							{initialProgram.structure}
+						</pre>
+					</details>
 				)}
 			</div>
 
