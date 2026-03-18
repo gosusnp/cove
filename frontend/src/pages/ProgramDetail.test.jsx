@@ -428,6 +428,43 @@ describe("ProgramDetail — inline name edit", () => {
 		);
 	});
 
+	it("calls onProgramUpdated after successful rename", async () => {
+		vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+			if (opts?.method === "PUT" && String(url) === "/api/programs/1") {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve({ id: 1, name: "Renamed Program" }),
+				});
+			}
+			if (String(url).includes("/api/exercises")) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_EXERCISES),
+				});
+			}
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve(MOCK_PROGRAM),
+			});
+		});
+
+		const onProgramUpdated = vi.fn();
+		withProviders(
+			<ProgramDetail programId={1} onProgramUpdated={onProgramUpdated} />,
+			{ user: MOCK_USER },
+		);
+		await waitFor(() =>
+			screen.getByRole("button", { name: "Edit program name" }),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Edit program name" }));
+		fireEvent.input(screen.getByDisplayValue("Strength A/B"), {
+			target: { value: "Renamed Program" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => expect(onProgramUpdated).toHaveBeenCalledOnce());
+	});
+
 	it("shows API error on save failure", async () => {
 		vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
 			if (opts?.method === "PUT") {

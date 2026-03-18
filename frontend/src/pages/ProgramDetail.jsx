@@ -301,7 +301,7 @@ function SortableExerciseRow({ exercise, setId, onEdit, onRemove }) {
 // Fetches program data, then renders ProgramDetailInner keyed by programId so
 // that useSortableGroups is seeded fresh whenever the program changes.
 
-export function ProgramDetail({ programId }) {
+export function ProgramDetail({ programId, onProgramUpdated }) {
 	const { user } = useAuth();
 
 	const rawProgram = useSignal(null);
@@ -356,6 +356,7 @@ export function ProgramDetail({ programId }) {
 			key={`${programId}-${refreshKey.value}`}
 			program={rawProgram.value}
 			onRefresh={fetchProgram}
+			onProgramUpdated={onProgramUpdated}
 		/>
 	);
 }
@@ -392,7 +393,11 @@ function toSortableSet(set) {
 // ── ProgramDetailInner ────────────────────────────────────────────────────────
 // Receives already-loaded program data and manages all CRUD + DnD.
 
-function ProgramDetailInner({ program: initialProgram, onRefresh }) {
+function ProgramDetailInner({
+	program: initialProgram,
+	onRefresh,
+	onProgramUpdated,
+}) {
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
 		useSensor(KeyboardSensor),
@@ -477,6 +482,7 @@ function ProgramDetailInner({ program: initialProgram, onRefresh }) {
 			programName.value = name;
 			programDescription.value = desc;
 			editingField.value = null;
+			onProgramUpdated?.();
 		} catch (err) {
 			editError.value = err.message;
 		} finally {

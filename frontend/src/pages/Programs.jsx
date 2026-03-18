@@ -227,7 +227,14 @@ export function Programs() {
 						error={fetchError.value}
 					/>
 				}
-				detail={selectedId ? <ProgramDetail programId={selectedId} /> : null}
+				detail={
+					selectedId ? (
+						<ProgramDetail
+							programId={selectedId}
+							onProgramUpdated={fetchPrograms}
+						/>
+					) : null
+				}
 			/>
 
 			{/* New Program dialog */}
