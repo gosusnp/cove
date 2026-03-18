@@ -9,9 +9,9 @@ build: frontend.build backend.build
 dev:
 	$(MAKE) -j2 backend.watch frontend.watch
 
-check: backend.check frontend.check
+check: backend.check frontend.check android.check
 
-fix: backend.fix frontend.fix
+fix: backend.fix frontend.fix android.fix
 
 test.e2e:
 	$(MAKE) -C frontend test.e2e
@@ -71,4 +71,19 @@ frontend.watch:
 frontend.pre-commit:
 	$(MAKE) -C Frontend pre-commit
 
-.PHONY: preview dev build check fix test.e2e devenv.up devenv.down devenv.reset backend.build backend.check backend.fix backend.run backend.watch frontend.build frontend.check frontend.fix frontend.run frontend.watch
+
+##################################################
+# Android dispatch
+android.build:
+	$(MAKE) -C frontend android.build
+
+android.run:
+	$(MAKE) -C frontend android.run
+
+android.check:
+	$(MAKE) -C android check
+
+android.fix:
+	$(MAKE) -C android fix
+
+.PHONY: preview dev build check fix test.e2e devenv.up devenv.down devenv.reset backend.build backend.check backend.fix backend.run backend.watch frontend.build frontend.check frontend.fix frontend.run frontend.watch android.build android.run android.check android.fix

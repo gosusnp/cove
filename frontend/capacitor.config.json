@@ -1,0 +1,13 @@
+{
+	"appId": "com.cove.app",
+	"appName": "Cove",
+	"webDir": "dist-mobile",
+	"android": {
+		"path": "../android"
+	},
+	"plugins": {
+		"CapacitorHttp": {
+			"enabled": true
+		}
+	}
+}

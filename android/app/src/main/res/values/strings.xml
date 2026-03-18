@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+ Copyright (c) 2026 Jimmy Ma
+ SPDX-License-Identifier: Elastic-2.0
+-->
+
+<resources>
+    <string name="app_name">Cove</string>
+    <string name="title_activity_main">Cove</string>
+    <string name="package_name">com.cove.app</string>
+    <string name="custom_url_scheme">com.cove.app</string>
+</resources>

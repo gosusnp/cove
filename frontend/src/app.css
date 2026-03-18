@@ -50,6 +50,8 @@
 	--nav-h-mobile: 4rem;
 	--nav-h-desktop: 3.5rem;
 	--sidebar-w-desktop: 14rem;
+	--safe-area-bottom: env(safe-area-inset-bottom, 0px);
+	--safe-area-top: env(safe-area-inset-top, 0px);
 
 	font-family: system-ui, -apple-system, sans-serif;
 	font-size: 16px;
@@ -83,12 +85,12 @@ body {
 
 /* Layout shell: bottom padding for mobile nav, left padding for desktop sidebar */
 .app-shell {
-	padding-bottom: var(--nav-h-mobile);
+	padding-bottom: calc(var(--nav-h-mobile) + var(--safe-area-bottom));
 }
 
 @media (min-width: 768px) {
 	.app-shell {
-		padding-top: var(--nav-h-desktop);
+		padding-top: calc(var(--nav-h-desktop) + var(--safe-area-top));
 		padding-bottom: 0;
 		padding-left: var(--sidebar-w-desktop);
 	}
