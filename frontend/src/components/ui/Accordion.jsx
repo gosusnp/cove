@@ -4,6 +4,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import * as RadixAccordion from "@radix-ui/react-accordion";
+import { ChevronDown, GripVertical } from "lucide-preact";
 import { createContext } from "preact";
 import { useContext } from "preact/hooks";
 import { cn } from "../../lib/utils";
@@ -124,7 +125,11 @@ export function AccordionTrigger({ class: className, children, ...props }) {
 				{...props}
 			>
 				{children}
-				<ChevronIcon class="ml-auto shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+				<ChevronDown
+					size={16}
+					aria-hidden="true"
+					class="ml-auto shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180"
+				/>
 			</RadixAccordion.Trigger>
 		</RadixAccordion.Header>
 	);
@@ -167,49 +172,7 @@ export function AccordionDragHandle({ class: className, ...props }) {
 			{...(ctx?.attributes ?? {})}
 			{...props}
 		>
-			<GripIcon />
+			<GripVertical size={14} aria-hidden="true" />
 		</span>
-	);
-}
-
-// ── Icons ─────────────────────────────────────────────────────────────────────
-
-function ChevronIcon({ class: className }) {
-	return (
-		<svg
-			class={className}
-			width="16"
-			height="16"
-			viewBox="0 0 16 16"
-			fill="none"
-			aria-hidden="true"
-		>
-			<path
-				d="M4 6l4 4 4-4"
-				stroke="currentColor"
-				stroke-width="1.5"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-			/>
-		</svg>
-	);
-}
-
-function GripIcon() {
-	return (
-		<svg
-			width="14"
-			height="14"
-			viewBox="0 0 14 14"
-			fill="none"
-			aria-hidden="true"
-		>
-			<circle cx="5" cy="3" r="1" fill="currentColor" />
-			<circle cx="9" cy="3" r="1" fill="currentColor" />
-			<circle cx="5" cy="7" r="1" fill="currentColor" />
-			<circle cx="9" cy="7" r="1" fill="currentColor" />
-			<circle cx="5" cy="11" r="1" fill="currentColor" />
-			<circle cx="9" cy="11" r="1" fill="currentColor" />
-		</svg>
 	);
 }

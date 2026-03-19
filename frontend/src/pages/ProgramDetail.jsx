@@ -18,6 +18,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useSignal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
+import { GripVertical, Pencil, Plus, Trash2 } from "lucide-preact";
 import { useAuth } from "../Auth.jsx";
 import {
 	Accordion,
@@ -58,61 +59,6 @@ const LATERALITY_OPTIONS = [
 	{ value: "alternating", label: "Alternating" },
 ];
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
-
-function PencilIcon() {
-	return (
-		<svg
-			width="14"
-			height="14"
-			viewBox="0 0 16 16"
-			fill="none"
-			aria-hidden="true"
-		>
-			<path
-				d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.609Z"
-				fill="currentColor"
-			/>
-		</svg>
-	);
-}
-
-function PlusIcon() {
-	return (
-		<svg
-			width="14"
-			height="14"
-			viewBox="0 0 16 16"
-			fill="none"
-			aria-hidden="true"
-		>
-			<path
-				d="M8 1.75a.75.75 0 0 1 .75.75v4.75h4.75a.75.75 0 0 1 0 1.5H8.75v4.75a.75.75 0 0 1-1.5 0V8.75H2.5a.75.75 0 0 1 0-1.5h4.75V2.5A.75.75 0 0 1 8 1.75Z"
-				fill="currentColor"
-			/>
-		</svg>
-	);
-}
-
-function TrashIcon() {
-	return (
-		<svg
-			width="14"
-			height="14"
-			viewBox="0 0 16 16"
-			fill="none"
-			aria-hidden="true"
-		>
-			<path
-				fill-rule="evenodd"
-				clip-rule="evenodd"
-				d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75ZM5 3V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75V3h2.25a.75.75 0 0 1 0 1.5H14v8.75A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.25V4.5H.75a.75.75 0 0 1 0-1.5H5ZM3.5 4.5v8.75c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V4.5h-9Z"
-				fill="currentColor"
-			/>
-		</svg>
-	);
-}
-
 // ── Weight tag ────────────────────────────────────────────────────────────────
 
 function WeightTag({ weight_kg }) {
@@ -140,27 +86,6 @@ function WeightTag({ weight_kg }) {
 		>
 			{weight_kg}kg (assisted)
 		</span>
-	);
-}
-
-// ── GripIcon ──────────────────────────────────────────────────────────────────
-
-function GripIcon() {
-	return (
-		<svg
-			width="12"
-			height="12"
-			viewBox="0 0 14 14"
-			fill="none"
-			aria-hidden="true"
-		>
-			<circle cx="5" cy="3" r="1" fill="currentColor" />
-			<circle cx="9" cy="3" r="1" fill="currentColor" />
-			<circle cx="5" cy="7" r="1" fill="currentColor" />
-			<circle cx="9" cy="7" r="1" fill="currentColor" />
-			<circle cx="5" cy="11" r="1" fill="currentColor" />
-			<circle cx="9" cy="11" r="1" fill="currentColor" />
-		</svg>
 	);
 }
 
@@ -231,7 +156,7 @@ function SortableExerciseRow({ exercise, setId, onEdit, onRemove }) {
 				{...listeners}
 				{...attributes}
 			>
-				<GripIcon />
+				<GripVertical size={12} aria-hidden="true" />
 			</button>
 			<span class="flex-1 text-sm text-(--color-text)">{exercise.name}</span>
 			{exercise.laterality && (
@@ -271,7 +196,7 @@ function SortableExerciseRow({ exercise, setId, onEdit, onRemove }) {
 								onEdit(exercise);
 							}}
 						>
-							<PencilIcon />
+							<Pencil size={14} aria-hidden="true" />
 						</Button>
 					</TooltipTrigger>
 					<TooltipContent>Edit</TooltipContent>
@@ -287,7 +212,7 @@ function SortableExerciseRow({ exercise, setId, onEdit, onRemove }) {
 								onRemove(exercise);
 							}}
 						>
-							<TrashIcon />
+							<Trash2 size={14} aria-hidden="true" />
 						</Button>
 					</TooltipTrigger>
 					<TooltipContent>Remove</TooltipContent>
@@ -868,7 +793,8 @@ function ProgramDetailInner({
 								onClick={() => startEdit("name")}
 								aria-label="Edit program name"
 							>
-								<PencilIcon
+								<Pencil
+									size={14}
 									style={{ color: "var(--color-muted)" }}
 									aria-hidden="true"
 								/>
@@ -942,7 +868,8 @@ function ProgramDetailInner({
 									onClick={() => startEdit("description")}
 									aria-label="Edit program description"
 								>
-									<PencilIcon
+									<Pencil
+										size={14}
 										style={{ color: "var(--color-muted)" }}
 										aria-hidden="true"
 									/>
@@ -1024,7 +951,7 @@ function ProgramDetailInner({
 																openAddPex(set.id);
 															}}
 														>
-															<PlusIcon />
+															<Plus size={14} aria-hidden="true" />
 														</Button>
 													</TooltipTrigger>
 													<TooltipContent>Add Exercise</TooltipContent>
@@ -1041,7 +968,7 @@ function ProgramDetailInner({
 																openEditSet(set);
 															}}
 														>
-															<PencilIcon />
+															<Pencil size={14} aria-hidden="true" />
 														</Button>
 													</TooltipTrigger>
 													<TooltipContent>Edit</TooltipContent>
@@ -1058,7 +985,7 @@ function ProgramDetailInner({
 																openDeleteSet(set);
 															}}
 														>
-															<TrashIcon />
+															<Trash2 size={14} aria-hidden="true" />
 														</Button>
 													</TooltipTrigger>
 													<TooltipContent>Delete</TooltipContent>
@@ -1101,7 +1028,7 @@ function ProgramDetailInner({
 						<DragOverlay>
 							{activeExercise && (
 								<div class="flex items-center gap-3 py-2 px-3 rounded-lg shadow-lg bg-(--color-surface) border border-(--color-border) text-sm text-(--color-text)">
-									<GripIcon />
+									<GripVertical size={12} aria-hidden="true" />
 									<span>{activeExercise.name}</span>
 								</div>
 							)}

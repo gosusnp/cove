@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { useSignal } from "@preact/signals";
+import { Check, ChevronDown } from "lucide-preact";
 import { useEffect, useId, useRef } from "preact/hooks";
 import { cn } from "../../lib/utils";
 
@@ -135,7 +136,14 @@ export function Combobox({
 					class="pointer-events-none absolute inset-y-0 right-3 flex items-center"
 					style={{ color: "var(--color-muted)" }}
 				>
-					<ChevronIcon open={open.value} />
+					<ChevronDown
+						size={14}
+						aria-hidden="true"
+						style={{
+							transform: open.value ? "rotate(180deg)" : "none",
+							transition: "transform 0.15s",
+						}}
+					/>
 				</span>
 			</div>
 
@@ -195,7 +203,9 @@ export function Combobox({
 										: { color: "var(--color-text)" }
 								}
 							>
-								<span class="w-4 shrink-0">{isSelected && <CheckIcon />}</span>
+								<span class="w-4 shrink-0">
+									{isSelected && <Check size={14} aria-hidden="true" />}
+								</span>
 								{opt.label}
 							</div>
 						);
@@ -203,49 +213,5 @@ export function Combobox({
 				)}
 			</div>
 		</div>
-	);
-}
-
-function ChevronIcon({ open }) {
-	return (
-		<svg
-			width="14"
-			height="14"
-			viewBox="0 0 14 14"
-			fill="none"
-			aria-hidden="true"
-			style={{
-				transform: open ? "rotate(180deg)" : "none",
-				transition: "transform 0.15s",
-			}}
-		>
-			<path
-				d="M3 5l4 4 4-4"
-				stroke="currentColor"
-				stroke-width="1.5"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-			/>
-		</svg>
-	);
-}
-
-function CheckIcon() {
-	return (
-		<svg
-			width="14"
-			height="14"
-			viewBox="0 0 14 14"
-			fill="none"
-			aria-hidden="true"
-		>
-			<path
-				d="M2.5 7l3.5 3.5 5.5-6"
-				stroke="currentColor"
-				stroke-width="1.5"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-			/>
-		</svg>
 	);
 }

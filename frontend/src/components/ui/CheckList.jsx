@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { computed, useSignal } from "@preact/signals";
+import { Check } from "lucide-preact";
 import { createContext } from "preact";
 import { useContext, useEffect, useMemo, useRef } from "preact/hooks";
 import { cn } from "../../lib/utils";
@@ -216,7 +217,7 @@ export function CheckListSection({ label, children }) {
 						style={{ color: "var(--color-accent)" }}
 						aria-hidden="true"
 					>
-						<CheckIcon />
+						<Check size={16} aria-hidden="true" />
 					</span>
 				</button>
 				<div>{children}</div>
@@ -400,31 +401,9 @@ export function CheckListItem({
 					style={{ color: "var(--color-accent)" }}
 					aria-hidden="true"
 				>
-					<CheckIcon />
+					<Check size={16} aria-hidden="true" />
 				</span>
 			</button>
 		</div>
-	);
-}
-
-// ── Icons ──────────────────────────────────────────────────────────────────────
-
-function CheckIcon() {
-	return (
-		<svg
-			width="16"
-			height="16"
-			viewBox="0 0 16 16"
-			fill="none"
-			aria-hidden="true"
-		>
-			<path
-				d="M3 8.5l3.5 3.5 6.5-7"
-				stroke="currentColor"
-				stroke-width="1.75"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-			/>
-		</svg>
 	);
 }

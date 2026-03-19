@@ -3,29 +3,13 @@
 
 import { useSignal } from "@preact/signals";
 import { useEffect } from "preact/hooks";
+import { Pencil } from "lucide-preact";
 import { useAuth } from "../Auth.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { PageTitle } from "../components/ui/PageTitle.jsx";
 import { Row, Section } from "../components/ui/Section.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { apiFetch } from "../lib/api.js";
-
-function PencilIcon() {
-	return (
-		<svg
-			width="14"
-			height="14"
-			viewBox="0 0 16 16"
-			fill="none"
-			aria-hidden="true"
-		>
-			<path
-				d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.609Z"
-				fill="currentColor"
-			/>
-		</svg>
-	);
-}
 
 function formatDate(iso) {
 	if (!iso) return null;
@@ -220,7 +204,7 @@ export function SessionDetail({ sessionId }) {
 								aria-label="Edit session notes"
 								class="opacity-0 group-hover:opacity-30 transition-opacity shrink-0"
 							>
-								<PencilIcon />
+								<Pencil size={14} aria-hidden="true" />
 							</Button>
 						</div>
 					)}

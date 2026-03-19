@@ -38,6 +38,7 @@
 		"@radix-ui/react-tooltip": "^1.2.8",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
+		"lucide-preact": "^0.577.0",
 		"preact": "^10.27.2",
 		"preact-iso": "^2.11.1",
 		"react-markdown": "^10.1.0",
