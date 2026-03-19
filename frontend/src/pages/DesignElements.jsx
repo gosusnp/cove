@@ -923,7 +923,7 @@ export function DesignElements() {
 			{/* ── CheckList ─────────────────────────────────── */}
 			<PageSection title="CheckList">
 				<PreviewRow label="scrollable — swipe right to check, swipe again or left to uncheck">
-					<CheckList class="w-full max-h-[320px]">
+					<CheckList class="w-full max-h-[320px] overflow-y-auto">
 						<CheckListSection label="Warm-up · Round 1 of 2">
 							<CheckListItem defaultChecked>Jumping jacks · 30s</CheckListItem>
 							<CheckListItem defaultChecked>Hip circles · 20s</CheckListItem>

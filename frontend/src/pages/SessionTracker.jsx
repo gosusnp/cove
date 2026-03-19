@@ -7,6 +7,11 @@ import { useLocation } from "preact-iso";
 import { KeepAwake } from "@capacitor-community/keep-awake";
 import { useAuth } from "../Auth.jsx";
 import { Button } from "../components/ui/Button.jsx";
+import {
+	CheckList,
+	CheckListItem,
+	CheckListSection,
+} from "../components/ui/CheckList.jsx";
 import { Combobox } from "../components/ui/Combobox.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { SessionSummaryDialog } from "./SessionSummaryDialog.jsx";
@@ -22,6 +27,31 @@ function formatElapsed(totalSeconds) {
 		String(m).padStart(2, "0"),
 		String(s).padStart(2, "0"),
 	].join(":");
+}
+
+// Flatten a program's sets × rounds into CheckList sections.
+// Each section has a label and the list of exercises for that round.
+function flattenProgram(program) {
+	const sections = [];
+	for (const set of program.sets ?? []) {
+		const rounds = set.rounds ?? 1;
+		for (let r = 1; r <= rounds; r++) {
+			const roundPart = rounds > 1 ? `Round ${r} of ${rounds}` : null;
+			const label = [set.name, roundPart].filter(Boolean).join(" · ");
+			sections.push({ label, exercises: set.exercises ?? [] });
+		}
+	}
+	return sections;
+}
+
+// Format a single program exercise into a compact display string.
+function formatExercise(ex) {
+	const parts = [ex.name];
+	if (ex.target_reps) parts.push(`× ${ex.target_reps}`);
+	else if (ex.target_duration_seconds)
+		parts.push(`${ex.target_duration_seconds}s`);
+	if (ex.target_weight_kg) parts.push(`${ex.target_weight_kg} kg`);
+	return parts.join(" · ");
 }
 
 export function SessionTracker() {
@@ -52,9 +82,6 @@ export function SessionTracker() {
 	const perceivedEffort = useSignal(null); // 1–10 or null
 	const summaryElapsed = useSignal(0); // elapsed captured when End Session is tapped
 	const completedAtRef = useRef(null); // Date captured when End Session is tapped
-
-	// Program hint strip state (v1 placeholder — expand logic deferred).
-	const hintExpanded = useSignal(false);
 
 	// Full program detail (fetched on selection to get structure field).
 	const programDetail = useSignal(null);
@@ -234,13 +261,10 @@ export function SessionTracker() {
 
 	return (
 		<>
-			<div
-				class="flex flex-col min-h-dvh"
-				style={{ background: "var(--color-bg)" }}
-			>
-				{/* Sticky timer zone */}
+			<div class="page-fixed" style={{ background: "var(--color-bg)" }}>
+				{/* Timer zone — flex-none so it never scrolls or shrinks */}
 				<div
-					class="sticky top-0 z-10 flex flex-col gap-4 px-4 py-5 border-b"
+					class="flex-none flex flex-col gap-4 px-4 py-5 border-b"
 					style={{
 						background: "var(--color-surface)",
 						borderColor: "var(--color-border)",
@@ -298,81 +322,64 @@ export function SessionTracker() {
 					</div>
 				</div>
 
-				{/* Scrollable content zone */}
-				<div class="flex flex-col gap-6 px-4 py-6 max-w-2xl mx-auto w-full">
-					{/* Program selector — only shown before session starts */}
-					{notStarted && (
-						<div class="flex flex-col gap-2">
-							<Combobox
-								label="Program (optional)"
-								value={selectedProgramId.value}
-								onChange={(v) => {
-									selectedProgramId.value = v;
-								}}
-								options={[
-									{ value: "", label: "No program" },
-									...programOptions,
-								]}
-								placeholder="Select a program…"
-							/>
-						</div>
-					)}
-
-					{/* Program hint strip (v1 placeholder) */}
-					{started && programDetail.value && (
-						<div
-							class="rounded-xl border overflow-hidden"
-							style={{
-								background: "var(--color-surface)",
-								borderColor: "var(--color-border)",
-							}}
-						>
-							<button
-								type="button"
-								class="w-full flex items-center justify-between px-4 py-3 text-sm text-left"
-								style={{ color: "var(--color-text)" }}
-								onClick={() => {
-									hintExpanded.value = !hintExpanded.value;
-								}}
-							>
-								<span class="font-medium">
-									Program: {programDetail.value.name}
-								</span>
-								<span style={{ color: "var(--color-muted)" }}>
-									{hintExpanded.value ? "▲" : "▼"}
-								</span>
-							</button>
-							{hintExpanded.value && (
-								<div
-									class="px-4 pb-4 text-sm whitespace-pre-wrap border-t"
-									style={{
-										borderColor: "var(--color-border)",
-										color: "var(--color-text)",
-										paddingTop: "0.75rem",
+				{/*
+				 * Scrollable content zone — flex-1 min-h-0 overflow-y-auto is the
+				 * scroll container. CheckList sticky headers use sticky top-0 which
+				 * sticks them to the top of this div (visually just below the timer).
+				 */}
+				<div
+					class="flex-1 min-h-0 overflow-y-auto"
+					style={{ touchAction: "pan-y" }}
+				>
+					<div class="flex flex-col gap-6 px-4 py-6 max-w-2xl mx-auto w-full">
+						{/* Program selector — only shown before session starts */}
+						{notStarted && (
+							<div class="flex flex-col gap-2">
+								<Combobox
+									label="Program (optional)"
+									value={selectedProgramId.value}
+									onChange={(v) => {
+										selectedProgramId.value = v;
 									}}
-								>
-									{programDetail.value.structure ?? (
-										<span style={{ color: "var(--color-muted)" }}>
-											No program details available.
-										</span>
-									)}
-								</div>
-							)}
-						</div>
-					)}
+									options={[
+										{ value: "", label: "No program" },
+										...programOptions,
+									]}
+									placeholder="Select a program…"
+								/>
+							</div>
+						)}
 
-					{/* Notes */}
-					<TextField
-						id="session-notes"
-						label="Notes"
-						multiline
-						value={notes.value}
-						onInput={(e) => {
-							notes.value = e.target.value;
-						}}
-						placeholder="What are you working on today?"
-						rows={6}
-					/>
+						{/* Program tracker — visible once the session is running */}
+						{started && programDetail.value && (
+							<CheckList>
+								{flattenProgram(programDetail.value).map(
+									({ label, exercises }, i) => (
+										<CheckListSection key={i} label={label}>
+											{exercises.map((ex, j) => (
+												<CheckListItem key={j}>
+													{formatExercise(ex)}
+												</CheckListItem>
+											))}
+										</CheckListSection>
+									),
+								)}
+							</CheckList>
+						)}
+
+						{/* Notes */}
+						<TextField
+							id="session-notes"
+							label="Notes"
+							multiline
+							value={notes.value}
+							onInput={(e) => {
+								notes.value = e.target.value;
+							}}
+							placeholder="What are you working on today?"
+							rows={6}
+						/>
+					</div>
 				</div>
 			</div>
 

@@ -97,6 +97,29 @@ body {
 	}
 }
 
+/*
+ * Fixed full-screen shell for pages that own their own scroll (e.g. SessionTracker).
+ * Mirrors the .app-shell padding values as position offsets so the page fills exactly
+ * the content area the shell provides, without disrupting other pages' body scroll.
+ */
+.page-fixed {
+	position: fixed;
+	top: var(--safe-area-top);
+	bottom: calc(var(--nav-h-mobile) + var(--safe-area-bottom));
+	left: 0;
+	right: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+@media (min-width: 768px) {
+	.page-fixed {
+		top: calc(var(--nav-h-desktop) + var(--safe-area-top));
+		bottom: 0;
+		left: var(--sidebar-w-desktop);
+	}
+}
+
 /* ── Markdown body typography ─────────────────────── */
 .markdown-body {
 	color: var(--color-muted);
