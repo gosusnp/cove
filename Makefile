@@ -16,7 +16,7 @@ fix: backend.fix frontend.fix android.fix
 test.e2e:
 	$(MAKE) -C frontend test.e2e
 
-pre-commit-all: frontend.pre-commit backend.pre-commit
+pre-commit-all: frontend.pre-commit android.pre-commit backend.pre-commit
 
 ##################################################
 # Devenv dispatch
@@ -85,5 +85,8 @@ android.check:
 
 android.fix:
 	$(MAKE) -C android fix
+
+android.pre-commit:
+	$(MAKE) -C android pre-commit
 
 .PHONY: preview dev build check fix test.e2e devenv.up devenv.down devenv.reset backend.build backend.check backend.fix backend.run backend.watch frontend.build frontend.check frontend.fix frontend.run frontend.watch android.build android.run android.check android.fix
