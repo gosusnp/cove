@@ -54,10 +54,16 @@
 	--safe-area-top: env(safe-area-inset-top, 0px);
 
 	font-family: system-ui, -apple-system, sans-serif;
-	font-size: 16px;
+	font-size: 20px;
 	line-height: 1.5;
 	-webkit-font-smoothing: antialiased;
 	color-scheme: light;
+}
+
+@media (min-width: 768px) {
+	:root {
+		font-size: 16px;
+	}
 }
 
 @layer base {
