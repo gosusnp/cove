@@ -28,6 +28,11 @@ import {
 	AccordionItem,
 	AccordionTrigger,
 } from "../components/ui/Accordion.jsx";
+import {
+	CheckList,
+	CheckListItem,
+	CheckListSection,
+} from "../components/ui/CheckList.jsx";
 import { Avatar } from "../components/ui/Avatar.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { Combobox } from "../components/ui/Combobox.jsx";
@@ -910,6 +915,50 @@ export function DesignElements() {
 							/>
 						</div>
 					</div>
+				</PreviewRow>
+			</PageSection>
+
+			<Divider />
+
+			{/* ── CheckList ─────────────────────────────────── */}
+			<PageSection title="CheckList">
+				<PreviewRow label="scrollable — swipe right to check, swipe again or left to uncheck">
+					<CheckList class="w-full max-h-[320px]">
+						<CheckListSection label="Warm-up · Round 1 of 2">
+							<CheckListItem defaultChecked>Jumping jacks · 30s</CheckListItem>
+							<CheckListItem defaultChecked>Hip circles · 20s</CheckListItem>
+							<CheckListItem>Arm swings · 20s</CheckListItem>
+						</CheckListSection>
+						<CheckListSection label="Warm-up · Round 2 of 2">
+							<CheckListItem>Jumping jacks · 30s</CheckListItem>
+							<CheckListItem>Hip circles · 20s</CheckListItem>
+							<CheckListItem>Arm swings · 20s</CheckListItem>
+						</CheckListSection>
+						<CheckListSection label="Strength · Round 1 of 3">
+							<CheckListItem>Push-ups × 10 reps</CheckListItem>
+							<CheckListItem>Pull-ups × 5 reps</CheckListItem>
+						</CheckListSection>
+						<CheckListSection label="Strength · Round 2 of 3">
+							<CheckListItem>Push-ups × 10 reps</CheckListItem>
+							<CheckListItem>Pull-ups × 5 reps</CheckListItem>
+						</CheckListSection>
+						<CheckListSection label="Strength · Round 3 of 3">
+							<CheckListItem>Push-ups × 10 reps</CheckListItem>
+							<CheckListItem>Pull-ups × 5 reps</CheckListItem>
+						</CheckListSection>
+					</CheckList>
+				</PreviewRow>
+				<PreviewRow label="full height — no scroll">
+					<CheckList class="w-full">
+						<CheckListSection label="Round 1 of 2">
+							<CheckListItem>Box jumps × 8 reps</CheckListItem>
+							<CheckListItem>Burpees × 6 reps</CheckListItem>
+						</CheckListSection>
+						<CheckListSection label="Round 2 of 2">
+							<CheckListItem>Box jumps × 8 reps</CheckListItem>
+							<CheckListItem>Burpees × 6 reps</CheckListItem>
+						</CheckListSection>
+					</CheckList>
 				</PreviewRow>
 			</PageSection>
 
