@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { useAuth } from "../Auth.jsx";
-import { AUTH_NAV_ITEMS } from "../components/shared/Nav.jsx";
+import { TRAIN_NAV_ITEMS } from "../components/shared/Nav.jsx";
 import { PageTitle } from "../components/ui/PageTitle.jsx";
 
 export function Home() {
@@ -22,7 +22,7 @@ export function Home() {
 	return (
 		<main class="flex flex-1 flex-col px-4 py-6 max-w-sm mx-auto w-full">
 			<nav aria-label="Main navigation">
-				{AUTH_NAV_ITEMS.map(({ label, href }) => (
+				{TRAIN_NAV_ITEMS.map(({ label, href }) => (
 					<a
 						key={href}
 						href={href}

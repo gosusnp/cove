@@ -37,10 +37,12 @@ describe("Nav", () => {
 		expect(avatars.length).toBeGreaterThan(0);
 	});
 
-	it("hides Exercises and Programs links when not signed in", () => {
+	it("hides nav links when not signed in", () => {
 		withProviders(<Nav />);
 		expect(screen.queryByRole("link", { name: "Exercises" })).toBeNull();
-		expect(screen.queryByRole("link", { name: "Programs" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "Build Programs" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "Workout" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "Review Sessions" })).toBeNull();
 	});
 
 	it("shows Sign in links when not signed in", () => {
@@ -52,12 +54,22 @@ describe("Nav", () => {
 		}
 	});
 
-	it("shows Exercises and Programs links when signed in", () => {
+	it("shows Train and Program nav links when signed in", () => {
 		withProviders(<Nav />, { user: MOCK_USER });
+		const workoutLinks = screen.getAllByRole("link", { name: "Workout" });
+		expect(workoutLinks.length).toBeGreaterThan(0);
+		expect(workoutLinks[0]).toHaveAttribute("href", "/workout");
+		const sessionLinks = screen.getAllByRole("link", {
+			name: "Review Sessions",
+		});
+		expect(sessionLinks.length).toBeGreaterThan(0);
+		expect(sessionLinks[0]).toHaveAttribute("href", "/sessions");
 		const exerciseLinks = screen.getAllByRole("link", { name: "Exercises" });
 		expect(exerciseLinks.length).toBeGreaterThan(0);
 		expect(exerciseLinks[0]).toHaveAttribute("href", "/exercises");
-		const programLinks = screen.getAllByRole("link", { name: "Programs" });
+		const programLinks = screen.getAllByRole("link", {
+			name: "Build Programs",
+		});
 		expect(programLinks.length).toBeGreaterThan(0);
 		expect(programLinks[0]).toHaveAttribute("href", "/programs");
 	});

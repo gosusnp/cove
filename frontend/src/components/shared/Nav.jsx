@@ -13,18 +13,21 @@ import {
 } from "../ui/NavigationMenu.jsx";
 import { TopBar } from "../ui/TopBar.jsx";
 
-export const AUTH_NAV_ITEMS = [
+export const TRAIN_NAV_ITEMS = [
 	{ label: "Workout", href: "/workout" },
+	{ label: "Review Sessions", href: "/sessions" },
+];
+
+const PROGRAM_NAV_ITEMS = [
+	{ label: "Build Programs", href: "/programs" },
 	{ label: "Exercises", href: "/exercises" },
-	{ label: "Programs", href: "/programs" },
-	{ label: "Sessions", href: "/sessions" },
 ];
 
 const PAGE_TITLES = [
 	{ label: "Workout", href: "/workout" },
 	{ label: "Exercises", href: "/exercises" },
-	{ label: "Programs", href: "/programs" },
-	{ label: "Sessions", href: "/sessions" },
+	{ label: "Build Programs", href: "/programs" },
+	{ label: "Review Sessions", href: "/sessions" },
 	{ label: "Settings", href: "/settings" },
 ];
 
@@ -93,9 +96,20 @@ function DesktopSidebar({ user, url }) {
 							class="px-4 py-1 text-xs font-semibold uppercase tracking-wider"
 							style={{ color: "var(--color-muted)" }}
 						>
-							Fitness
+							Train
 						</p>
-						{AUTH_NAV_ITEMS.map(({ label, href }) => (
+						{TRAIN_NAV_ITEMS.map(({ label, href }) => (
+							<SidebarLink key={href} href={href} active={isActive(href, url)}>
+								{label}
+							</SidebarLink>
+						))}
+						<p
+							class="px-4 py-1 mt-2 text-xs font-semibold uppercase tracking-wider"
+							style={{ color: "var(--color-muted)" }}
+						>
+							Program
+						</p>
+						{PROGRAM_NAV_ITEMS.map(({ label, href }) => (
 							<SidebarLink key={href} href={href} active={isActive(href, url)}>
 								{label}
 							</SidebarLink>
