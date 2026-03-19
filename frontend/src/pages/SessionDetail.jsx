@@ -92,7 +92,7 @@ export function SessionDetail({ sessionId, onDelete }) {
 
 	const overviewRows = [
 		s.activity && { label: "Activity", value: s.activity },
-		s.program_name && { label: "Program", value: s.program_name },
+		s.program_name && { label: "Planned program", value: s.program_name },
 		s.started_at && { label: "Started", value: formatDate(s.started_at) },
 		s.completed_at && { label: "Completed", value: formatDate(s.completed_at) },
 		s.duration_s && { label: "Duration", value: formatDuration(s.duration_s) },
@@ -243,7 +243,7 @@ export function SessionDetail({ sessionId, onDelete }) {
 			</Section>
 
 			{s.program_structure && (
-				<Section title="Program">
+				<Section title="Planned program">
 					<div
 						class="px-4 py-3 text-sm whitespace-pre-wrap"
 						style={{ color: "var(--color-text)" }}
