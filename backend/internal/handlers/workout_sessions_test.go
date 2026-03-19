@@ -248,14 +248,105 @@ func TestWorkoutSessionHandler_Create(t *testing.T) {
 	})
 }
 
-func TestWorkoutSessionHandler_Update(t *testing.T) {
-	t.Run("updates session notes", func(t *testing.T) {
+func TestWorkoutSessionHandler_Replace(t *testing.T) {
+	t.Run("replaces session fields", func(t *testing.T) {
 		app := NewTestApp(t)
 		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
 		activity := "Swim"
 		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{Activity: &activity})
 		notes := "Great session"
 		body := mustJSON(t, map[string]any{"activity": "Swim", "session_notes": notes})
+		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/sessions/%d", ws.ID), body, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
+		}
+		var got sessionResp
+		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if got.SessionNotes == nil || *got.SessionNotes != notes {
+			t.Errorf("got notes %v, want %q", got.SessionNotes, notes)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+		body := mustJSON(t, map[string]any{})
+		r := app.AuthRequest(http.MethodPut, "/api/sessions/999", body, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+		body := mustJSON(t, map[string]any{})
+		r := app.AuthRequest(http.MethodPut, "/api/sessions/abc", body, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("invalid body", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/sessions/%d", ws.ID), bytes.NewBufferString("not json"), u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("cannot update another user session", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		u2, _ := app.SeedUserWithOrg("u2@test.com", "sub2")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+		body := mustJSON(t, map[string]any{})
+		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/sessions/%d", ws.ID), body, u2)
+		w := app.Do(r)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("unauthorized", func(t *testing.T) {
+		app := NewTestApp(t)
+		body := mustJSON(t, map[string]any{})
+		r := httptest.NewRequest(http.MethodPut, "/api/sessions/1", body)
+		w := app.Do(r)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusUnauthorized)
+		}
+	})
+}
+
+func TestWorkoutSessionHandler_Patch(t *testing.T) {
+	t.Run("updates a single field without affecting others", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		activity := "Run"
+		effort := 7
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{
+			Activity: &activity,
+			SensitiveData: domain.SessionSensitiveData{
+				PerceivedEffort: &effort,
+			},
+		})
+		notes := "Felt great"
+		body := mustJSON(t, map[string]any{"session_notes": notes})
 		r := app.AuthRequest(http.MethodPatch, fmt.Sprintf("/api/sessions/%d", ws.ID), body, u1)
 		w := app.Do(r)
 
@@ -268,6 +359,12 @@ func TestWorkoutSessionHandler_Update(t *testing.T) {
 		}
 		if got.SessionNotes == nil || *got.SessionNotes != notes {
 			t.Errorf("got notes %v, want %q", got.SessionNotes, notes)
+		}
+		if got.Activity == nil || *got.Activity != activity {
+			t.Errorf("got activity %v, want %q — field should be preserved", got.Activity, activity)
+		}
+		if got.PerceivedEffort == nil || *got.PerceivedEffort != effort {
+			t.Errorf("got perceived_effort %v, want %d — field should be preserved", got.PerceivedEffort, effort)
 		}
 	})
 
@@ -307,7 +404,7 @@ func TestWorkoutSessionHandler_Update(t *testing.T) {
 		}
 	})
 
-	t.Run("cannot update another user session", func(t *testing.T) {
+	t.Run("cannot patch another user session", func(t *testing.T) {
 		app := NewTestApp(t)
 		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
 		u2, _ := app.SeedUserWithOrg("u2@test.com", "sub2")

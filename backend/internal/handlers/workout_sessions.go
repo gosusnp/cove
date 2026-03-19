@@ -27,7 +27,8 @@ func (h *WorkoutSessionHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /sessions", h.list)
 	mux.HandleFunc("POST /sessions", h.create)
 	mux.HandleFunc("GET /sessions/{id}", h.get)
-	mux.HandleFunc("PATCH /sessions/{id}", h.update)
+	mux.HandleFunc("PUT /sessions/{id}", h.replace)
+	mux.HandleFunc("PATCH /sessions/{id}", h.patch)
 }
 
 type workoutSessionRequest struct {
@@ -47,6 +48,14 @@ func sensitiveStringPtr(s *string) *crypto.SensitiveString {
 		return nil
 	}
 	ss := crypto.NewSensitiveString(*s)
+	return &ss
+}
+
+func cloneSensitiveString(s *crypto.SensitiveString) *crypto.SensitiveString {
+	if s == nil {
+		return nil
+	}
+	ss := crypto.NewSensitiveString(s.String())
 	return &ss
 }
 
@@ -149,7 +158,7 @@ func (h *WorkoutSessionHandler) create(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, resp, http.StatusCreated)
 }
 
-func (h *WorkoutSessionHandler) update(w http.ResponseWriter, r *http.Request) {
+func (h *WorkoutSessionHandler) replace(w http.ResponseWriter, r *http.Request) {
 	id, err := pathID[domain.WorkoutSessionID](r, "id")
 	if err != nil {
 		jsonError(w, "invalid id", http.StatusBadRequest)
@@ -161,6 +170,152 @@ func (h *WorkoutSessionHandler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ws, err := h.svc.Update(r.Context(), id, req.toParams())
+	if errors.Is(err, service.ErrUnauthorized) {
+		jsonError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if errors.Is(err, service.ErrNotFound) {
+		jsonError(w, "session not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		internalError(w, r, err)
+		return
+	}
+	resp, err := toResponse(r, ws)
+	if err != nil {
+		internalError(w, r, err)
+		return
+	}
+	jsonOK(w, resp)
+}
+
+func (h *WorkoutSessionHandler) patch(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID[domain.WorkoutSessionID](r, "id")
+	if err != nil {
+		jsonError(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	// Decode as a raw map so we can tell which fields were explicitly provided.
+	var patch map[string]json.RawMessage
+	if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Fetch current session to merge against.
+	current, err := h.svc.Get(r.Context(), id)
+	if errors.Is(err, service.ErrUnauthorized) {
+		jsonError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if errors.Is(err, service.ErrNotFound) {
+		jsonError(w, "session not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		internalError(w, r, err)
+		return
+	}
+
+	// Start from current non-sensitive values.
+	p := store.WorkoutSessionParams{
+		ProgramID:   current.ProgramID,
+		Activity:    current.Activity,
+		DurationS:   current.DurationS,
+		StartedAt:   current.StartedAt,
+		CompletedAt: current.CompletedAt,
+	}
+
+	// Apply non-sensitive patch fields.
+	if raw, ok := patch["program_id"]; ok {
+		var v *int64
+		if err := json.Unmarshal(raw, &v); err != nil {
+			jsonError(w, "invalid program_id", http.StatusBadRequest)
+			return
+		}
+		if v != nil {
+			pid := domain.ProgramID(*v)
+			p.ProgramID = &pid
+		} else {
+			p.ProgramID = nil
+		}
+	}
+	for _, f := range []struct {
+		key string
+		dst any
+	}{
+		{"activity", &p.Activity},
+		{"duration_s", &p.DurationS},
+		{"started_at", &p.StartedAt},
+		{"completed_at", &p.CompletedAt},
+	} {
+		if raw, ok := patch[f.key]; ok {
+			if err := json.Unmarshal(raw, f.dst); err != nil {
+				jsonError(w, "invalid "+f.key, http.StatusBadRequest)
+				return
+			}
+		}
+	}
+
+	// Pre-decode sensitive patch fields before entering UseSensitiveData so
+	// validation errors can still return 400.
+	var (
+		patchPerceivedEffort     *int
+		patchSessionNotes        *string
+		patchProgramName         *string
+		patchProgramStructure    *string
+		hasPatchPerceivedEffort  bool
+		hasPatchSessionNotes     bool
+		hasPatchProgramName      bool
+		hasPatchProgramStructure bool
+	)
+	sensitivePatches := []struct {
+		key string
+		has *bool
+		dst any
+	}{
+		{"perceived_effort", &hasPatchPerceivedEffort, &patchPerceivedEffort},
+		{"session_notes", &hasPatchSessionNotes, &patchSessionNotes},
+		{"program_name", &hasPatchProgramName, &patchProgramName},
+		{"program_structure", &hasPatchProgramStructure, &patchProgramStructure},
+	}
+	for _, f := range sensitivePatches {
+		if raw, ok := patch[f.key]; ok {
+			*f.has = true
+			if err := json.Unmarshal(raw, f.dst); err != nil {
+				jsonError(w, "invalid "+f.key, http.StatusBadRequest)
+				return
+			}
+		}
+	}
+
+	// Merge sensitive fields: carry over current values, then apply overrides.
+	if err := current.UseSensitiveData(r.Context(), func(cur domain.SessionSensitiveData) error {
+		p.SensitiveData.PerceivedEffort = cur.PerceivedEffort
+		p.SensitiveData.SessionNotes = cloneSensitiveString(cur.SessionNotes)
+		p.SensitiveData.ProgramName = cloneSensitiveString(cur.ProgramName)
+		p.SensitiveData.ProgramStructure = cloneSensitiveString(cur.ProgramStructure)
+		if hasPatchPerceivedEffort {
+			p.SensitiveData.PerceivedEffort = patchPerceivedEffort
+		}
+		if hasPatchSessionNotes {
+			p.SensitiveData.SessionNotes = sensitiveStringPtr(patchSessionNotes)
+		}
+		if hasPatchProgramName {
+			p.SensitiveData.ProgramName = sensitiveStringPtr(patchProgramName)
+		}
+		if hasPatchProgramStructure {
+			p.SensitiveData.ProgramStructure = sensitiveStringPtr(patchProgramStructure)
+		}
+		return nil
+	}); err != nil {
+		internalError(w, r, err)
+		return
+	}
+
+	ws, err := h.svc.Update(r.Context(), id, p)
 	if errors.Is(err, service.ErrUnauthorized) {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return
