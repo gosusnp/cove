@@ -103,6 +103,11 @@ export function Sessions() {
 		route("/workout");
 	};
 
+	const handleDelete = (id) => {
+		sessions.value = sessions.value.filter((s) => s.id !== id);
+		route("/sessions");
+	};
+
 	return (
 		<ListDetail
 			hasDetail={!!selectedId}
@@ -116,7 +121,11 @@ export function Sessions() {
 					error={fetchError.value}
 				/>
 			}
-			detail={selectedId ? <SessionDetail sessionId={selectedId} /> : null}
+			detail={
+				selectedId ? (
+					<SessionDetail sessionId={selectedId} onDelete={handleDelete} />
+				) : null
+			}
 		/>
 	);
 }

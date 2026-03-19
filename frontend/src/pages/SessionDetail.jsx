@@ -3,12 +3,19 @@
 
 import { useSignal } from "@preact/signals";
 import { useEffect } from "preact/hooks";
-import { Pencil } from "lucide-preact";
+import { Pencil, Trash2 } from "lucide-preact";
 import { useAuth } from "../Auth.jsx";
 import { Button } from "../components/ui/Button.jsx";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
 import { PageTitle } from "../components/ui/PageTitle.jsx";
 import { Row, Section } from "../components/ui/Section.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "../components/ui/Tooltip.jsx";
+import { useDialog } from "../hooks/useDialog.js";
 import { apiFetch } from "../lib/api.js";
 
 function formatDate(iso) {
@@ -29,7 +36,7 @@ function formatDuration(seconds) {
 	return `${s}s`;
 }
 
-export function SessionDetail({ sessionId }) {
+export function SessionDetail({ sessionId, onDelete }) {
 	const { user } = useAuth();
 	const session = useSignal(null);
 	const loading = useSignal(true);
@@ -38,6 +45,7 @@ export function SessionDetail({ sessionId }) {
 	const notesDraft = useSignal("");
 	const notesSaving = useSignal(false);
 	const notesError = useSignal("");
+	const deleteDialog = useDialog();
 
 	useEffect(() => {
 		if (!user || !sessionId) return;
@@ -94,7 +102,15 @@ export function SessionDetail({ sessionId }) {
 		},
 	].filter(Boolean);
 
-	const title = s.program_name ?? s.activity ?? "Session";
+	const pageTitle = s.program_name ?? s.activity ?? "Session";
+
+	async function handleDelete() {
+		const r = await apiFetch(`/api/sessions/${sessionId}`, {
+			method: "DELETE",
+		});
+		if (!r.ok) throw new Error("Failed to delete session");
+		onDelete(sessionId);
+	}
 
 	function startEditNotes() {
 		notesDraft.value = session.value.session_notes ?? "";
@@ -128,7 +144,22 @@ export function SessionDetail({ sessionId }) {
 
 	return (
 		<div class="max-w-2xl mx-auto px-4 py-6 flex flex-col gap-6">
-			<PageTitle>{title}</PageTitle>
+			<div class="flex items-center justify-between gap-2">
+				<PageTitle>{pageTitle}</PageTitle>
+				<Tooltip>
+					<TooltipTrigger>
+						<Button
+							variant="ghost"
+							size="icon"
+							aria-label="Delete session"
+							onClick={deleteDialog.show}
+						>
+							<Trash2 size={16} aria-hidden="true" />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>Delete session</TooltipContent>
+				</Tooltip>
+			</div>
 
 			{overviewRows.length > 0 && (
 				<Section title="Overview">
@@ -221,6 +252,13 @@ export function SessionDetail({ sessionId }) {
 					</div>
 				</Section>
 			)}
+			<ConfirmDialog
+				openSignal={deleteDialog.open}
+				title="Delete Session"
+				description="This will permanently delete the session. This cannot be undone."
+				confirmLabel="Delete"
+				onConfirm={handleDelete}
+			/>
 		</div>
 	);
 }

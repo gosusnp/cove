@@ -54,6 +54,43 @@ describe("ConfirmDialog", () => {
 		expect(onConfirm).toHaveBeenCalledOnce();
 	});
 
+	it("keeps dialog open and shows error when onConfirm throws", async () => {
+		const open = signal(true);
+		const onConfirm = vi
+			.fn()
+			.mockRejectedValue(new Error("Failed to delete session"));
+		render(
+			<ConfirmDialog
+				openSignal={open}
+				title="Delete Session"
+				onConfirm={onConfirm}
+			/>,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+		await vi.waitFor(() =>
+			expect(screen.getByText("Failed to delete session")).toBeInTheDocument(),
+		);
+		expect(open.value).toBe(true);
+	});
+
+	it("clears error when cancel is clicked after a failure", async () => {
+		const open = signal(true);
+		const onConfirm = vi.fn().mockRejectedValue(new Error("Oops"));
+		render(
+			<ConfirmDialog
+				openSignal={open}
+				title="Delete Session"
+				onConfirm={onConfirm}
+			/>,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+		await vi.waitFor(() =>
+			expect(screen.getByText("Oops")).toBeInTheDocument(),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+		expect(screen.queryByText("Oops")).not.toBeInTheDocument();
+	});
+
 	it("renders custom confirmLabel", () => {
 		const open = signal(true);
 		render(
