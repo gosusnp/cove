@@ -430,6 +430,74 @@ func TestWorkoutSessionHandler_Patch(t *testing.T) {
 	})
 }
 
+func TestWorkoutSessionHandler_Delete(t *testing.T) {
+	t.Run("deletes own session", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+
+		r := app.AuthRequest(http.MethodDelete, fmt.Sprintf("/api/sessions/%d", ws.ID), nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusNoContent {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusNoContent)
+		}
+
+		// Verify the session is gone.
+		r2 := app.AuthRequest(http.MethodGet, fmt.Sprintf("/api/sessions/%d", ws.ID), nil, u1)
+		w2 := app.Do(r2)
+		if w2.Code != http.StatusNotFound {
+			t.Errorf("after delete: got status %d, want %d", w2.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+		r := app.AuthRequest(http.MethodDelete, "/api/sessions/999", nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+		r := app.AuthRequest(http.MethodDelete, "/api/sessions/abc", nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("cannot delete another user session", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		u2, _ := app.SeedUserWithOrg("u2@test.com", "sub2")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+
+		r := app.AuthRequest(http.MethodDelete, fmt.Sprintf("/api/sessions/%d", ws.ID), nil, u2)
+		w := app.Do(r)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("unauthorized", func(t *testing.T) {
+		app := NewTestApp(t)
+		r := httptest.NewRequest(http.MethodDelete, "/api/sessions/1", nil)
+		w := app.Do(r)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusUnauthorized)
+		}
+	})
+}
+
 func mustJSON(t *testing.T, v any) *bytes.Buffer {
 	t.Helper()
 	b, err := json.Marshal(v)

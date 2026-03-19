@@ -29,6 +29,7 @@ func (h *WorkoutSessionHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /sessions/{id}", h.get)
 	mux.HandleFunc("PUT /sessions/{id}", h.replace)
 	mux.HandleFunc("PATCH /sessions/{id}", h.patch)
+	mux.HandleFunc("DELETE /sessions/{id}", h.delete)
 }
 
 type workoutSessionRequest struct {
@@ -383,4 +384,26 @@ func (h *WorkoutSessionHandler) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jsonOK(w, resp)
+}
+
+func (h *WorkoutSessionHandler) delete(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID[domain.WorkoutSessionID](r, "id")
+	if err != nil {
+		jsonError(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	err = h.svc.Delete(r.Context(), id)
+	if errors.Is(err, service.ErrUnauthorized) {
+		jsonError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if errors.Is(err, service.ErrNotFound) {
+		jsonError(w, "session not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		internalError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
