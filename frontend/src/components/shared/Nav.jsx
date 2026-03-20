@@ -13,15 +13,24 @@ import {
 } from "../ui/NavigationMenu.jsx";
 import { TopBar } from "../ui/TopBar.jsx";
 
-export const TRAIN_NAV_ITEMS = [
-	{ label: "Workout", href: "/workout" },
-	{ label: "Review Sessions", href: "/sessions" },
+const NAV_SECTIONS = [
+	{
+		label: "Train",
+		items: [
+			{ label: "Workout", href: "/workout" },
+			{ label: "Review Sessions", href: "/sessions" },
+		],
+	},
+	{
+		label: "Program",
+		items: [
+			{ label: "Build Programs", href: "/programs" },
+			{ label: "Exercises", href: "/exercises" },
+		],
+	},
 ];
 
-const PROGRAM_NAV_ITEMS = [
-	{ label: "Build Programs", href: "/programs" },
-	{ label: "Exercises", href: "/exercises" },
-];
+export const TRAIN_NAV_ITEMS = NAV_SECTIONS[0].items;
 
 const PAGE_TITLES = [
 	{ label: "Workout", href: "/workout" },
@@ -90,32 +99,26 @@ function DesktopSidebar({ user, url }) {
 			}}
 		>
 			<nav class="flex flex-col gap-1 px-2 py-4">
-				{user && (
-					<>
-						<p
-							class="px-4 py-1 text-xs font-semibold uppercase tracking-wider"
-							style={{ color: "var(--color-muted)" }}
-						>
-							Train
-						</p>
-						{TRAIN_NAV_ITEMS.map(({ label, href }) => (
-							<SidebarLink key={href} href={href} active={isActive(href, url)}>
+				{user &&
+					NAV_SECTIONS.map(({ label, items }, i) => (
+						<>
+							<p
+								class={`px-4 py-1 text-xs font-semibold uppercase tracking-wider${i > 0 ? " mt-2" : ""}`}
+								style={{ color: "var(--color-text)" }}
+							>
 								{label}
-							</SidebarLink>
-						))}
-						<p
-							class="px-4 py-1 mt-2 text-xs font-semibold uppercase tracking-wider"
-							style={{ color: "var(--color-muted)" }}
-						>
-							Program
-						</p>
-						{PROGRAM_NAV_ITEMS.map(({ label, href }) => (
-							<SidebarLink key={href} href={href} active={isActive(href, url)}>
-								{label}
-							</SidebarLink>
-						))}
-					</>
-				)}
+							</p>
+							{items.map(({ label: itemLabel, href }) => (
+								<SidebarLink
+									key={href}
+									href={href}
+									active={isActive(href, url)}
+								>
+									{itemLabel}
+								</SidebarLink>
+							))}
+						</>
+					))}
 			</nav>
 		</aside>
 	);
