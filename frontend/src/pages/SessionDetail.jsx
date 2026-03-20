@@ -3,13 +3,13 @@
 
 import { useSignal } from "@preact/signals";
 import { useEffect } from "preact/hooks";
-import { Pencil, Trash2 } from "lucide-preact";
+import { Trash2 } from "lucide-preact";
 import { useAuth } from "../Auth.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
+import { EditableMarkdown } from "../components/ui/EditableMarkdown.jsx";
 import { PageTitle } from "../components/ui/PageTitle.jsx";
 import { Row, Section } from "../components/ui/Section.jsx";
-import { TextField } from "../components/ui/TextField.jsx";
 import {
 	Tooltip,
 	TooltipContent,
@@ -41,10 +41,6 @@ export function SessionDetail({ sessionId, onDelete }) {
 	const session = useSignal(null);
 	const loading = useSignal(true);
 	const error = useSignal("");
-	const editingNotes = useSignal(false);
-	const notesDraft = useSignal("");
-	const notesSaving = useSignal(false);
-	const notesError = useSignal("");
 	const deleteDialog = useDialog();
 
 	useEffect(() => {
@@ -112,34 +108,14 @@ export function SessionDetail({ sessionId, onDelete }) {
 		onDelete(sessionId);
 	}
 
-	function startEditNotes() {
-		notesDraft.value = session.value.session_notes ?? "";
-		editingNotes.value = true;
-	}
-
-	function cancelEditNotes() {
-		editingNotes.value = false;
-		notesError.value = "";
-	}
-
-	async function saveNotes() {
-		notesSaving.value = true;
-		notesError.value = "";
-		try {
-			const r = await apiFetch(`/api/sessions/${sessionId}`, {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ session_notes: notesDraft.value || null }),
-			});
-			if (!r.ok) throw new Error("Failed to save notes");
-			const updated = await r.json();
-			session.value = updated;
-			editingNotes.value = false;
-		} catch (err) {
-			notesError.value = err.message;
-		} finally {
-			notesSaving.value = false;
-		}
+	async function saveNotes(notes) {
+		const r = await apiFetch(`/api/sessions/${sessionId}`, {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ session_notes: notes || null }),
+		});
+		if (!r.ok) throw new Error("Failed to save notes");
+		session.value = await r.json();
 	}
 
 	return (
@@ -177,68 +153,13 @@ export function SessionDetail({ sessionId, onDelete }) {
 
 			<Section title="Notes">
 				<div class="px-4 py-3">
-					{editingNotes.value ? (
-						<div class="flex flex-col gap-2">
-							<TextField
-								multiline
-								rows={4}
-								value={notesDraft.value}
-								onInput={(e) => (notesDraft.value = e.target.value)}
-								onKeyDown={(e) => {
-									if (e.key === "Escape") cancelEditNotes();
-								}}
-							/>
-							{notesError.value && (
-								<p class="text-xs" style={{ color: "var(--color-error)" }}>
-									{notesError.value}
-								</p>
-							)}
-							<div class="flex justify-end gap-2">
-								<Button
-									size="sm"
-									onClick={saveNotes}
-									disabled={notesSaving.value}
-								>
-									{notesSaving.value ? "Saving…" : "Save"}
-								</Button>
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={cancelEditNotes}
-									disabled={notesSaving.value}
-								>
-									Cancel
-								</Button>
-							</div>
-						</div>
-					) : (
-						<div class="group flex items-start justify-between w-full gap-2">
-							{session.value.session_notes ? (
-								<p
-									class="text-sm whitespace-pre-wrap flex-1"
-									style={{ color: "var(--color-text)" }}
-								>
-									{session.value.session_notes}
-								</p>
-							) : (
-								<p
-									class="text-sm italic"
-									style={{ color: "var(--color-muted)", opacity: 0.5 }}
-								>
-									Add notes…
-								</p>
-							)}
-							<Button
-								variant="ghost"
-								size="icon"
-								onClick={startEditNotes}
-								aria-label="Edit session notes"
-								class="opacity-0 group-hover:opacity-30 transition-opacity shrink-0"
-							>
-								<Pencil size={14} aria-hidden="true" />
-							</Button>
-						</div>
-					)}
+					<EditableMarkdown
+						value={session.value.session_notes ?? null}
+						placeholder="Add notes…"
+						variant="plain"
+						editLabel="Edit session notes"
+						onSave={saveNotes}
+					/>
 				</div>
 			</Section>
 

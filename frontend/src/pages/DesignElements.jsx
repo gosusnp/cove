@@ -1033,6 +1033,24 @@ function EditableMarkdownSection() {
 					/>
 				</div>
 			</PreviewRow>
+			<PreviewRow label="plain variant (inside a card)">
+				<div
+					class="w-full max-w-md rounded-xl p-4"
+					style={{
+						background: "var(--color-surface)",
+						border: "1px solid var(--color-border)",
+					}}
+				>
+					<EditableMarkdown
+						value={withContent.value}
+						variant="plain"
+						onSave={async (v) => {
+							await new Promise((r) => setTimeout(r, 400));
+							withContent.value = v || null;
+						}}
+					/>
+				</div>
+			</PreviewRow>
 			<PreviewRow label="disabled">
 				<div class="w-full max-w-md">
 					<EditableMarkdown

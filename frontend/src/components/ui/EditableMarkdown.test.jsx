@@ -99,4 +99,18 @@ describe("EditableMarkdown", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Edit" }));
 		expect(screen.getByRole("textbox")).not.toHaveClass("resize-y");
 	});
+
+	it("default variant renders a bordered container", () => {
+		const { container } = render(
+			<EditableMarkdown value="text" onSave={vi.fn()} />,
+		);
+		expect(container.firstChild).toHaveClass("border");
+	});
+
+	it("plain variant renders without a border", () => {
+		const { container } = render(
+			<EditableMarkdown value="text" onSave={vi.fn()} variant="plain" />,
+		);
+		expect(container.firstChild).not.toHaveClass("border");
+	});
 });

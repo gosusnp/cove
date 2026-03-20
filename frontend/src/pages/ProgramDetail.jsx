@@ -36,7 +36,7 @@ import {
 	DialogContent,
 	DialogTitle,
 } from "../components/ui/Dialog.jsx";
-import { Markdown } from "../components/ui/Markdown.jsx";
+import { EditableMarkdown } from "../components/ui/EditableMarkdown.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { ToggleGroup } from "../components/ui/ToggleGroup.jsx";
 import {
@@ -370,51 +370,34 @@ function ProgramDetailInner({
 		editError.value = "";
 	};
 
-	const autoResizeDesc = () => {
-		const el = descInputRef.current;
-		if (!el) return;
-		el.style.height = "auto";
-		el.style.height = `${el.scrollHeight}px`;
-	};
-
 	const nameInputRef = useRef(null);
-	const descInputRef = useRef(null);
 
 	useEffect(() => {
 		if (editingField.value === "name") nameInputRef.current?.focus();
-		else if (editingField.value === "description") {
-			descInputRef.current?.focus();
-			queueMicrotask(autoResizeDesc);
-		}
 	}, [editingField.value]);
 
 	const saveEdit = async () => {
-		if (editingField.value === "name" && !editValue.value.trim()) {
+		if (!editValue.value.trim()) {
 			editError.value = "Name is required.";
 			return;
 		}
 		editSaving.value = true;
 		editError.value = "";
-		const name =
-			editingField.value === "name"
-				? editValue.value.trim()
-				: programName.value;
-		const desc =
-			editingField.value === "description"
-				? editValue.value.trim()
-				: programDescription.value;
+		const name = editValue.value.trim();
 		try {
 			const r = await apiFetch(`/api/programs/${initialProgram.id}`, {
 				method: "PUT",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name, description: desc || undefined }),
+				body: JSON.stringify({
+					name,
+					description: programDescription.value || undefined,
+				}),
 			});
 			if (!r.ok) {
 				const d = await r.json();
 				throw new Error(d.error || "Failed to save");
 			}
 			programName.value = name;
-			programDescription.value = desc;
 			editingField.value = null;
 			onProgramUpdated?.();
 		} catch (err) {
@@ -422,6 +405,23 @@ function ProgramDetailInner({
 		} finally {
 			editSaving.value = false;
 		}
+	};
+
+	const saveDescription = async (desc) => {
+		const r = await apiFetch(`/api/programs/${initialProgram.id}`, {
+			method: "PUT",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				name: programName.value,
+				description: desc || undefined,
+			}),
+		});
+		if (!r.ok) {
+			const d = await r.json();
+			throw new Error(d.error || "Failed to save");
+		}
+		programDescription.value = desc;
+		onProgramUpdated?.();
 	};
 
 	// ── Exercises list for the combobox ───────────────────────────────────────
@@ -810,72 +810,12 @@ function ProgramDetailInner({
 						>
 							Description
 						</p>
-						{editingField.value === "description" ? (
-							<div class="flex flex-col gap-2">
-								<TextField
-									multiline
-									inputRef={descInputRef}
-									class="text-sm resize-y"
-									rows="4"
-									value={editValue.value}
-									onInput={(e) => {
-										editValue.value = e.target.value;
-									}}
-									onKeyDown={(e) => {
-										if (e.key === "Escape") cancelEdit();
-									}}
-								/>
-								{editError.value && (
-									<p class="text-xs" style={{ color: "var(--color-error)" }}>
-										{editError.value}
-									</p>
-								)}
-								<div class="flex justify-end gap-2">
-									<Button
-										size="sm"
-										onClick={saveEdit}
-										disabled={editSaving.value}
-									>
-										{editSaving.value ? "Saving…" : "Save"}
-									</Button>
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={cancelEdit}
-										disabled={editSaving.value}
-									>
-										Cancel
-									</Button>
-								</div>
-							</div>
-						) : (
-							<div class="group flex items-start justify-between w-full gap-2">
-								{programDescription.value ? (
-									<div class="flex-1 rounded-md border border-(--color-border) px-3 py-2 text-sm">
-										<Markdown>{programDescription.value}</Markdown>
-									</div>
-								) : (
-									<p
-										class="text-sm italic"
-										style={{ color: "var(--color-muted)", opacity: 0.5 }}
-									>
-										Add a description…
-									</p>
-								)}
-								<button
-									type="button"
-									class="opacity-0 group-hover:opacity-30 transition-opacity shrink-0 cursor-pointer"
-									onClick={() => startEdit("description")}
-									aria-label="Edit program description"
-								>
-									<Pencil
-										size={14}
-										style={{ color: "var(--color-muted)" }}
-										aria-hidden="true"
-									/>
-								</button>
-							</div>
-						)}
+						<EditableMarkdown
+							value={programDescription.value || null}
+							placeholder="Add a description…"
+							editLabel="Edit program description"
+							onSave={saveDescription}
+						/>
 					</div>
 				</div>
 

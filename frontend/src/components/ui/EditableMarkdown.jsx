@@ -15,16 +15,23 @@ import { TextField } from "./TextField.jsx";
  *   value        {string|null}  — current markdown string (controlled)
  *   placeholder  {string}       — text shown when value is empty
  *   onSave       {(v: string) => Promise<void>}  — called with trimmed value on confirm
- *   rows         {number}       — textarea rows in edit mode (default 4)
+ *   variant      {"default"|"plain"}  — "default" shows a bordered card; "plain" is borderless
+ *                                       for use inside an existing card (default "default")
+ *   minRows      {number}       — minimum textarea rows in edit mode (default 3)
+ *   maxRows      {number}       — maximum textarea rows before scrolling (default 12)
  *   resizable    {boolean}      — allow vertical resize of textarea (default true)
+ *   editLabel    {string}       — aria-label for the edit button (default "Edit")
  *   disabled     {boolean}      — hides the edit button
  */
 export function EditableMarkdown({
 	value,
 	placeholder = "Add a description…",
 	onSave,
-	rows = 4,
+	variant = "default",
+	minRows = 3,
+	maxRows = 12,
 	resizable = true,
+	editLabel = "Edit",
 	disabled = false,
 }) {
 	const editing = useSignal(false);
@@ -34,9 +41,17 @@ export function EditableMarkdown({
 	const inputRef = useRef(null);
 
 	useEffect(() => {
-		if (editing.value) {
-			inputRef.current?.focus();
-		}
+		if (!editing.value || !inputRef.current) return;
+		const el = inputRef.current;
+		el.focus();
+		// Size textarea to content, clamped between minRows and maxRows.
+		el.style.height = "auto";
+		const lh = parseInt(getComputedStyle(el).lineHeight) || 20;
+		const pt = parseInt(getComputedStyle(el).paddingTop) || 0;
+		const pb = parseInt(getComputedStyle(el).paddingBottom) || 0;
+		const minH = minRows * lh + pt + pb;
+		const maxH = maxRows * lh + pt + pb;
+		el.style.height = `${Math.min(Math.max(el.scrollHeight, minH), maxH)}px`;
 	}, [editing.value]);
 
 	function startEdit() {
@@ -69,7 +84,7 @@ export function EditableMarkdown({
 				<TextField
 					multiline
 					inputRef={inputRef}
-					rows={rows}
+					rows={minRows}
 					class={resizable ? "resize-y" : undefined}
 					value={draft.value}
 					onInput={(e) => (draft.value = e.target.value)}
@@ -106,8 +121,16 @@ export function EditableMarkdown({
 		);
 	}
 
+	const isDefault = variant === "default";
+
 	return (
-		<div class="group flex items-start justify-between gap-2 rounded-md border border-(--color-border) bg-(--color-surface) px-3 py-2">
+		<div
+			class={
+				isDefault
+					? "group flex items-start justify-between gap-2 rounded-md border border-(--color-border) bg-(--color-surface) px-3 py-2"
+					: "group flex items-start justify-between gap-2"
+			}
+		>
 			{value ? (
 				<Markdown class="flex-1">{value}</Markdown>
 			) : (
@@ -123,7 +146,7 @@ export function EditableMarkdown({
 					variant="outline"
 					size="icon"
 					onClick={startEdit}
-					aria-label="Edit"
+					aria-label={editLabel}
 					class="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
 				>
 					<Pencil size={14} aria-hidden="true" />
