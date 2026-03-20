@@ -961,6 +961,19 @@ export function DesignElements() {
 						</CheckListSection>
 					</CheckList>
 				</PreviewRow>
+				<PreviewRow label="with subtitle — program exercise format">
+					<CheckList class="w-full">
+						<CheckListSection label="Strength · Round 1 of 3">
+							<CheckListItem subtitle="60 kg · bilateral">
+								10 Back Squat
+							</CheckListItem>
+							<CheckListItem subtitle="alternating">
+								12 Reverse Lunge
+							</CheckListItem>
+							<CheckListItem subtitle="">30s Plank</CheckListItem>
+						</CheckListSection>
+					</CheckList>
+				</PreviewRow>
 			</PageSection>
 
 			<Divider />

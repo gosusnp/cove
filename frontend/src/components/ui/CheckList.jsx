@@ -231,8 +231,11 @@ export function CheckListSection({ label, children }) {
 // Swipe right to check, swipe right again or swipe left to uncheck.
 // Click/tap also toggles.
 // defaultChecked sets the initial state for demos and testing.
+// subtitle renders a second line below the label — always occupies space when
+// provided (even as an empty string) to keep item height consistent.
 export function CheckListItem({
 	children,
+	subtitle,
 	defaultChecked = false,
 	class: className,
 }) {
@@ -380,17 +383,27 @@ export function CheckListItem({
 					}}
 				/>
 
-				<span
-					class={cn(
-						"relative flex-1 text-sm leading-snug",
-						checked.value && "line-through",
+				<span class="relative flex-1 flex flex-col gap-0.5">
+					<span
+						class={cn("text-sm leading-snug", checked.value && "line-through")}
+						style={{
+							color: checked.value ? "var(--color-muted)" : "var(--color-text)",
+							transition: "color 0.15s ease-out",
+						}}
+					>
+						{children}
+					</span>
+					{subtitle !== undefined && (
+						<span
+							class={cn(
+								"text-xs leading-snug",
+								checked.value && "line-through",
+							)}
+							style={{ color: "var(--color-muted)", minHeight: "1em" }}
+						>
+							{subtitle}
+						</span>
 					)}
-					style={{
-						color: checked.value ? "var(--color-muted)" : "var(--color-text)",
-						transition: "color 0.15s ease-out",
-					}}
-				>
-					{children}
 				</span>
 
 				<span

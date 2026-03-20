@@ -291,6 +291,38 @@ describe("CheckListItem gesture claim", () => {
 		spy.mockRestore();
 	});
 
+	it("renders subtitle when provided", () => {
+		render(
+			<CheckListItem subtitle="50 kg · bilateral">Squat × 8</CheckListItem>,
+		);
+		expect(screen.getByText("50 kg · bilateral")).toBeTruthy();
+	});
+
+	it("renders an empty subtitle placeholder when subtitle is an empty string", () => {
+		render(<CheckListItem subtitle="">Plank</CheckListItem>);
+		// The subtitle span must exist even with empty text to maintain item height.
+		const btn = screen.getByRole("button");
+		const subtitleSpans = btn.querySelectorAll("span[style*='min-height']");
+		expect(subtitleSpans.length).toBe(1);
+	});
+
+	it("does not render a subtitle span when subtitle prop is omitted", () => {
+		render(<CheckListItem>Push-ups × 10</CheckListItem>);
+		const btn = screen.getByRole("button");
+		expect(btn.querySelectorAll("span[style*='min-height']").length).toBe(0);
+	});
+
+	it("applies line-through to subtitle when checked", () => {
+		render(
+			<CheckListItem defaultChecked subtitle="50 kg · bilateral">
+				Squat × 8
+			</CheckListItem>,
+		);
+		expect(screen.getByText("50 kg · bilateral").className).toContain(
+			"line-through",
+		);
+	});
+
 	it("does not toggle again when a synthesized click fires after a completed swipe", () => {
 		render(<CheckListItem>Squat × 8</CheckListItem>);
 		const btn = screen.getByRole("button");
