@@ -37,6 +37,7 @@ import { Avatar } from "../components/ui/Avatar.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { Combobox } from "../components/ui/Combobox.jsx";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
+import { EditableMarkdown } from "../components/ui/EditableMarkdown.jsx";
 import {
 	Dialog,
 	DialogClose,
@@ -992,6 +993,55 @@ export function DesignElements() {
 					/>
 				</PreviewRow>
 			</PageSection>
+
+			<Divider />
+
+			{/* ── EditableMarkdown ────────────────────────────── */}
+			<EditableMarkdownSection />
 		</main>
+	);
+}
+
+function EditableMarkdownSection() {
+	const withContent = useSignal(
+		"**Strength focus** — 3×5 at 85% 1RM\n\n- Rest 3 min between sets\n- Log RPE after each set",
+	);
+	const empty = useSignal(null);
+
+	return (
+		<PageSection title="EditableMarkdown">
+			<PreviewRow label="with content">
+				<div class="w-full max-w-md">
+					<EditableMarkdown
+						value={withContent.value}
+						onSave={async (v) => {
+							await new Promise((r) => setTimeout(r, 400));
+							withContent.value = v || null;
+						}}
+					/>
+				</div>
+			</PreviewRow>
+			<PreviewRow label="empty (placeholder)">
+				<div class="w-full max-w-md">
+					<EditableMarkdown
+						value={empty.value}
+						placeholder="Add a description…"
+						onSave={async (v) => {
+							await new Promise((r) => setTimeout(r, 400));
+							empty.value = v || null;
+						}}
+					/>
+				</div>
+			</PreviewRow>
+			<PreviewRow label="disabled">
+				<div class="w-full max-w-md">
+					<EditableMarkdown
+						value="Read-only markdown — **no edit button**."
+						onSave={async () => {}}
+						disabled
+					/>
+				</div>
+			</PreviewRow>
+		</PageSection>
 	);
 }
