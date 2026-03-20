@@ -45,13 +45,25 @@ function flattenProgram(program) {
 	return sections;
 }
 
-// Format a single program exercise into a compact display string.
-function formatExercise(ex) {
-	const parts = [ex.name];
-	if (ex.target_reps) parts.push(`× ${ex.target_reps}`);
-	else if (ex.target_duration_seconds)
-		parts.push(`${ex.target_duration_seconds}s`);
-	if (ex.target_weight_kg) parts.push(`${ex.target_weight_kg} kg`);
+// Format the primary label for a program exercise.
+// Quantity prefix (reps and/or duration) comes before the name.
+function formatLabel(ex) {
+	const prefix = [
+		ex.reps ? `${ex.reps}x` : null,
+		ex.duration_s ? `${ex.duration_s}s` : null,
+	]
+		.filter(Boolean)
+		.join(" ");
+	return prefix ? `${prefix} ${ex.name}` : ex.name;
+}
+
+// Format the subtitle line for a program exercise (weight and laterality).
+// Returns an empty string when neither is set; the subtitle slot is always
+// rendered to keep item height consistent and maximise the swipe target.
+function formatSubtitle(ex) {
+	const parts = [];
+	if (ex.weight_kg) parts.push(`${ex.weight_kg} kg`);
+	if (ex.laterality) parts.push(ex.laterality);
 	return parts.join(" · ");
 }
 
@@ -372,8 +384,8 @@ export function SessionTracker() {
 									({ label, exercises }, i) => (
 										<CheckListSection key={i} label={label}>
 											{exercises.map((ex, j) => (
-												<CheckListItem key={j}>
-													{formatExercise(ex)}
+												<CheckListItem key={j} subtitle={formatSubtitle(ex)}>
+													{formatLabel(ex)}
 												</CheckListItem>
 											))}
 										</CheckListSection>

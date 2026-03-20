@@ -965,12 +965,13 @@ export function DesignElements() {
 					<CheckList class="w-full">
 						<CheckListSection label="Strength · Round 1 of 3">
 							<CheckListItem subtitle="60 kg · bilateral">
-								10 Back Squat
+								10x Back Squat
 							</CheckListItem>
 							<CheckListItem subtitle="alternating">
-								12 Reverse Lunge
+								12x Reverse Lunge
 							</CheckListItem>
 							<CheckListItem subtitle="">30s Plank</CheckListItem>
+							<CheckListItem subtitle="">3x 10s Crimp block hold</CheckListItem>
 						</CheckListSection>
 					</CheckList>
 				</PreviewRow>

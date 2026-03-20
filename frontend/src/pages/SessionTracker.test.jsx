@@ -32,7 +32,16 @@ vi.mock("./SessionSummaryDialog.jsx", () => ({
 }));
 
 vi.mock("../components/ui/Combobox.jsx", () => ({
-	Combobox: () => null,
+	// Render a clickable button so tests can trigger program selection.
+	Combobox: ({ label, onChange }) => (
+		<button type="button" onClick={() => onChange("1")}>
+			{label}
+		</button>
+	),
+}));
+
+vi.mock("../components/shared/ActivityPicker.jsx", () => ({
+	ActivityPicker: () => null,
 }));
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -67,7 +76,49 @@ function mockFetch({ sessionId = 1, patchOk = true } = {}) {
 	});
 }
 
+function mockFetchWithProgram(exercises) {
+	vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+		if (url.includes("/api/programs/")) {
+			return Promise.resolve({
+				ok: true,
+				json: () =>
+					Promise.resolve({
+						id: 1,
+						name: "Test Program",
+						sets: [{ id: 1, name: "Set A", rounds: 1, exercises }],
+					}),
+			});
+		}
+		if (url.includes("/api/programs")) {
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve([{ id: 1, name: "Test Program" }]),
+			});
+		}
+		if (opts?.method === "POST") {
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve({ id: 1 }),
+			});
+		}
+		if (opts?.method === "PATCH") {
+			return Promise.resolve({ ok: true });
+		}
+		return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+	});
+}
+
 async function startSession() {
+	fireEvent.click(screen.getByRole("button", { name: "Start" }));
+	await waitFor(() =>
+		expect(
+			screen.getByRole("button", { name: "End Session" }),
+		).toBeInTheDocument(),
+	);
+}
+
+async function selectProgramAndStart() {
+	fireEvent.click(screen.getByRole("button", { name: "Program (optional)" }));
 	fireEvent.click(screen.getByRole("button", { name: "Start" }));
 	await waitFor(() =>
 		expect(
@@ -195,6 +246,82 @@ describe("SessionTracker", () => {
 
 			await waitFor(() =>
 				expect(screen.getByText("00:00:07")).toBeInTheDocument(),
+			);
+		});
+	});
+
+	describe("exercise label formatting", () => {
+		it("prefixes reps with x before the exercise name", async () => {
+			mockFetchWithProgram([{ name: "Push-up", reps: 10 }]);
+			renderTracker();
+			await selectProgramAndStart();
+			await waitFor(() =>
+				expect(screen.getByText("10x Push-up")).toBeInTheDocument(),
+			);
+		});
+
+		it("prefixes duration in seconds before the exercise name", async () => {
+			mockFetchWithProgram([{ name: "Plank", duration_s: 30 }]);
+			renderTracker();
+			await selectProgramAndStart();
+			await waitFor(() =>
+				expect(screen.getByText("30s Plank")).toBeInTheDocument(),
+			);
+		});
+
+		it("shows reps and duration combined before the name", async () => {
+			mockFetchWithProgram([
+				{ name: "Crimp block hold", reps: 3, duration_s: 10 },
+			]);
+			renderTracker();
+			await selectProgramAndStart();
+			await waitFor(() =>
+				expect(screen.getByText("3x 10s Crimp block hold")).toBeInTheDocument(),
+			);
+		});
+
+		it("shows just the name when no reps or duration are set", async () => {
+			mockFetchWithProgram([{ name: "Squat" }]);
+			renderTracker();
+			await selectProgramAndStart();
+			await waitFor(() =>
+				expect(screen.getByText("Squat")).toBeInTheDocument(),
+			);
+		});
+
+		it("shows weight in the subtitle", async () => {
+			mockFetchWithProgram([{ name: "Back Squat", reps: 5, weight_kg: 80 }]);
+			renderTracker();
+			await selectProgramAndStart();
+			await waitFor(() =>
+				expect(screen.getByText("80 kg")).toBeInTheDocument(),
+			);
+		});
+
+		it("shows laterality in the subtitle", async () => {
+			mockFetchWithProgram([
+				{ name: "Lunge", reps: 12, laterality: "alternating" },
+			]);
+			renderTracker();
+			await selectProgramAndStart();
+			await waitFor(() =>
+				expect(screen.getByText("alternating")).toBeInTheDocument(),
+			);
+		});
+
+		it("shows weight and laterality together in the subtitle", async () => {
+			mockFetchWithProgram([
+				{
+					name: "Single-leg press",
+					reps: 8,
+					weight_kg: 40,
+					laterality: "bilateral",
+				},
+			]);
+			renderTracker();
+			await selectProgramAndStart();
+			await waitFor(() =>
+				expect(screen.getByText("40 kg · bilateral")).toBeInTheDocument(),
 			);
 		});
 	});
