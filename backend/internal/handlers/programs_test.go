@@ -61,18 +61,18 @@ func TestProgramHandler_List(t *testing.T) {
 
 		// Public program owned by U1
 		ctx1 := domain.NewContext(t.Context(), &domain.Identity{UserID: u1, OrgID: o1})
-		if _, err := app.Programs.Create(ctx1, "Public Strength", nil, true); err != nil {
+		if _, err := app.Programs.Create(ctx1, "Public Strength", nil, nil, true); err != nil {
 			t.Fatal(err)
 		}
 
 		// Private program for U1
-		if _, err := app.Programs.Create(ctx1, "U1 Secret Bodyweight", nil, false); err != nil {
+		if _, err := app.Programs.Create(ctx1, "U1 Secret Bodyweight", nil, nil, false); err != nil {
 			t.Fatal(err)
 		}
 
 		// Private program for U2
 		ctx2 := domain.NewContext(t.Context(), &domain.Identity{UserID: u2, OrgID: o2})
-		if _, err := app.Programs.Create(ctx2, "U2 Secret Yoga", nil, false); err != nil {
+		if _, err := app.Programs.Create(ctx2, "U2 Secret Yoga", nil, nil, false); err != nil {
 			t.Fatal(err)
 		}
 
@@ -211,7 +211,7 @@ func TestProgramHandler_Get(t *testing.T) {
 
 		// Create public program for U1
 		ctx1 := domain.NewContext(t.Context(), &domain.Identity{UserID: u1, OrgID: o1})
-		p1, err := app.Programs.Create(ctx1, "Public Strength", nil, true)
+		p1, err := app.Programs.Create(ctx1, "Public Strength", nil, nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}

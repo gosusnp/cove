@@ -8,11 +8,25 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/markdown"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
+
+// normalizeActivity trims whitespace from the activity value and returns nil
+// for empty strings, ensuring the database never stores an empty string.
+func normalizeActivity(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*s)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
 
 // ProgramEnriched wraps a full program with a pre-rendered Markdown structure.
 type ProgramEnriched struct {
@@ -120,11 +134,12 @@ func (s *ProgramService) Get(ctx context.Context, id domain.ProgramID) (*Program
 	return &ProgramEnriched{Program: p, Structure: markdown.Program(p)}, nil
 }
 
-func (s *ProgramService) Create(ctx context.Context, name string, description *string, isPublic bool) (*domain.ProgramLite, error) {
+func (s *ProgramService) Create(ctx context.Context, name string, description *string, activity *string, isPublic bool) (*domain.ProgramLite, error) {
 	name = normalizeName(name)
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
 	}
+	activity = normalizeActivity(activity)
 
 	id, ok := domain.IdentityFromContext(ctx)
 	if !ok {
@@ -134,17 +149,18 @@ func (s *ProgramService) Create(ctx context.Context, name string, description *s
 	var p *domain.ProgramLite
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var err error
-		p, err = s.store.Create(ctx, q, id.OrgID, name, description, isPublic)
+		p, err = s.store.Create(ctx, q, id.OrgID, name, description, activity, isPublic)
 		return err
 	})
 	return p, err
 }
 
-func (s *ProgramService) Update(ctx context.Context, id domain.ProgramID, name string, description *string, isPublic bool) (*domain.ProgramLite, error) {
+func (s *ProgramService) Update(ctx context.Context, id domain.ProgramID, name string, description *string, activity *string, isPublic bool) (*domain.ProgramLite, error) {
 	name = normalizeName(name)
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
 	}
+	activity = normalizeActivity(activity)
 
 	idInfo, ok := domain.IdentityFromContext(ctx)
 	if !ok {
@@ -154,7 +170,7 @@ func (s *ProgramService) Update(ctx context.Context, id domain.ProgramID, name s
 	var p *domain.ProgramLite
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var err error
-		p, err = s.store.Update(ctx, q, idInfo.OrgID, id, name, description, isPublic)
+		p, err = s.store.Update(ctx, q, idInfo.OrgID, id, name, description, activity, isPublic)
 		return err
 	})
 	if errors.Is(err, store.ErrNotFound) {
@@ -372,11 +388,12 @@ func (s *ProgramService) Delete(ctx context.Context, id domain.ProgramID) error 
 	return err
 }
 
-func (s *ProgramService) CreateFull(ctx context.Context, name string, description *string, isPublic bool, sets []ProgramSetInput) (*domain.ProgramLite, error) {
+func (s *ProgramService) CreateFull(ctx context.Context, name string, description *string, activity *string, isPublic bool, sets []ProgramSetInput) (*domain.ProgramLite, error) {
 	name = normalizeName(name)
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
 	}
+	activity = normalizeActivity(activity)
 
 	// Collect unique exercise IDs preserving insertion order for deterministic error messages.
 	seen := map[domain.ExerciseID]bool{}
@@ -408,7 +425,7 @@ func (s *ProgramService) CreateFull(ctx context.Context, name string, descriptio
 			}
 		}
 
-		p, err := s.store.Create(ctx, q, idInfo.OrgID, name, description, isPublic)
+		p, err := s.store.Create(ctx, q, idInfo.OrgID, name, description, activity, isPublic)
 		if err != nil {
 			return err
 		}

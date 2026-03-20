@@ -16,6 +16,7 @@ import { Combobox } from "../components/ui/Combobox.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { SessionSummaryDialog } from "./SessionSummaryDialog.jsx";
 import { apiFetch } from "../lib/api.js";
+import { ActivityPicker } from "../components/shared/ActivityPicker.jsx";
 
 // Formats elapsed seconds as HH:MM:SS.
 function formatElapsed(totalSeconds) {
@@ -77,6 +78,9 @@ export function SessionTracker() {
 	// Notes field.
 	const notes = useSignal("");
 
+	// Activity field (pre-filled from selected program).
+	const activity = useSignal("");
+
 	// Summary dialog state.
 	const showSummary = useSignal(false);
 	const perceivedEffort = useSignal(null); // 1–10 or null
@@ -100,11 +104,15 @@ export function SessionTracker() {
 	// Fetch full program detail (including structure) when selection changes.
 	useEffect(() => {
 		programDetail.value = null;
-		if (!selectedProgramId.value) return;
+		if (!selectedProgramId.value) {
+			activity.value = "";
+			return;
+		}
 		apiFetch(`/api/programs/${selectedProgramId.value}`)
 			.then((r) => (r.ok ? r.json() : Promise.reject()))
 			.then((data) => {
 				programDetail.value = data;
+				activity.value = data.activity ?? "";
 			})
 			.catch(() => {});
 	}, [user, selectedProgramId.value]);
@@ -232,6 +240,7 @@ export function SessionTracker() {
 				duration_s: summaryElapsed.value,
 				session_notes: notes.value || null,
 				perceived_effort: perceivedEffort.value,
+				activity: activity.value || null,
 				...(prog && {
 					program_id: prog.id,
 					program_name: prog.name,
@@ -347,6 +356,12 @@ export function SessionTracker() {
 									]}
 									placeholder="Select a program…"
 								/>
+								<ActivityPicker
+									value={activity.value || null}
+									onChange={(v) => {
+										activity.value = v;
+									}}
+								/>
 							</div>
 						)}
 
@@ -390,6 +405,7 @@ export function SessionTracker() {
 				programName={programDetail.value?.name ?? null}
 				notesSignal={notes}
 				effortSignal={perceivedEffort}
+				activitySignal={activity}
 				saving={saving.value}
 				saveError={saveError.value}
 				onCancel={handleSummaryCancel}

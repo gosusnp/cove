@@ -13,6 +13,7 @@ export function Combobox({
 	options = [],
 	placeholder = "Search...",
 	disabled = false,
+	freeform = false,
 	class: className,
 }) {
 	const inputId = useId();
@@ -29,6 +30,21 @@ export function Combobox({
 	const q = query.value.toLowerCase();
 	const filtered =
 		q === "" ? opts : opts.filter((o) => o.label.toLowerCase().includes(q));
+
+	// When freeform, append a "Use '...'" entry if the query doesn't exactly match any option.
+	const freeformEntry =
+		freeform &&
+		query.value.trim() !== "" &&
+		!opts.some((o) => o.label.toLowerCase() === q)
+			? {
+					value: query.value.trim(),
+					label: query.value.trim(),
+					isFreeform: true,
+				}
+			: null;
+	const displayOptions = freeformEntry
+		? [...filtered, freeformEntry]
+		: filtered;
 
 	function openDropdown() {
 		if (disabled || open.value) return;
@@ -63,7 +79,7 @@ export function Combobox({
 			if (e.key === "ArrowDown" || e.key === "Enter") openDropdown();
 			return;
 		}
-		const list = filtered;
+		const list = displayOptions;
 		if (e.key === "ArrowDown") {
 			e.preventDefault();
 			highlightedIndex.value = Math.min(
@@ -76,7 +92,13 @@ export function Combobox({
 		} else if (e.key === "Enter") {
 			e.preventDefault();
 			const idx = highlightedIndex.value;
-			if (idx >= 0 && idx < list.length) selectOption(list[idx]);
+			if (idx >= 0 && idx < list.length) {
+				selectOption(list[idx]);
+			} else if (freeform && query.value.trim()) {
+				// Accept raw typed value when nothing is highlighted.
+				onChange(query.value.trim());
+				closeDropdown();
+			}
 		} else if (e.key === "Escape") {
 			closeDropdown();
 		}
@@ -115,7 +137,12 @@ export function Combobox({
 					role="combobox"
 					aria-expanded={open.value}
 					aria-autocomplete="list"
-					value={open.value ? query.value : (selectedOption?.label ?? "")}
+					value={
+						open.value
+							? query.value
+							: (selectedOption?.label ??
+								(freeform && value ? String(value) : ""))
+					}
 					placeholder={selectedOption ? undefined : placeholder}
 					disabled={disabled}
 					onInput={handleInputChange}
@@ -166,7 +193,7 @@ export function Combobox({
 					boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
 				}}
 			>
-				{filtered.length === 0 ? (
+				{displayOptions.length === 0 ? (
 					<div
 						class="px-3 py-2 text-sm"
 						style={{ color: "var(--color-muted)" }}
@@ -174,12 +201,13 @@ export function Combobox({
 						No results
 					</div>
 				) : (
-					filtered.map((opt, idx) => {
-						const isSelected = String(opt.value) === String(value);
+					displayOptions.map((opt, idx) => {
+						const isSelected =
+							!opt.isFreeform && String(opt.value) === String(value);
 						const isHighlighted = idx === highlightedIndex.value;
 						return (
 							<div
-								key={opt.value}
+								key={opt.isFreeform ? `__freeform__${opt.value}` : opt.value}
 								role="option"
 								tabIndex={-1}
 								aria-selected={isSelected}
@@ -206,7 +234,13 @@ export function Combobox({
 								<span class="w-4 shrink-0">
 									{isSelected && <Check size={14} aria-hidden="true" />}
 								</span>
-								{opt.label}
+								{opt.isFreeform ? (
+									<span style={{ fontStyle: "italic" }}>
+										Use &ldquo;{opt.label}&rdquo;
+									</span>
+								) : (
+									opt.label
+								)}
 							</div>
 						);
 					})

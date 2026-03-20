@@ -17,6 +17,7 @@ import {
 } from "../components/ui/Tooltip.jsx";
 import { useDialog } from "../hooks/useDialog.js";
 import { apiFetch } from "../lib/api.js";
+import { ActivityPicker } from "../components/shared/ActivityPicker.jsx";
 
 function formatDate(iso) {
 	if (!iso) return null;
@@ -87,7 +88,6 @@ export function SessionDetail({ sessionId, onDelete }) {
 	if (!s) return null;
 
 	const overviewRows = [
-		s.activity && { label: "Activity", value: s.activity },
 		s.program_name && { label: "Planned program", value: s.program_name },
 		s.started_at && { label: "Started", value: formatDate(s.started_at) },
 		s.completed_at && { label: "Completed", value: formatDate(s.completed_at) },
@@ -118,6 +118,16 @@ export function SessionDetail({ sessionId, onDelete }) {
 		session.value = await r.json();
 	}
 
+	async function saveActivity(activity) {
+		const r = await apiFetch(`/api/sessions/${sessionId}`, {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ activity: activity || null }),
+		});
+		if (!r.ok) throw new Error("Failed to save activity");
+		session.value = await r.json();
+	}
+
 	return (
 		<div class="max-w-2xl mx-auto px-4 py-6 flex flex-col gap-6">
 			<div class="flex items-center justify-between gap-2">
@@ -137,19 +147,25 @@ export function SessionDetail({ sessionId, onDelete }) {
 				</Tooltip>
 			</div>
 
-			{overviewRows.length > 0 && (
-				<Section title="Overview">
-					{overviewRows.map((row, i) => (
-						<Row
-							key={row.label}
-							label={row.label}
-							last={i === overviewRows.length - 1}
-						>
-							{row.value}
-						</Row>
-					))}
-				</Section>
-			)}
+			<Section title="Overview">
+				<Row label="Activity" last={overviewRows.length === 0}>
+					<ActivityPicker
+						value={s.activity ?? ""}
+						onChange={saveActivity}
+						label=""
+						class="w-48"
+					/>
+				</Row>
+				{overviewRows.map((row, i) => (
+					<Row
+						key={row.label}
+						label={row.label}
+						last={i === overviewRows.length - 1}
+					>
+						{row.value}
+					</Row>
+				))}
+			</Section>
 
 			<Section title="Notes">
 				<div class="px-4 py-3">

@@ -48,6 +48,7 @@ import { useDialog } from "../hooks/useDialog.js";
 import { useSortableGroups } from "../hooks/useSortableGroups.js";
 import { cn } from "../lib/utils.js";
 import { apiFetch } from "../lib/api.js";
+import { ActivityPicker } from "../components/shared/ActivityPicker.jsx";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -350,6 +351,7 @@ function ProgramDetailInner({
 
 	const programName = useSignal(initialProgram.name);
 	const programDescription = useSignal(initialProgram.description ?? "");
+	const programActivity = useSignal(initialProgram.activity ?? "");
 
 	// ── Inline edit ───────────────────────────────────────────────────────────
 	// editingField: null | "name" | "description"
@@ -391,6 +393,7 @@ function ProgramDetailInner({
 				body: JSON.stringify({
 					name,
 					description: programDescription.value || undefined,
+					activity: programActivity.value || undefined,
 				}),
 			});
 			if (!r.ok) {
@@ -414,6 +417,7 @@ function ProgramDetailInner({
 			body: JSON.stringify({
 				name: programName.value,
 				description: desc || undefined,
+				activity: programActivity.value || undefined,
 			}),
 		});
 		if (!r.ok) {
@@ -421,6 +425,24 @@ function ProgramDetailInner({
 			throw new Error(d.error || "Failed to save");
 		}
 		programDescription.value = desc;
+		onProgramUpdated?.();
+	};
+
+	const saveActivity = async (activity) => {
+		const r = await apiFetch(`/api/programs/${initialProgram.id}`, {
+			method: "PUT",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				name: programName.value,
+				description: programDescription.value || undefined,
+				activity: activity || undefined,
+			}),
+		});
+		if (!r.ok) {
+			const d = await r.json();
+			throw new Error(d.error || "Failed to save");
+		}
+		programActivity.value = activity;
 		onProgramUpdated?.();
 	};
 
@@ -815,6 +837,19 @@ function ProgramDetailInner({
 							placeholder="Add a description…"
 							editLabel="Edit program description"
 							onSave={saveDescription}
+						/>
+					</div>
+					{/* Activity */}
+					<div class="flex flex-col gap-1">
+						<p
+							class="text-xs font-medium uppercase tracking-wide"
+							style={{ color: "var(--color-muted)" }}
+						>
+							Activity
+						</p>
+						<ActivityPicker
+							value={programActivity.value || null}
+							onChange={saveActivity}
 						/>
 					</div>
 				</div>

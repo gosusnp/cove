@@ -74,6 +74,7 @@ func NewTestApp(t *testing.T) *TestApp {
 
 	// Handlers & Mux
 	apiMux := http.NewServeMux()
+	NewActivityHandler().RegisterRoutes(apiMux)
 	NewExerciseHandler(exSvc).RegisterRoutes(apiMux)
 	NewProgramHandler(pSvc).RegisterRoutes(apiMux)
 	NewProgramSetHandler(pSvc).RegisterRoutes(apiMux)
@@ -210,7 +211,7 @@ func (a *TestApp) SeedProgram(name string) *domain.ProgramLite {
 	id := &domain.Identity{UserID: u, OrgID: o}
 	ctx := domain.NewContext(context.Background(), id)
 
-	p, err := a.Programs.Create(ctx, name, nil, true)
+	p, err := a.Programs.Create(ctx, name, nil, nil, true)
 	if err != nil {
 		a.T.Fatalf("seed program: %v", err)
 	}
@@ -224,7 +225,7 @@ func (a *TestApp) SeedProgramForUser(ctx context.Context, name string, userID do
 	id := &domain.Identity{UserID: userID, OrgID: orgID}
 	authCtx := domain.NewContext(ctx, id)
 
-	p, err := a.Programs.Create(authCtx, name, nil, false)
+	p, err := a.Programs.Create(authCtx, name, nil, nil, false)
 	if err != nil {
 		a.T.Fatalf("seed program for user: %v", err)
 	}

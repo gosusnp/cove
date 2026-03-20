@@ -47,7 +47,7 @@ func NewProgramStore() *ProgramStore {
 
 func (s *ProgramStore) List(ctx context.Context, q Querier, orgID domain.OrgID) ([]domain.ProgramLite, error) {
 	rows, err := q.QueryContext(ctx, `
-		SELECT id, name, org_id, is_public FROM cove.programs
+		SELECT id, name, activity, org_id, is_public FROM cove.programs
 		WHERE org_id = $1 OR is_public = true
 		ORDER BY name
 	`, orgID)
@@ -59,7 +59,7 @@ func (s *ProgramStore) List(ctx context.Context, q Querier, orgID domain.OrgID) 
 	programs := []domain.ProgramLite{}
 	for rows.Next() {
 		var p domain.ProgramLite
-		if err := rows.Scan(&p.ID, &p.Name, &p.OrgID, &p.IsPublic); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Activity, &p.OrgID, &p.IsPublic); err != nil {
 			return nil, fmt.Errorf("scan program: %w", err)
 		}
 		programs = append(programs, p)
@@ -70,10 +70,10 @@ func (s *ProgramStore) List(ctx context.Context, q Querier, orgID domain.OrgID) 
 func (s *ProgramStore) GetLite(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID) (*domain.ProgramLite, error) {
 	var p domain.ProgramLite
 	err := q.QueryRowContext(ctx, `
-		SELECT id, name, org_id, is_public FROM cove.programs
+		SELECT id, name, activity, org_id, is_public FROM cove.programs
 		WHERE id = $1 AND (org_id = $2 OR is_public = true)
 	`, id, orgID).
-		Scan(&p.ID, &p.Name, &p.OrgID, &p.IsPublic)
+		Scan(&p.ID, &p.Name, &p.Activity, &p.OrgID, &p.IsPublic)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -83,11 +83,11 @@ func (s *ProgramStore) GetLite(ctx context.Context, q Querier, orgID domain.OrgI
 	return &p, nil
 }
 
-func (s *ProgramStore) Create(ctx context.Context, q Querier, orgID domain.OrgID, name string, description *string, isPublic bool) (*domain.ProgramLite, error) {
+func (s *ProgramStore) Create(ctx context.Context, q Querier, orgID domain.OrgID, name string, description *string, activity *string, isPublic bool) (*domain.ProgramLite, error) {
 	var id domain.ProgramID
 	err := q.QueryRowContext(ctx,
-		`INSERT INTO cove.programs (name, description, is_public) VALUES ($1, $2, $3) RETURNING id`,
-		name, description, isPublic,
+		`INSERT INTO cove.programs (name, description, activity, is_public) VALUES ($1, $2, $3, $4) RETURNING id`,
+		name, description, activity, isPublic,
 	).Scan(&id)
 	if err != nil {
 		return nil, fmt.Errorf("create program: %w", err)
@@ -96,11 +96,11 @@ func (s *ProgramStore) Create(ctx context.Context, q Querier, orgID domain.OrgID
 	return s.GetLite(ctx, q, orgID, id)
 }
 
-func (s *ProgramStore) Update(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID, name string, description *string, isPublic bool) (*domain.ProgramLite, error) {
+func (s *ProgramStore) Update(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID, name string, description *string, activity *string, isPublic bool) (*domain.ProgramLite, error) {
 	res, err := q.ExecContext(ctx,
-		`UPDATE cove.programs SET name = $1, description = $2, is_public = $3
-		 WHERE id = $4 AND org_id = $5`,
-		name, description, isPublic, id, orgID,
+		`UPDATE cove.programs SET name = $1, description = $2, activity = $3, is_public = $4
+		 WHERE id = $5 AND org_id = $6`,
+		name, description, activity, isPublic, id, orgID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("update program: %w", err)
@@ -120,11 +120,11 @@ func (s *ProgramStore) Get(ctx context.Context, q Querier, orgID domain.OrgID, i
 	var p domain.Program
 	var setsJSON []byte
 	err := q.QueryRowContext(ctx, `
-		SELECT id, name, description, org_id, is_public, created_by, created_at, updated_by, updated_at, sets
+		SELECT id, name, activity, description, org_id, is_public, created_by, created_at, updated_by, updated_at, sets
 		FROM cove.programs
 		WHERE id = $1 AND (org_id = $2 OR is_public = true)
 	`, id, orgID).Scan(
-		&p.ID, &p.Name, &p.Description, &p.OrgID, &p.IsPublic,
+		&p.ID, &p.Name, &p.Activity, &p.Description, &p.OrgID, &p.IsPublic,
 		&p.CreatedBy, &p.CreatedAt, &p.UpdatedBy, &p.UpdatedAt, &setsJSON,
 	)
 	if errors.Is(err, sql.ErrNoRows) {

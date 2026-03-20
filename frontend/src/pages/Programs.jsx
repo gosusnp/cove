@@ -16,6 +16,7 @@ import {
 import { ListDetail } from "../components/ui/ListDetail.jsx";
 import { ListItem } from "../components/ui/ListItem.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
+import { ActivityPicker } from "../components/shared/ActivityPicker.jsx";
 import {
 	Tooltip,
 	TooltipContent,
@@ -109,6 +110,7 @@ export function Programs() {
 	// New program dialog
 	const programDialog = useDialog();
 	const nameField = useSignal("");
+	const activityField = useSignal("");
 	const saving = useSignal(false);
 	const formError = useSignal("");
 
@@ -143,6 +145,7 @@ export function Programs() {
 
 	const openNew = () => {
 		nameField.value = "";
+		activityField.value = "";
 		formError.value = "";
 		programDialog.show();
 	};
@@ -164,7 +167,10 @@ export function Programs() {
 			const r = await apiFetch("/api/programs", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: nameField.value.trim() }),
+				body: JSON.stringify({
+					name: nameField.value.trim(),
+					activity: activityField.value || undefined,
+				}),
 			});
 			if (!r.ok) {
 				const data = await r.json();
@@ -231,6 +237,12 @@ export function Programs() {
 									nameField.value = e.target.value;
 								}}
 								autoFocus
+							/>
+							<ActivityPicker
+								value={activityField.value}
+								onChange={(v) => {
+									activityField.value = v;
+								}}
 							/>
 							{formError.value && (
 								<p class="text-sm" style={{ color: "var(--color-error)" }}>

@@ -139,9 +139,10 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
 		Name        string  `json:"name"`
 		Description *string `json:"description,omitempty"`
+		Activity    *string `json:"activity,omitempty"`
 		IsPublic    bool    `json:"is_public"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		program, err := programs.Create(ctx, params.Name, params.Description, params.IsPublic)
+		program, err := programs.Create(ctx, params.Name, params.Description, params.Activity, params.IsPublic)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -154,14 +155,15 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "update_program",
-		Description: "Update a program's name, description or visibility",
+		Description: "Update a program's name, description, activity or visibility",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
 		ID          int64   `json:"id"`
 		Name        string  `json:"name"`
 		Description *string `json:"description,omitempty"`
+		Activity    *string `json:"activity,omitempty"`
 		IsPublic    bool    `json:"is_public"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		program, err := programs.Update(ctx, domain.ProgramID(params.ID), params.Name, params.Description, params.IsPublic)
+		program, err := programs.Update(ctx, domain.ProgramID(params.ID), params.Name, params.Description, params.Activity, params.IsPublic)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -191,10 +193,11 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
 		Name        string                    `json:"name"`
 		Description *string                   `json:"description,omitempty"`
+		Activity    *string                   `json:"activity,omitempty"`
 		IsPublic    bool                      `json:"is_public"`
 		Sets        []service.ProgramSetInput `json:"sets"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		program, err := programs.CreateFull(ctx, params.Name, params.Description, params.IsPublic, params.Sets)
+		program, err := programs.CreateFull(ctx, params.Name, params.Description, params.Activity, params.IsPublic, params.Sets)
 		if err != nil {
 			return nil, struct{}{}, err
 		}

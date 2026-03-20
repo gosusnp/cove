@@ -32,6 +32,7 @@ func (h *ProgramHandler) RegisterRoutes(mux *http.ServeMux) {
 type programRequest struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty"`
+	Activity    *string `json:"activity,omitempty"`
 	IsPublic    bool    `json:"is_public"`
 }
 
@@ -76,7 +77,7 @@ func (h *ProgramHandler) create(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	program, err := h.svc.Create(r.Context(), req.Name, req.Description, req.IsPublic)
+	program, err := h.svc.Create(r.Context(), req.Name, req.Description, req.Activity, req.IsPublic)
 	if errors.Is(err, service.ErrUnauthorized) {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -104,7 +105,7 @@ func (h *ProgramHandler) update(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	program, err := h.svc.Update(r.Context(), id, req.Name, req.Description, req.IsPublic)
+	program, err := h.svc.Update(r.Context(), id, req.Name, req.Description, req.Activity, req.IsPublic)
 	if errors.Is(err, service.ErrUnauthorized) {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return

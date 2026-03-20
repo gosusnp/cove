@@ -38,8 +38,8 @@ func newTestProgramService(t *testing.T) (*ProgramService, context.Context) {
 func TestProgramService_List(t *testing.T) {
 	t.Run("returns all programs", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
-		_, _ = svc.Create(ctx, "Strength", nil, true)
-		_, _ = svc.Create(ctx, "Hypertrophy", nil, true)
+		_, _ = svc.Create(ctx, "Strength", nil, nil, true)
+		_, _ = svc.Create(ctx, "Hypertrophy", nil, nil, true)
 
 		list, err := svc.List(ctx)
 		if err != nil {
@@ -54,7 +54,7 @@ func TestProgramService_List(t *testing.T) {
 func TestProgramService_GetDetail(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
-		created, _ := svc.Create(ctx, "Strength", nil, true)
+		created, _ := svc.Create(ctx, "Strength", nil, nil, true)
 
 		got, err := svc.Get(ctx, created.ID)
 		if err != nil {
@@ -78,7 +78,7 @@ func TestProgramService_Create(t *testing.T) {
 	t.Run("empty name returns ValidationError", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
 
-		_, err := svc.Create(ctx, "", nil, true)
+		_, err := svc.Create(ctx, "", nil, nil, true)
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("got %v, want ValidationError", err)
@@ -91,7 +91,7 @@ func TestProgramService_Create(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
 
-		p, err := svc.Create(ctx, "Strength", nil, true)
+		p, err := svc.Create(ctx, "Strength", nil, nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -115,7 +115,7 @@ func TestProgramService_CreateFull(t *testing.T) {
 		}
 		reps := 8
 
-		program, err := svc.CreateFull(ctx, "Strength", nil, true, []ProgramSetInput{
+		program, err := svc.CreateFull(ctx, "Strength", nil, nil, true, []ProgramSetInput{
 			{
 				Rounds: 3,
 				Exercises: []ProgramExerciseInput{
@@ -151,7 +151,7 @@ func TestProgramService_CreateFull(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
 
 		// Create with non-existent exercise ID
-		_, err := svc.CreateFull(ctx, "Fail", nil, true, []ProgramSetInput{
+		_, err := svc.CreateFull(ctx, "Fail", nil, nil, true, []ProgramSetInput{
 			{
 				Rounds: 1,
 				Exercises: []ProgramExerciseInput{
@@ -174,7 +174,7 @@ func TestProgramService_CreateFull(t *testing.T) {
 	t.Run("invalid exercise_id returns ValidationError", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
 
-		_, err := svc.CreateFull(ctx, "Fail", nil, true, []ProgramSetInput{
+		_, err := svc.CreateFull(ctx, "Fail", nil, nil, true, []ProgramSetInput{
 			{
 				Rounds: 1,
 				Exercises: []ProgramExerciseInput{
@@ -196,9 +196,9 @@ func TestProgramService_CreateFull(t *testing.T) {
 func TestProgramService_Update(t *testing.T) {
 	t.Run("empty name returns ValidationError", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
-		p, _ := svc.Create(ctx, "Strength", nil, true)
+		p, _ := svc.Create(ctx, "Strength", nil, nil, true)
 
-		_, err := svc.Update(ctx, p.ID, "", nil, true)
+		_, err := svc.Update(ctx, p.ID, "", nil, nil, true)
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("got %v, want ValidationError", err)
@@ -207,9 +207,9 @@ func TestProgramService_Update(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
-		p, _ := svc.Create(ctx, "Strength", nil, true)
+		p, _ := svc.Create(ctx, "Strength", nil, nil, true)
 
-		updated, err := svc.Update(ctx, p.ID, "New Name", nil, true)
+		updated, err := svc.Update(ctx, p.ID, "New Name", nil, nil, true)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -221,7 +221,7 @@ func TestProgramService_Update(t *testing.T) {
 	t.Run("not found returns ErrNotFound", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
 
-		_, err := svc.Update(ctx, domain.ProgramID(999), "Name", nil, true)
+		_, err := svc.Update(ctx, domain.ProgramID(999), "Name", nil, nil, true)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -231,7 +231,7 @@ func TestProgramService_Update(t *testing.T) {
 func TestProgramService_Delete(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
-		p, _ := svc.Create(ctx, "Strength", nil, true)
+		p, _ := svc.Create(ctx, "Strength", nil, nil, true)
 
 		if err := svc.Delete(ctx, p.ID); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -255,7 +255,7 @@ func TestProgramService_Delete(t *testing.T) {
 func TestProgramService_Sets(t *testing.T) {
 	t.Run("CreateSet defaults rounds", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
-		p, _ := svc.Create(ctx, "Test", nil, true)
+		p, _ := svc.Create(ctx, "Test", nil, nil, true)
 
 		ps, err := svc.CreateSet(ctx, p.ID, nil, 0, nil)
 		if err != nil {
@@ -268,7 +268,7 @@ func TestProgramService_Sets(t *testing.T) {
 
 	t.Run("UpdateSet defaults rounds", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
-		p, _ := svc.Create(ctx, "Test", nil, true)
+		p, _ := svc.Create(ctx, "Test", nil, nil, true)
 		ps, _ := svc.CreateSet(ctx, p.ID, nil, 3, nil)
 
 		updated, err := svc.UpdateSet(ctx, p.ID, ps.ID, nil, -5, nil)
@@ -282,7 +282,7 @@ func TestProgramService_Sets(t *testing.T) {
 
 	t.Run("Set CRUD found and not found", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
-		p, _ := svc.Create(ctx, "Test", nil, true)
+		p, _ := svc.Create(ctx, "Test", nil, nil, true)
 
 		// List empty
 		list, _ := svc.ListSets(ctx, p.ID)
@@ -319,7 +319,7 @@ func TestProgramService_Sets(t *testing.T) {
 func TestProgramService_Exercises(t *testing.T) {
 	t.Run("CreateExercise validation", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
-		p, _ := svc.Create(ctx, "Test", nil, true)
+		p, _ := svc.Create(ctx, "Test", nil, nil, true)
 		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
 
 		_, err := svc.CreateExercise(ctx, p.ID, ps.ID, 0, nil, nil, nil, nil)
@@ -331,7 +331,7 @@ func TestProgramService_Exercises(t *testing.T) {
 
 	t.Run("Exercise CRUD found and not found", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
-		p, _ := svc.Create(ctx, "Test", nil, true)
+		p, _ := svc.Create(ctx, "Test", nil, nil, true)
 		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
 
 		// Seed an exercise to reference
@@ -377,7 +377,7 @@ func TestProgramService_NameResolution(t *testing.T) {
 		exSvc := NewExerciseService(svc.db, store.NewExerciseStore())
 		e, _ := exSvc.Create(ctx, "Squat", nil, nil, true)
 
-		p, _ := svc.Create(ctx, "Test", nil, true)
+		p, _ := svc.Create(ctx, "Test", nil, nil, true)
 		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
 		if _, err := svc.CreateExercise(ctx, p.ID, ps.ID, e.ID, nil, nil, nil, nil); err != nil {
 			t.Fatal(err)
@@ -408,7 +408,7 @@ func TestProgramService_NameResolution(t *testing.T) {
 		e, _ := exSvc2.Create(ctx2, "Deadlift", nil, nil, false)
 
 		// Create program for org1 and seed the exercise reference via store (bypasses visibility).
-		p, _ := svc.Create(ctx, "Test", nil, true)
+		p, _ := svc.Create(ctx, "Test", nil, nil, true)
 		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
 
 		pStore := store.NewProgramStore()
@@ -430,7 +430,7 @@ func TestProgramService_NameResolution(t *testing.T) {
 
 	t.Run("CreateExercise rejects inaccessible exercise_id", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
-		p, _ := svc.Create(ctx, "Test", nil, true)
+		p, _ := svc.Create(ctx, "Test", nil, nil, true)
 		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
 
 		_, err := svc.CreateExercise(ctx, p.ID, ps.ID, domain.ExerciseID(999), nil, nil, nil, nil)
@@ -444,7 +444,7 @@ func TestProgramService_NameResolution(t *testing.T) {
 		exSvc := NewExerciseService(svc.db, store.NewExerciseStore())
 		e, _ := exSvc.Create(ctx, "Bench Press", nil, nil, true)
 
-		p, _ := svc.Create(ctx, "Test", nil, true)
+		p, _ := svc.Create(ctx, "Test", nil, nil, true)
 		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
 		pe, _ := svc.CreateExercise(ctx, p.ID, ps.ID, e.ID, nil, nil, nil, nil)
 
@@ -472,14 +472,14 @@ func TestProgramService_Normalization(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
 
 		// Test case 1: Whitespace only name should fail validation
-		_, err := svc.Create(ctx, "   ", nil, true)
+		_, err := svc.Create(ctx, "   ", nil, nil, true)
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("Create: got error %v, want ValidationError for whitespace name", err)
 		}
 
 		// Test case 2: Name with whitespace should be trimmed
-		p, err := svc.Create(ctx, "  Strength  ", nil, true)
+		p, err := svc.Create(ctx, "  Strength  ", nil, nil, true)
 		if err != nil {
 			t.Fatalf("Create: unexpected error: %v", err)
 		}
@@ -490,17 +490,17 @@ func TestProgramService_Normalization(t *testing.T) {
 
 	t.Run("Update normalizes name", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
-		p, _ := svc.Create(ctx, "Original", nil, true)
+		p, _ := svc.Create(ctx, "Original", nil, nil, true)
 
 		// Test case 1: Whitespace only name should fail validation
-		_, err := svc.Update(ctx, p.ID, "   ", nil, true)
+		_, err := svc.Update(ctx, p.ID, "   ", nil, nil, true)
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("Update: got error %v, want ValidationError for whitespace name", err)
 		}
 
 		// Test case 2: Name with whitespace should be trimmed
-		updated, err := svc.Update(ctx, p.ID, "  New Name  ", nil, true)
+		updated, err := svc.Update(ctx, p.ID, "  New Name  ", nil, nil, true)
 		if err != nil {
 			t.Fatalf("Update: unexpected error: %v", err)
 		}
@@ -513,14 +513,14 @@ func TestProgramService_Normalization(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
 
 		// Test case 1: Whitespace only name should fail validation
-		_, err := svc.CreateFull(ctx, "   ", nil, true, nil)
+		_, err := svc.CreateFull(ctx, "   ", nil, nil, true, nil)
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("CreateFull: got error %v, want ValidationError for whitespace name", err)
 		}
 
 		// Test case 2: Name with whitespace should be trimmed
-		p, err := svc.CreateFull(ctx, "  Full Program  ", nil, true, nil)
+		p, err := svc.CreateFull(ctx, "  Full Program  ", nil, nil, true, nil)
 		if err != nil {
 			t.Fatalf("CreateFull: unexpected error: %v", err)
 		}

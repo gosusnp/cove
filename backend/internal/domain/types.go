@@ -116,6 +116,7 @@ type ProgramID IntID[struct{ program struct{} }]
 type ProgramLite struct {
 	ID       ProgramID `json:"id"`
 	Name     string    `json:"name"`
+	Activity *string   `json:"activity,omitempty"`
 	OrgID    OrgID     `json:"org_id"`
 	IsPublic bool      `json:"is_public"`
 }
@@ -124,6 +125,7 @@ type ProgramLite struct {
 type Program struct {
 	ID          ProgramID    `json:"id"`
 	Name        string       `json:"name"`
+	Activity    *string      `json:"activity,omitempty"`
 	Description *string      `json:"description,omitempty"`
 	OrgID       OrgID        `json:"org_id"`
 	IsPublic    bool         `json:"is_public"`

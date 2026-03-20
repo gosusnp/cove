@@ -62,10 +62,10 @@ func TestProgramStore_List(t *testing.T) {
 	t.Run("returns all programs ordered by name", func(t *testing.T) {
 		s, db, ctx := newTestProgramStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
-		if _, err := s.Create(ctx, db, id.OrgID, "Strength", nil, true); err != nil {
+		if _, err := s.Create(ctx, db, id.OrgID, "Strength", nil, nil, true); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := s.Create(ctx, db, id.OrgID, "Hypertrophy", nil, true); err != nil {
+		if _, err := s.Create(ctx, db, id.OrgID, "Hypertrophy", nil, nil, true); err != nil {
 			t.Fatal(err)
 		}
 
@@ -86,7 +86,7 @@ func TestProgramStore_GetLite(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
 		s, db, ctx := newTestProgramStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
-		created, err := s.Create(ctx, db, id.OrgID, "Strength", nil, true)
+		created, err := s.Create(ctx, db, id.OrgID, "Strength", nil, nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -116,7 +116,7 @@ func TestProgramStore_Create(t *testing.T) {
 		s, db, ctx := newTestProgramStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
 
-		p, err := s.Create(ctx, db, id.OrgID, "Strength", nil, true)
+		p, err := s.Create(ctx, db, id.OrgID, "Strength", nil, nil, true)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -133,12 +133,12 @@ func TestProgramStore_Update(t *testing.T) {
 	t.Run("updates name", func(t *testing.T) {
 		s, db, ctx := newTestProgramStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
-		created, err := s.Create(ctx, db, id.OrgID, "Strength", nil, true)
+		created, err := s.Create(ctx, db, id.OrgID, "Strength", nil, nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		updated, err := s.Update(ctx, db, id.OrgID, created.ID, "Max Strength", nil, true)
+		updated, err := s.Update(ctx, db, id.OrgID, created.ID, "Max Strength", nil, nil, true)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -151,7 +151,7 @@ func TestProgramStore_Update(t *testing.T) {
 		s, db, ctx := newTestProgramStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
 
-		_, err := s.Update(ctx, db, id.OrgID, domain.ProgramID(999), "Strength", nil, true)
+		_, err := s.Update(ctx, db, id.OrgID, domain.ProgramID(999), "Strength", nil, nil, true)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -172,7 +172,7 @@ func TestProgramStore_Get(t *testing.T) {
 	t.Run("empty program has empty sets slice", func(t *testing.T) {
 		s, db, ctx := newTestProgramStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
-		p, err := s.Create(ctx, db, id.OrgID, "Strength", nil, true)
+		p, err := s.Create(ctx, db, id.OrgID, "Strength", nil, nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -193,7 +193,7 @@ func TestProgramStore_Get(t *testing.T) {
 		s, db, ctx := newTestProgramStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
 
-		p, err := s.Create(ctx, db, id.OrgID, "Full Program", nil, true)
+		p, err := s.Create(ctx, db, id.OrgID, "Full Program", nil, nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -266,7 +266,7 @@ func seedTwoOrgs(t *testing.T) (s *ProgramStore, programID domain.ProgramID, ctx
 		t.Fatal(err)
 	}
 	ps := NewProgramStore()
-	p, err := ps.Create(ctx1, NewScopedQuerier(tx1, o1ID.String(), u1ID.String()), o1ID, "Org1 Program", nil, false)
+	p, err := ps.Create(ctx1, NewScopedQuerier(tx1, o1ID.String(), u1ID.String()), o1ID, "Org1 Program", nil, nil, false)
 	if err != nil {
 		_ = tx1.Rollback()
 		t.Fatal(err)
@@ -314,7 +314,7 @@ func TestProgramStore_CreateSet(t *testing.T) {
 		}
 		q := NewScopedQuerier(setupTx, oID.String(), uID.String())
 		ps := NewProgramStore()
-		p, err := ps.Create(ctx, q, oID, "Concurrent Program", nil, false)
+		p, err := ps.Create(ctx, q, oID, "Concurrent Program", nil, nil, false)
 		if err != nil {
 			_ = setupTx.Rollback()
 			t.Fatal(err)
@@ -396,7 +396,7 @@ func TestProgramStore_Delete(t *testing.T) {
 	t.Run("deletes existing", func(t *testing.T) {
 		s, db, ctx := newTestProgramStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
-		created, err := s.Create(ctx, db, id.OrgID, "Strength", nil, true)
+		created, err := s.Create(ctx, db, id.OrgID, "Strength", nil, nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}

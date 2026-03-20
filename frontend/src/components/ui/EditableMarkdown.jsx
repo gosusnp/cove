@@ -46,9 +46,9 @@ export function EditableMarkdown({
 		el.focus();
 		// Size textarea to content, clamped between minRows and maxRows.
 		el.style.height = "auto";
-		const lh = parseInt(getComputedStyle(el).lineHeight) || 20;
-		const pt = parseInt(getComputedStyle(el).paddingTop) || 0;
-		const pb = parseInt(getComputedStyle(el).paddingBottom) || 0;
+		const lh = parseInt(getComputedStyle(el).lineHeight, 10) || 20;
+		const pt = parseInt(getComputedStyle(el).paddingTop, 10) || 0;
+		const pb = parseInt(getComputedStyle(el).paddingBottom, 10) || 0;
 		const minH = minRows * lh + pt + pb;
 		const maxH = maxRows * lh + pt + pb;
 		el.style.height = `${Math.min(Math.max(el.scrollHeight, minH), maxH)}px`;

@@ -8,6 +8,7 @@ import {
 	DialogTitle,
 } from "../components/ui/Dialog.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
+import { ActivityPicker } from "../components/shared/ActivityPicker.jsx";
 
 // Formats elapsed seconds as Xh YYm ZZs or Mm SSs.
 function formatDuration(totalSeconds) {
@@ -62,6 +63,7 @@ export function SessionSummaryDialog({
 	programName,
 	notesSignal,
 	effortSignal,
+	activitySignal,
 	saving,
 	saveError,
 	onCancel,
@@ -139,6 +141,19 @@ export function SessionSummaryDialog({
 							<span>Max effort</span>
 						</div>
 					</div>
+
+					<div
+						class="border-t"
+						style={{ borderColor: "var(--color-border)" }}
+					/>
+
+					{/* Activity */}
+					<ActivityPicker
+						value={activitySignal.value}
+						onChange={(v) => {
+							activitySignal.value = v;
+						}}
+					/>
 
 					<div
 						class="border-t"

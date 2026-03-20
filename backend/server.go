@@ -18,6 +18,7 @@ import (
 // all /api/... routes, with OAuth and Cache-Control: no-store middleware applied.
 func NewAPIHandler(userStore *store.UserStore, userSvc *service.UserService, svcs covemcp.Services, wsSvc *service.WorkoutSessionService, secureCookies bool) http.Handler {
 	apiMux := http.NewServeMux()
+	handlers.NewActivityHandler().RegisterRoutes(apiMux)
 	handlers.NewExerciseHandler(svcs.Exercises).RegisterRoutes(apiMux)
 	handlers.NewProgramHandler(svcs.Programs).RegisterRoutes(apiMux)
 	handlers.NewProgramSetHandler(svcs.Programs).RegisterRoutes(apiMux)

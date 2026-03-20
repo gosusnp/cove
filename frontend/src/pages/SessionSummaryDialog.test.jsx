@@ -6,6 +6,18 @@ import { fireEvent, render, screen } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 import { SessionSummaryDialog } from "./SessionSummaryDialog.jsx";
 
+vi.mock("../components/shared/ActivityPicker.jsx", () => ({
+	ActivityPicker: ({ value, onChange }) => (
+		<select
+			data-testid="mock-activity-picker"
+			value={value ?? ""}
+			onChange={(e) => onChange(e.target.value)}
+		>
+			<option value="">-- none --</option>
+		</select>
+	),
+}));
+
 // Fixed date for deterministic output.
 const FIXED_DATE = new Date("2026-03-12T14:00:00");
 
@@ -17,6 +29,7 @@ function makeProps(overrides = {}) {
 		programName: null,
 		notesSignal: signal(""),
 		effortSignal: signal(null),
+		activitySignal: signal(""),
 		saving: false,
 		saveError: "",
 		onCancel: vi.fn(),

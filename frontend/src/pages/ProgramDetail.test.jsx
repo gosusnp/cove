@@ -88,6 +88,18 @@ vi.mock("../components/ui/Combobox.jsx", () => ({
 	),
 }));
 
+vi.mock("../components/shared/ActivityPicker.jsx", () => ({
+	ActivityPicker: ({ value, onChange }) => (
+		<select
+			data-testid="mock-activity-picker"
+			value={value ?? ""}
+			onChange={(e) => onChange(e.target.value)}
+		>
+			<option value="">-- none --</option>
+		</select>
+	),
+}));
+
 vi.mock("../components/ui/ToggleGroup.jsx", () => ({
 	ToggleGroup: ({ label, value, onChange, options }) => (
 		<div>
@@ -160,6 +172,12 @@ function mockDefaultFetch() {
 			return Promise.resolve({
 				ok: true,
 				json: () => Promise.resolve(MOCK_EXERCISES),
+			});
+		}
+		if (String(url).includes("/api/activities")) {
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve([]),
 			});
 		}
 		return Promise.resolve({
