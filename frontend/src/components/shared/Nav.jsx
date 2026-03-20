@@ -28,6 +28,10 @@ const NAV_SECTIONS = [
 			{ label: "Exercises", href: "/exercises" },
 		],
 	},
+	{
+		label: "Cook",
+		items: [{ label: "Ingredients", href: "/cook/ingredients" }],
+	},
 ];
 
 export const TRAIN_NAV_ITEMS = NAV_SECTIONS[0].items;
@@ -38,6 +42,7 @@ const PAGE_TITLES = [
 	{ label: "Build Programs", href: "/programs" },
 	{ label: "Review Sessions", href: "/sessions" },
 	{ label: "Settings", href: "/settings" },
+	{ label: "Ingredients", href: "/cook/ingredients" },
 ];
 
 function pageTitle(url) {

@@ -31,6 +31,7 @@ type TestApp struct {
 
 	// Services
 	Exercises       *service.ExerciseService
+	Ingredients     *service.IngredientService
 	Programs        *service.ProgramService
 	Users           *service.UserService
 	WorkoutSessions *service.WorkoutSessionService
@@ -52,12 +53,14 @@ func NewTestApp(t *testing.T) *TestApp {
 
 	// Stores
 	exStore := store.NewExerciseStore()
+	ingStore := store.NewIngredientStore()
 	uStore := store.NewUserStore()
 	oStore := store.NewOrgStore()
 	wsStore := store.NewWorkoutSessionStore()
 
 	// Services
 	exSvc := service.NewExerciseService(database, exStore)
+	ingSvc := service.NewIngredientService(database, ingStore)
 	pSvc := service.NewProgramService(database, exStore)
 	uSvc := service.NewUserService(database, uStore, oStore)
 	wsSvc := service.NewWorkoutSessionService(database, wsStore, crypto.NewTestEncryptor())
@@ -76,6 +79,7 @@ func NewTestApp(t *testing.T) *TestApp {
 	apiMux := http.NewServeMux()
 	NewActivityHandler().RegisterRoutes(apiMux)
 	NewExerciseHandler(exSvc).RegisterRoutes(apiMux)
+	NewIngredientHandler(ingSvc).RegisterRoutes(apiMux)
 	NewProgramHandler(pSvc).RegisterRoutes(apiMux)
 	NewProgramSetHandler(pSvc).RegisterRoutes(apiMux)
 	NewProgramExerciseHandler(pSvc).RegisterRoutes(apiMux)
@@ -93,6 +97,7 @@ func NewTestApp(t *testing.T) *TestApp {
 		Mux:             handler,
 		RawMux:          rawHandler,
 		Exercises:       exSvc,
+		Ingredients:     ingSvc,
 		Programs:        pSvc,
 		Users:           uSvc,
 		WorkoutSessions: wsSvc,
@@ -257,6 +262,19 @@ func (a *TestApp) SeedWorkoutSession(ctx context.Context, userID domain.UserID, 
 		a.T.Fatalf("seed workout session: %v", err)
 	}
 	return ws
+}
+
+// SeedIngredientForUser creates an ingredient owned by the user's org.
+func (a *TestApp) SeedIngredientForUser(ctx context.Context, p domain.IngredientParams, userID domain.UserID, orgID domain.OrgID) *domain.Ingredient {
+	a.T.Helper()
+	id := &domain.Identity{UserID: userID, OrgID: orgID}
+	authCtx := domain.NewContext(ctx, id)
+
+	ing, err := a.Ingredients.Create(authCtx, p)
+	if err != nil {
+		a.T.Fatalf("seed ingredient for user: %v", err)
+	}
+	return ing
 }
 
 // SeedProgramExercise adds an exercise to a set.

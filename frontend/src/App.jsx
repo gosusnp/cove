@@ -8,6 +8,7 @@ import { Nav } from "./components/shared/Nav.jsx";
 import { DesignElements } from "./pages/DesignElements.jsx";
 import { Exercises } from "./pages/Exercises.jsx";
 import { Home } from "./pages/Home.jsx";
+import { Ingredients } from "./pages/Ingredients.jsx";
 import { Login } from "./pages/Login.jsx";
 import { Programs } from "./pages/Programs.jsx";
 import { Sessions } from "./pages/Sessions.jsx";
@@ -20,6 +21,7 @@ const PROTECTED_ROUTES = [
 	"/programs",
 	"/sessions",
 	"/workout",
+	"/cook",
 ];
 
 function Layout() {
@@ -50,6 +52,8 @@ function Layout() {
 			<Router>
 				<Route path="/login" component={Login} />
 				<Route path="/" component={Home} />
+				<Route path="/cook/ingredients" component={Ingredients} />
+				<Route path="/cook/ingredients/:id" component={Ingredients} />
 				<Route path="/exercises" component={Exercises} />
 				<Route path="/exercises/:id" component={Exercises} />
 				<Route path="/programs" component={Programs} />
