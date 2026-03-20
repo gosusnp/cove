@@ -51,6 +51,7 @@ function Layout() {
 				<Route path="/login" component={Login} />
 				<Route path="/" component={Home} />
 				<Route path="/exercises" component={Exercises} />
+				<Route path="/exercises/:id" component={Exercises} />
 				<Route path="/programs" component={Programs} />
 				<Route path="/programs/:id" component={Programs} />
 				<Route path="/sessions" component={Sessions} />

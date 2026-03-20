@@ -31,32 +31,6 @@ vi.mock("../components/ui/Dialog.jsx", () => ({
 	),
 }));
 
-vi.mock("../components/ui/ConfirmDialog.jsx", () => ({
-	ConfirmDialog: ({ openSignal, title, onConfirm }) =>
-		openSignal.value ? (
-			<div data-testid="mock-confirm-dialog">
-				<p>{title}</p>
-				<button
-					type="button"
-					onClick={async () => {
-						await onConfirm();
-						openSignal.value = false;
-					}}
-				>
-					Confirm
-				</button>
-				<button
-					type="button"
-					onClick={() => {
-						openSignal.value = false;
-					}}
-				>
-					Cancel
-				</button>
-			</div>
-		) : null,
-}));
-
 vi.mock("../components/ui/ListDetail.jsx", () => ({
 	ListDetail: ({ list, detail, emptyState, hasDetail }) => (
 		<div data-testid="mock-list-detail">
@@ -68,27 +42,18 @@ vi.mock("../components/ui/ListDetail.jsx", () => ({
 	),
 }));
 
+vi.mock("./ProgramDetail.jsx", () => ({
+	ProgramDetail: ({ programId }) => (
+		<div data-testid="mock-program-detail">Program {programId}</div>
+	),
+}));
+
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
 const MOCK_PROGRAMS = [
 	{ id: 1, name: "Strength A/B" },
 	{ id: 2, name: "Hypertrophy Block" },
 ];
-
-const _MOCK_PROGRAM_DETAIL = {
-	id: 1,
-	name: "Strength A/B",
-	sets: [
-		{
-			id: 10,
-			name: "A",
-			rounds: 3,
-			rest_s: 90,
-			sort_order: 0,
-			exercises: [{ id: 100, name: "Squat", sort_order: 0 }],
-		},
-	],
-};
 
 const MOCK_USER = { email: "user@example.com", name: "Test User" };
 
@@ -262,70 +227,5 @@ describe("Programs — new program dialog", () => {
 		expect(screen.getByText("New Program")).toBeInTheDocument();
 		fireEvent.click(screen.getByTestId("mock-dialog-close"));
 		expect(screen.queryByText("New Program")).not.toBeInTheDocument();
-	});
-});
-
-describe("Programs — delete", () => {
-	it("opens confirm dialog on Delete click", async () => {
-		vi.spyOn(global, "fetch").mockResolvedValue({
-			ok: true,
-			json: () => Promise.resolve(MOCK_PROGRAMS),
-		});
-		renderPrograms();
-		await waitFor(() =>
-			expect(screen.getByText("Strength A/B")).toBeInTheDocument(),
-		);
-		fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0]);
-		expect(screen.getByTestId("mock-confirm-dialog")).toBeInTheDocument();
-	});
-
-	it("deletes a program via DELETE and reloads list", async () => {
-		const fetchSpy = vi
-			.spyOn(global, "fetch")
-			.mockImplementation((_url, opts) => {
-				if (opts?.method === "DELETE") {
-					return Promise.resolve({ ok: true });
-				}
-				return Promise.resolve({
-					ok: true,
-					json: () => Promise.resolve(MOCK_PROGRAMS),
-				});
-			});
-
-		renderPrograms();
-		await waitFor(() =>
-			expect(screen.getByText("Strength A/B")).toBeInTheDocument(),
-		);
-		fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0]);
-		fireEvent.click(screen.getByText("Confirm"));
-
-		await waitFor(() =>
-			expect(fetchSpy).toHaveBeenCalledWith(
-				"/api/programs/1",
-				expect.objectContaining({ method: "DELETE" }),
-			),
-		);
-	});
-
-	it("navigates to /programs when the selected program is deleted", async () => {
-		vi.spyOn(global, "fetch").mockImplementation((_url, opts) => {
-			if (opts?.method === "DELETE") {
-				return Promise.resolve({ ok: true });
-			}
-			return Promise.resolve({
-				ok: true,
-				json: () => Promise.resolve(MOCK_PROGRAMS),
-			});
-		});
-
-		renderPrograms("/programs/1");
-		await waitFor(() =>
-			expect(screen.getByText("Strength A/B")).toBeInTheDocument(),
-		);
-		fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0]);
-		fireEvent.click(screen.getByText("Confirm"));
-
-		// preact-iso's route() updates window.location via history API
-		await waitFor(() => expect(window.location.href).toContain("/programs"));
 	});
 });

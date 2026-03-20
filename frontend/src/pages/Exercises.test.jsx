@@ -1,10 +1,12 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { fireEvent, screen, waitFor, within } from "@testing-library/preact";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, screen, waitFor } from "@testing-library/preact";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { withProviders } from "../test-utils.jsx";
 import { Exercises } from "./Exercises.jsx";
+
+// ─── Mocks ───────────────────────────────────────────────────────────────────
 
 let dialogSignal = null;
 vi.mock("../components/ui/Dialog.jsx", () => ({
@@ -14,11 +16,8 @@ vi.mock("../components/ui/Dialog.jsx", () => ({
 			<div data-testid="mock-dialog">{children}</div>
 		) : null;
 	},
-	DialogContent: ({ children }) => (
-		<div data-testid="mock-dialog-content">{children}</div>
-	),
+	DialogContent: ({ children }) => <div>{children}</div>,
 	DialogTitle: ({ children }) => <h2>{children}</h2>,
-	DialogDescription: ({ children }) => <p>{children}</p>,
 	DialogClose: ({ children }) => (
 		<button
 			type="button"
@@ -32,19 +31,37 @@ vi.mock("../components/ui/Dialog.jsx", () => ({
 	),
 }));
 
-// Mock Switch since it uses Radix and might need jsdom mocks if not already present
+vi.mock("../components/ui/ListDetail.jsx", () => ({
+	ListDetail: ({ list, detail, emptyState, hasDetail }) => (
+		<div data-testid="mock-list-detail">
+			<div data-testid="list-panel">{list}</div>
+			<div data-testid="detail-panel">
+				{hasDetail ? detail : <p>{emptyState}</p>}
+			</div>
+		</div>
+	),
+}));
+
 vi.mock("../components/ui/Switch.jsx", () => ({
 	Switch: ({ checkedSignal, id }) => (
 		<input
 			type="checkbox"
 			id={id}
-			checked={checkedSignal.value}
+			checked={checkedSignal?.value ?? false}
 			onChange={(e) => {
-				checkedSignal.value = e.target.checked;
+				if (checkedSignal) checkedSignal.value = e.target.checked;
 			}}
 		/>
 	),
 }));
+
+vi.mock("./ExerciseDetail.jsx", () => ({
+	ExerciseDetail: ({ exerciseId }) => (
+		<div data-testid="mock-exercise-detail">Exercise {exerciseId}</div>
+	),
+}));
+
+// ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const MOCK_EXERCISES = [
 	{
@@ -65,42 +82,17 @@ const MOCK_EXERCISES = [
 
 const MOCK_USER = { email: "jane@example.com", name: "Jane Smith" };
 
-const renderExercises = (opts = {}) =>
-	withProviders(<Exercises />, {
-		path: "/exercises",
-		user: MOCK_USER,
-		...opts,
-	});
+const renderExercises = (path = "/exercises") =>
+	withProviders(<Exercises />, { path, user: MOCK_USER });
 
-describe("Exercises", () => {
-	beforeEach(() => {
-		vi.stubGlobal(
-			"confirm",
-			vi.fn(() => true),
-		);
-		vi.stubGlobal("alert", vi.fn());
-	});
+// ─── Tests ────────────────────────────────────────────────────────────────────
 
-	afterEach(() => {
-		vi.restoreAllMocks();
-		vi.unstubAllGlobals();
-	});
+afterEach(() => {
+	vi.restoreAllMocks();
+});
 
-	it("renders the page heading", async () => {
-		vi.spyOn(global, "fetch").mockResolvedValue({
-			ok: true,
-			json: () => Promise.resolve(MOCK_EXERCISES),
-		});
-		renderExercises();
-		expect(
-			screen.getByRole("heading", { name: "Exercises" }),
-		).toBeInTheDocument();
-		await waitFor(() =>
-			expect(screen.getByText("Diamond Push-up")).toBeInTheDocument(),
-		);
-	});
-
-	it("renders exercises returned by the API", async () => {
+describe("Exercises — list", () => {
+	it("renders exercise names from API", async () => {
 		vi.spyOn(global, "fetch").mockResolvedValue({
 			ok: true,
 			json: () => Promise.resolve(MOCK_EXERCISES),
@@ -119,22 +111,75 @@ describe("Exercises", () => {
 		});
 		renderExercises();
 		await waitFor(() =>
-			expect(screen.getByText("No exercises yet")).toBeInTheDocument(),
+			expect(screen.getByText("No exercises yet.")).toBeInTheDocument(),
 		);
 	});
 
-	it("opens create dialog on button click", async () => {
+	it("shows error when fetch fails", async () => {
+		vi.spyOn(global, "fetch").mockResolvedValue({
+			ok: false,
+			json: () => Promise.resolve({}),
+		});
+		renderExercises();
+		await waitFor(() =>
+			expect(screen.getByText("Failed to fetch exercises")).toBeInTheDocument(),
+		);
+	});
+
+	it("shows empty state in detail panel when no exercise selected", async () => {
+		vi.spyOn(global, "fetch").mockResolvedValue({
+			ok: true,
+			json: () => Promise.resolve(MOCK_EXERCISES),
+		});
+		renderExercises();
+		await waitFor(() =>
+			expect(
+				screen.getByText("Select an exercise to view its details."),
+			).toBeInTheDocument(),
+		);
+	});
+});
+
+describe("Exercises — active row", () => {
+	it("navigates to /exercises/:id when a row is clicked", async () => {
+		vi.spyOn(global, "fetch").mockResolvedValue({
+			ok: true,
+			json: () => Promise.resolve(MOCK_EXERCISES),
+		});
+		renderExercises();
+		await waitFor(() =>
+			expect(screen.getByText("Diamond Push-up")).toBeInTheDocument(),
+		);
+		fireEvent.click(screen.getByText("Diamond Push-up"));
+		expect(window.location.href).toContain("/exercises/1");
+	});
+});
+
+describe("Exercises — new exercise dialog", () => {
+	it("opens new exercise dialog on + New click", async () => {
 		vi.spyOn(global, "fetch").mockResolvedValue({
 			ok: true,
 			json: () => Promise.resolve([]),
 		});
 		renderExercises();
-		await waitFor(() => expect(screen.getByText("Create")).not.toBeDisabled());
-		fireEvent.click(screen.getByText("Create"));
+		await waitFor(() => expect(screen.getByText("+ New")).toBeInTheDocument());
+		fireEvent.click(screen.getByText("+ New"));
 		expect(screen.getByText("New Exercise")).toBeInTheDocument();
 	});
 
-	it("creates a new exercise", async () => {
+	it("shows validation error when name is empty", async () => {
+		vi.spyOn(global, "fetch").mockResolvedValue({
+			ok: true,
+			json: () => Promise.resolve([]),
+		});
+		renderExercises();
+		await waitFor(() => screen.getByText("+ New"));
+		fireEvent.click(screen.getByText("+ New"));
+		fireEvent.submit(screen.getByLabelText("Name").closest("form"));
+		expect(screen.getByText("Name is required.")).toBeInTheDocument();
+	});
+
+	it("creates a new exercise via POST", async () => {
 		const fetchSpy = vi
 			.spyOn(global, "fetch")
 			.mockImplementation((_url, opts) => {
@@ -151,19 +196,17 @@ describe("Exercises", () => {
 			});
 
 		renderExercises();
-		await waitFor(() => expect(screen.getByText("Create")).toBeInTheDocument());
-		fireEvent.click(screen.getByText("Create"));
-
+		await waitFor(() => screen.getByText("+ New"));
+		fireEvent.click(screen.getByText("+ New"));
 		fireEvent.input(screen.getByLabelText("Name"), {
 			target: { value: "Muscle-up" },
 		});
 		fireEvent.input(screen.getByLabelText("Progression"), {
 			target: { value: "Pull-up" },
 		});
+		fireEvent.submit(screen.getByLabelText("Name").closest("form"));
 
-		fireEvent.submit(screen.getByText("Save Exercise").closest("form"));
-
-		await waitFor(() => {
+		await waitFor(() =>
 			expect(fetchSpy).toHaveBeenCalledWith(
 				"/api/exercises",
 				expect.objectContaining({
@@ -175,41 +218,11 @@ describe("Exercises", () => {
 						is_public: false,
 					}),
 				}),
-			);
-		});
+			),
+		);
 	});
 
-	it("shows a validation error when name is missing", async () => {
-		vi.spyOn(global, "fetch").mockResolvedValue({
-			ok: true,
-			json: () => Promise.resolve([]),
-		});
-		renderExercises();
-		await waitFor(() => expect(screen.getByText("Create")).toBeInTheDocument());
-		fireEvent.click(screen.getByText("Create"));
-
-		fireEvent.submit(screen.getByText("Save Exercise").closest("form"));
-
-		expect(screen.getByText("Name is required.")).toBeInTheDocument();
-	});
-
-	it("cancels the create dialog", async () => {
-		vi.spyOn(global, "fetch").mockResolvedValue({
-			ok: true,
-			json: () => Promise.resolve([]),
-		});
-		renderExercises();
-		await waitFor(() => expect(screen.getByText("Create")).toBeInTheDocument());
-		fireEvent.click(screen.getByText("Create"));
-
-		expect(screen.getByText("New Exercise")).toBeInTheDocument();
-
-		fireEvent.click(screen.getByTestId("mock-dialog-close"));
-
-		expect(screen.queryByText("New Exercise")).not.toBeInTheDocument();
-	});
-
-	it("shows an error when API save fails", async () => {
+	it("shows API error when create fails", async () => {
 		vi.spyOn(global, "fetch").mockImplementation((_url, opts) => {
 			if (opts?.method === "POST") {
 				return Promise.resolve({
@@ -224,129 +237,28 @@ describe("Exercises", () => {
 		});
 
 		renderExercises();
-		await waitFor(() => expect(screen.getByText("Create")).toBeInTheDocument());
-		fireEvent.click(screen.getByText("Create"));
-
+		await waitFor(() => screen.getByText("+ New"));
+		fireEvent.click(screen.getByText("+ New"));
 		fireEvent.input(screen.getByLabelText("Name"), {
 			target: { value: "Diamond Push-up" },
 		});
-		fireEvent.submit(screen.getByText("Save Exercise").closest("form"));
+		fireEvent.submit(screen.getByLabelText("Name").closest("form"));
 
-		await waitFor(() => {
-			expect(screen.getByText("Name must be unique")).toBeInTheDocument();
-		});
-	});
-
-	it("shows an alert when delete fails", async () => {
-		vi.spyOn(global, "fetch").mockImplementation((_url, opts) => {
-			if (opts?.method === "DELETE") {
-				return Promise.resolve({ ok: false });
-			}
-			return Promise.resolve({
-				ok: true,
-				json: () => Promise.resolve(MOCK_EXERCISES),
-			});
-		});
-
-		renderExercises();
 		await waitFor(() =>
-			expect(screen.getByText("Diamond Push-up")).toBeInTheDocument(),
+			expect(screen.getByText("Name must be unique")).toBeInTheDocument(),
 		);
-
-		fireEvent.click(screen.getAllByText("Delete")[0]);
-
-		await waitFor(() => {
-			expect(window.alert).toHaveBeenCalledWith("Failed to delete exercise");
-		});
 	});
 
-	it("opens update dialog with pre-filled data", async () => {
+	it("cancels the new exercise dialog", async () => {
 		vi.spyOn(global, "fetch").mockResolvedValue({
 			ok: true,
-			json: () => Promise.resolve(MOCK_EXERCISES),
+			json: () => Promise.resolve([]),
 		});
 		renderExercises();
-		await waitFor(() =>
-			expect(screen.getByText("Diamond Push-up")).toBeInTheDocument(),
-		);
-
-		const exRow = screen.getByText("Diamond Push-up").closest("section");
-		fireEvent.click(within(exRow).getAllByText("Update")[0]);
-
-		expect(screen.getByText("Update Exercise")).toBeInTheDocument();
-		expect(screen.getByDisplayValue("Diamond Push-up")).toBeInTheDocument();
-		expect(screen.getByDisplayValue("Push-up")).toBeInTheDocument();
-	});
-
-	it("updates an exercise", async () => {
-		const fetchSpy = vi
-			.spyOn(global, "fetch")
-			.mockImplementation((_url, opts) => {
-				if (opts?.method === "PUT") {
-					return Promise.resolve({
-						ok: true,
-						json: () =>
-							Promise.resolve({
-								...MOCK_EXERCISES[0],
-								name: "One-arm Push-up",
-							}),
-					});
-				}
-				return Promise.resolve({
-					ok: true,
-					json: () => Promise.resolve(MOCK_EXERCISES),
-				});
-			});
-
-		renderExercises();
-		await waitFor(() =>
-			expect(screen.getByText("Diamond Push-up")).toBeInTheDocument(),
-		);
-
-		fireEvent.click(screen.getAllByText("Update")[0]);
-		fireEvent.input(screen.getByLabelText("Name"), {
-			target: { value: "One-arm Push-up" },
-		});
-
-		fireEvent.submit(screen.getByText("Save Exercise").closest("form"));
-
-		await waitFor(() => {
-			expect(fetchSpy).toHaveBeenCalledWith(
-				"/api/exercises/1",
-				expect.objectContaining({
-					method: "PUT",
-					body: JSON.stringify({
-						name: "One-arm Push-up",
-						progression: "Push-up",
-						description: "Triceps and chest",
-						is_public: true,
-					}),
-				}),
-			);
-		});
-	});
-
-	it("deletes an exercise after confirmation", async () => {
-		const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue({
-			ok: true,
-			json: () => Promise.resolve(MOCK_EXERCISES),
-		});
-
-		renderExercises();
-		await waitFor(() =>
-			expect(screen.getByText("Diamond Push-up")).toBeInTheDocument(),
-		);
-
-		fireEvent.click(screen.getAllByText("Delete")[0]);
-
-		expect(window.confirm).toHaveBeenCalled();
-		await waitFor(() => {
-			expect(fetchSpy).toHaveBeenCalledWith(
-				"/api/exercises/1",
-				expect.objectContaining({
-					method: "DELETE",
-				}),
-			);
-		});
+		await waitFor(() => screen.getByText("+ New"));
+		fireEvent.click(screen.getByText("+ New"));
+		expect(screen.getByText("New Exercise")).toBeInTheDocument();
+		fireEvent.click(screen.getByTestId("mock-dialog-close"));
+		expect(screen.queryByText("New Exercise")).not.toBeInTheDocument();
 	});
 });

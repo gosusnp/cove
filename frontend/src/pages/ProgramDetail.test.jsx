@@ -40,8 +40,12 @@ vi.mock("../components/ui/ConfirmDialog.jsx", () => ({
 				<button
 					type="button"
 					onClick={async () => {
-						await onConfirm();
-						openSignal.value = false;
+						try {
+							await onConfirm();
+							openSignal.value = false;
+						} catch (_err) {
+							// error displayed by the component under test
+						}
 					}}
 				>
 					Confirm
@@ -948,6 +952,172 @@ describe("ProgramDetail — remove exercise", () => {
 				expect.objectContaining({ method: "DELETE" }),
 			),
 		);
+	});
+});
+
+// ── Delete Program ────────────────────────────────────────────────────────────
+
+describe("ProgramDetail — delete program", () => {
+	it("shows Delete program button", async () => {
+		mockDefaultFetch();
+		renderDetail();
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Delete program" }),
+			).toBeInTheDocument(),
+		);
+	});
+
+	it("opens confirm dialog on Delete program click", async () => {
+		mockDefaultFetch();
+		renderDetail();
+		await waitFor(() => screen.getByRole("button", { name: "Delete program" }));
+		fireEvent.click(screen.getByRole("button", { name: "Delete program" }));
+		expect(screen.getByTestId("mock-confirm-dialog")).toBeInTheDocument();
+		expect(screen.getByText("Delete Program")).toBeInTheDocument();
+	});
+
+	it("calls DELETE /api/programs/1 on confirm", async () => {
+		const fetchSpy = vi
+			.spyOn(global, "fetch")
+			.mockImplementation((url, opts) => {
+				if (opts?.method === "DELETE" && String(url) === "/api/programs/1") {
+					return Promise.resolve({ ok: true });
+				}
+				if (String(url).includes("/api/exercises")) {
+					return Promise.resolve({
+						ok: true,
+						json: () => Promise.resolve(MOCK_EXERCISES),
+					});
+				}
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_PROGRAM),
+				});
+			});
+
+		renderDetail();
+		await waitFor(() => screen.getByRole("button", { name: "Delete program" }));
+		fireEvent.click(screen.getByRole("button", { name: "Delete program" }));
+		fireEvent.click(screen.getByText("Confirm"));
+
+		await waitFor(() =>
+			expect(fetchSpy).toHaveBeenCalledWith(
+				"/api/programs/1",
+				expect.objectContaining({ method: "DELETE" }),
+			),
+		);
+	});
+
+	it("shows error message when delete fails", async () => {
+		vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+			if (opts?.method === "DELETE" && String(url) === "/api/programs/1") {
+				return Promise.resolve({ ok: false });
+			}
+			if (String(url).includes("/api/exercises")) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_EXERCISES),
+				});
+			}
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve(MOCK_PROGRAM),
+			});
+		});
+
+		renderDetail();
+		await waitFor(() => screen.getByRole("button", { name: "Delete program" }));
+		fireEvent.click(screen.getByRole("button", { name: "Delete program" }));
+		fireEvent.click(screen.getByText("Confirm"));
+
+		await waitFor(() =>
+			expect(screen.getByText("Failed to delete program.")).toBeInTheDocument(),
+		);
+	});
+
+	it("redirects to /login when DELETE returns 401", async () => {
+		const assignSpy = vi.fn();
+		vi.stubGlobal("location", { ...window.location, assign: assignSpy });
+		vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+			if (opts?.method === "DELETE" && String(url) === "/api/programs/1") {
+				return Promise.resolve({ status: 401, ok: false });
+			}
+			if (String(url).includes("/api/exercises")) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_EXERCISES),
+				});
+			}
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve(MOCK_PROGRAM),
+			});
+		});
+
+		renderDetail();
+		await waitFor(() => screen.getByRole("button", { name: "Delete program" }));
+		fireEvent.click(screen.getByRole("button", { name: "Delete program" }));
+		fireEvent.click(screen.getByText("Confirm"));
+
+		await waitFor(() => expect(assignSpy).toHaveBeenCalledWith("/login"));
+	});
+
+	it("shows error message when DELETE returns 403", async () => {
+		vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+			if (opts?.method === "DELETE" && String(url) === "/api/programs/1") {
+				return Promise.resolve({ status: 403, ok: false });
+			}
+			if (String(url).includes("/api/exercises")) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_EXERCISES),
+				});
+			}
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve(MOCK_PROGRAM),
+			});
+		});
+
+		renderDetail();
+		await waitFor(() => screen.getByRole("button", { name: "Delete program" }));
+		fireEvent.click(screen.getByRole("button", { name: "Delete program" }));
+		fireEvent.click(screen.getByText("Confirm"));
+
+		await waitFor(() =>
+			expect(screen.getByText("Failed to delete program.")).toBeInTheDocument(),
+		);
+	});
+
+	it("calls onProgramDeleted after successful delete", async () => {
+		vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+			if (opts?.method === "DELETE" && String(url) === "/api/programs/1") {
+				return Promise.resolve({ ok: true });
+			}
+			if (String(url).includes("/api/exercises")) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_EXERCISES),
+				});
+			}
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve(MOCK_PROGRAM),
+			});
+		});
+
+		const onProgramDeleted = vi.fn();
+		withProviders(
+			<ProgramDetail programId={1} onProgramDeleted={onProgramDeleted} />,
+			{ user: MOCK_USER },
+		);
+
+		await waitFor(() => screen.getByRole("button", { name: "Delete program" }));
+		fireEvent.click(screen.getByRole("button", { name: "Delete program" }));
+		fireEvent.click(screen.getByText("Confirm"));
+
+		await waitFor(() => expect(onProgramDeleted).toHaveBeenCalledOnce());
 	});
 });
 

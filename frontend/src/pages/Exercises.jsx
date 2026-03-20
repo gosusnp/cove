@@ -3,48 +3,102 @@
 
 import { useSignal } from "@preact/signals";
 import { useEffect } from "preact/hooks";
+import { useLocation, useRoute } from "preact-iso";
 import { useAuth } from "../Auth.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import {
 	Dialog,
 	DialogClose,
 	DialogContent,
-	DialogDescription,
 	DialogTitle,
 } from "../components/ui/Dialog.jsx";
-import { PageTitle } from "../components/ui/PageTitle.jsx";
-import { Row, Section } from "../components/ui/Section.jsx";
+import { ListDetail } from "../components/ui/ListDetail.jsx";
+import { ListItem } from "../components/ui/ListItem.jsx";
 import { Switch } from "../components/ui/Switch.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { useDialog } from "../hooks/useDialog.js";
 import { apiFetch } from "../lib/api.js";
+import { ExerciseDetail } from "./ExerciseDetail.jsx";
+
+// ─── ExerciseList ─────────────────────────────────────────────────────────────
+
+function ExerciseList({ exercises, selectedId, onSelect, onNew, error }) {
+	return (
+		<div class="flex flex-col">
+			{/* Header */}
+			<div
+				class="flex items-center justify-between px-4 py-3 border-b"
+				style={{ borderColor: "var(--color-border)" }}
+			>
+				<h2
+					class="text-xs font-semibold uppercase tracking-widest"
+					style={{ color: "var(--color-muted)" }}
+				>
+					Exercises
+				</h2>
+				<Button variant="primary" size="sm" onClick={onNew}>
+					+ New
+				</Button>
+			</div>
+
+			{/* Exercise rows */}
+			{error && (
+				<p class="px-4 py-3 text-sm" style={{ color: "var(--color-error)" }}>
+					{error}
+				</p>
+			)}
+			{!error && exercises.length === 0 ? (
+				<p class="px-4 py-6 text-sm" style={{ color: "var(--color-muted)" }}>
+					No exercises yet.
+				</p>
+			) : (
+				!error &&
+				exercises.map((ex, i) => (
+					<ListItem
+						key={ex.id}
+						label={ex.name}
+						sublabel={ex.progression || undefined}
+						active={ex.id === selectedId}
+						isLast={i === exercises.length - 1}
+						onClick={() => onSelect(ex.id)}
+					/>
+				))
+			)}
+		</div>
+	);
+}
+
+// ─── Exercises (page) ─────────────────────────────────────────────────────────
 
 export function Exercises() {
 	const { user } = useAuth();
+	const { route } = useLocation();
+	const { params } = useRoute();
+	const selectedId = params?.id ? Number(params.id) : null;
+
 	const exercises = useSignal([]);
 	const loading = useSignal(true);
-	const error = useSignal("");
+	const fetchError = useSignal("");
 
-	// Form state
-	const dialog = useDialog();
-	const editingId = useSignal(null);
-	const name = useSignal("");
-	const progression = useSignal("");
-	const description = useSignal("");
-	const isPublic = useSignal(false);
+	// New exercise dialog
+	const newDialog = useDialog();
+	const nameField = useSignal("");
+	const progressionField = useSignal("");
+	const descriptionField = useSignal("");
+	const isPublicField = useSignal(false);
 	const saving = useSignal(false);
 	const formError = useSignal("");
 
 	const fetchExercises = async () => {
 		if (!user) return;
 		loading.value = true;
+		fetchError.value = "";
 		try {
 			const r = await apiFetch("/api/exercises");
 			if (!r.ok) throw new Error("Failed to fetch exercises");
-			const data = await r.json();
-			exercises.value = data;
+			exercises.value = await r.json();
 		} catch (err) {
-			error.value = err.message;
+			fetchError.value = err.message;
 		} finally {
 			loading.value = false;
 		}
@@ -54,69 +108,46 @@ export function Exercises() {
 		fetchExercises();
 	}, [!!user]);
 
-	const openCreate = () => {
-		editingId.value = null;
-		name.value = "";
-		progression.value = "";
-		description.value = "";
-		isPublic.value = false;
-		formError.value = "";
-		dialog.show();
+	const handleSelect = (id) => {
+		route(`/exercises/${id}`);
 	};
 
-	const openEdit = (ex) => {
-		editingId.value = ex.id;
-		name.value = ex.name;
-		progression.value = ex.progression || "";
-		description.value = ex.description || "";
-		isPublic.value = ex.is_public;
+	const openNew = () => {
+		nameField.value = "";
+		progressionField.value = "";
+		descriptionField.value = "";
+		isPublicField.value = false;
 		formError.value = "";
-		dialog.show();
+		newDialog.show();
 	};
 
 	const handleSave = async (e) => {
 		e.preventDefault();
-		if (!name.value.trim()) {
+		if (!nameField.value.trim()) {
 			formError.value = "Name is required.";
 			return;
 		}
-
 		saving.value = true;
 		formError.value = "";
-
-		const payload = {
-			name: name.value.trim(),
-			progression: progression.value.trim() || null,
-			description: description.value.trim() || null,
-			is_public: isPublic.value,
-		};
-
-		const method = editingId.value ? "PUT" : "POST";
-		const url = editingId.value
-			? `/api/exercises/${editingId.value}`
-			: "/api/exercises";
-
 		try {
-			const r = await apiFetch(url, {
-				method,
+			const r = await apiFetch("/api/exercises", {
+				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(payload),
+				body: JSON.stringify({
+					name: nameField.value.trim(),
+					progression: progressionField.value.trim() || null,
+					description: descriptionField.value.trim() || null,
+					is_public: isPublicField.value,
+				}),
 			});
-
 			if (!r.ok) {
 				const data = await r.json();
-				throw new Error(data.error || "Failed to save exercise");
+				throw new Error(data.error || "Failed to create exercise");
 			}
-
-			const saved = await r.json();
-			if (editingId.value) {
-				exercises.value = exercises.value.map((ex) =>
-					ex.id === editingId.value ? saved : ex,
-				);
-			} else {
-				exercises.value = [...exercises.value, saved];
-			}
-			dialog.hide();
+			const created = await r.json();
+			await fetchExercises();
+			newDialog.hide();
+			route(`/exercises/${created.id}`);
 		} catch (err) {
 			formError.value = err.message;
 		} finally {
@@ -124,113 +155,68 @@ export function Exercises() {
 		}
 	};
 
-	const handleDelete = async (id) => {
-		if (!confirm("Are you sure you want to delete this exercise?")) return;
-		try {
-			const r = await apiFetch(`/api/exercises/${id}`, {
-				method: "DELETE",
-			});
-			if (!r.ok) throw new Error("Failed to delete exercise");
-			exercises.value = exercises.value.filter((ex) => ex.id !== id);
-		} catch (err) {
-			alert(err.message);
-		}
-	};
-
 	return (
-		<main class="flex flex-1 flex-col gap-8 px-4 py-6 max-w-lg mx-auto w-full">
-			<PageTitle>Exercises</PageTitle>
-
-			<Section
-				title="All Exercises"
-				action={
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={openCreate}
-						disabled={loading.value}
-					>
-						Create
-					</Button>
+		<>
+			<ListDetail
+				hasDetail={!!selectedId}
+				emptyState="Select an exercise to view its details."
+				list={
+					<ExerciseList
+						exercises={exercises.value}
+						selectedId={selectedId}
+						onSelect={handleSelect}
+						onNew={openNew}
+						error={fetchError.value}
+					/>
 				}
-			>
-				{loading.value && exercises.value.length === 0 ? (
-					<Row label="Loading exercises..." last />
-				) : error.value ? (
-					<Row label={error.value} last />
-				) : exercises.value.length === 0 ? (
-					<Row label="No exercises yet" last />
-				) : (
-					exercises.value.map((ex, i) => (
-						<Row
-							key={ex.id}
-							label={ex.name}
-							sublabel={ex.progression || "No progression info"}
-							last={i === exercises.value.length - 1}
-						>
-							<div class="flex gap-2">
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={() => openEdit(ex)}
-								>
-									Update
-								</Button>
-								<Button
-									variant="destructive"
-									size="sm"
-									onClick={() => handleDelete(ex.id)}
-								>
-									Delete
-								</Button>
-							</div>
-						</Row>
-					))
-				)}
-			</Section>
+				detail={
+					selectedId ? (
+						<ExerciseDetail
+							exerciseId={selectedId}
+							onExerciseUpdated={fetchExercises}
+							onExerciseDeleted={() => {
+								route("/exercises");
+								fetchExercises();
+							}}
+						/>
+					) : null
+				}
+			/>
 
-			<Dialog openSignal={dialog.open}>
+			{/* New Exercise dialog */}
+			<Dialog openSignal={newDialog.open}>
 				<DialogContent>
 					<form onSubmit={handleSave}>
-						<DialogTitle>
-							{editingId.value ? "Update Exercise" : "New Exercise"}
-						</DialogTitle>
-						<DialogDescription>
-							Define the exercise details below.
-						</DialogDescription>
-
+						<DialogTitle>New Exercise</DialogTitle>
 						<div class="mt-4 flex flex-col gap-4">
 							<TextField
 								id="ex-name"
 								label="Name"
 								placeholder="e.g. Diamond Push-up"
-								value={name.value}
+								value={nameField.value}
 								onInput={(e) => {
-									name.value = e.target.value;
+									nameField.value = e.target.value;
 								}}
 								autoFocus
 							/>
-
 							<TextField
 								id="ex-progression"
 								label="Progression"
 								placeholder="e.g. Push-up"
-								value={progression.value}
+								value={progressionField.value}
 								onInput={(e) => {
-									progression.value = e.target.value;
+									progressionField.value = e.target.value;
 								}}
 							/>
-
 							<TextField
 								id="ex-description"
 								label="Description"
 								placeholder="Optional description"
-								value={description.value}
+								value={descriptionField.value}
 								onInput={(e) => {
-									description.value = e.target.value;
+									descriptionField.value = e.target.value;
 								}}
 							/>
-
 							<div class="flex items-center justify-between">
 								<label
 									for="ex-public"
@@ -239,29 +225,27 @@ export function Exercises() {
 								>
 									Make public
 								</label>
-								<Switch id="ex-public" checkedSignal={isPublic} />
+								<Switch id="ex-public" checkedSignal={isPublicField} />
 							</div>
-
 							{formError.value && (
 								<p class="text-sm" style={{ color: "var(--color-error)" }}>
 									{formError.value}
 								</p>
 							)}
 						</div>
-
 						<div class="mt-6 flex justify-end gap-2">
 							<DialogClose>
-								<Button variant="ghost" size="sm" type="button">
+								<Button variant="outline" size="sm" type="button">
 									Cancel
 								</Button>
 							</DialogClose>
 							<Button size="sm" type="submit" disabled={saving.value}>
-								{saving.value ? "Saving..." : "Save Exercise"}
+								{saving.value ? "Saving…" : "Save"}
 							</Button>
 						</div>
 					</form>
 				</DialogContent>
 			</Dialog>
-		</main>
+		</>
 	);
 }

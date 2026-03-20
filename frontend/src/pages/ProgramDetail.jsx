@@ -227,7 +227,11 @@ function SortableExerciseRow({ exercise, setId, onEdit, onRemove }) {
 // Fetches program data, then renders ProgramDetailInner keyed by programId so
 // that useSortableGroups is seeded fresh whenever the program changes.
 
-export function ProgramDetail({ programId, onProgramUpdated }) {
+export function ProgramDetail({
+	programId,
+	onProgramUpdated,
+	onProgramDeleted,
+}) {
 	const { user } = useAuth();
 
 	const rawProgram = useSignal(null);
@@ -283,6 +287,7 @@ export function ProgramDetail({ programId, onProgramUpdated }) {
 			program={rawProgram.value}
 			onRefresh={fetchProgram}
 			onProgramUpdated={onProgramUpdated}
+			onProgramDeleted={onProgramDeleted}
 		/>
 	);
 }
@@ -323,6 +328,7 @@ function ProgramDetailInner({
 	program: initialProgram,
 	onRefresh,
 	onProgramUpdated,
+	onProgramDeleted,
 }) {
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -444,6 +450,22 @@ function ProgramDetailInner({
 		}
 		programActivity.value = activity;
 		onProgramUpdated?.();
+	};
+
+	// ── Delete program ────────────────────────────────────────────────────────
+	const deleteProgramDialog = useDialog();
+	const deleteProgramError = useSignal("");
+
+	const handleDeleteProgram = async () => {
+		deleteProgramError.value = "";
+		const r = await apiFetch(`/api/programs/${initialProgram.id}`, {
+			method: "DELETE",
+		});
+		if (!r.ok) {
+			deleteProgramError.value = "Failed to delete program.";
+			throw new Error("Failed to delete program");
+		}
+		onProgramDeleted?.();
 	};
 
 	// ── Exercises list for the combobox ───────────────────────────────────────
@@ -809,18 +831,33 @@ function ProgramDetailInner({
 							>
 								{programName.value}
 							</h1>
-							<button
-								type="button"
-								class="opacity-0 group-hover:opacity-30 transition-opacity shrink-0 cursor-pointer"
-								onClick={() => startEdit("name")}
-								aria-label="Edit program name"
-							>
-								<Pencil
-									size={14}
-									style={{ color: "var(--color-muted)" }}
-									aria-hidden="true"
-								/>
-							</button>
+							<div class="flex items-center gap-1 shrink-0">
+								<button
+									type="button"
+									class="opacity-0 group-hover:opacity-30 transition-opacity cursor-pointer"
+									onClick={() => startEdit("name")}
+									aria-label="Edit program name"
+								>
+									<Pencil
+										size={14}
+										style={{ color: "var(--color-muted)" }}
+										aria-hidden="true"
+									/>
+								</button>
+								<Tooltip>
+									<TooltipTrigger>
+										<Button
+											variant="ghost"
+											size="icon"
+											aria-label="Delete program"
+											onClick={deleteProgramDialog.show}
+										>
+											<Trash2 size={14} aria-hidden="true" />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent>Delete</TooltipContent>
+								</Tooltip>
+							</div>
 						</div>
 					)}
 
@@ -873,6 +910,11 @@ function ProgramDetailInner({
 						+ Add Set
 					</Button>
 				</div>
+				{deleteProgramError.value && (
+					<p class="text-sm" style={{ color: "var(--color-error)" }}>
+						{deleteProgramError.value}
+					</p>
+				)}
 				{reorderError.value && (
 					<p class="text-sm" style={{ color: "var(--color-error)" }}>
 						{reorderError.value}
@@ -1185,6 +1227,15 @@ function ProgramDetailInner({
 				}
 				confirmLabel="Remove"
 				onConfirm={handleRemovePex}
+			/>
+
+			{/* ── Delete Program confirm ────────────────────────────────────── */}
+			<ConfirmDialog
+				openSignal={deleteProgramDialog.open}
+				title="Delete Program"
+				description="This will permanently delete the program and all its sets."
+				confirmLabel="Delete"
+				onConfirm={handleDeleteProgram}
 			/>
 		</>
 	);

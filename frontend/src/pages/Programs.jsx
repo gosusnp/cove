@@ -6,7 +6,6 @@ import { useEffect } from "preact/hooks";
 import { useLocation, useRoute } from "preact-iso";
 import { useAuth } from "../Auth.jsx";
 import { Button } from "../components/ui/Button.jsx";
-import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
 import {
 	Dialog,
 	DialogClose,
@@ -17,26 +16,13 @@ import { ListDetail } from "../components/ui/ListDetail.jsx";
 import { ListItem } from "../components/ui/ListItem.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { ActivityPicker } from "../components/shared/ActivityPicker.jsx";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "../components/ui/Tooltip.jsx";
 import { useDialog } from "../hooks/useDialog.js";
-import { Trash2 } from "lucide-preact";
 import { ProgramDetail } from "./ProgramDetail.jsx";
 import { apiFetch } from "../lib/api.js";
 
 // ─── ProgramList ────────────────────────────────────────────────────────────
 
-function ProgramList({
-	programs,
-	selectedId,
-	onSelect,
-	onNew,
-	onDelete,
-	error,
-}) {
+function ProgramList({ programs, selectedId, onSelect, onNew, error }) {
 	return (
 		<div class="flex flex-col">
 			{/* Header */}
@@ -74,21 +60,6 @@ function ProgramList({
 						active={p.id === selectedId}
 						isLast={i === programs.length - 1}
 						onClick={() => onSelect(p.id)}
-						actions={
-							<Tooltip>
-								<TooltipTrigger>
-									<Button
-										variant="ghost"
-										size="icon"
-										aria-label="Delete"
-										onClick={() => onDelete(p)}
-									>
-										<Trash2 size={14} aria-hidden="true" />
-									</Button>
-								</TooltipTrigger>
-								<TooltipContent>Delete</TooltipContent>
-							</Tooltip>
-						}
 					/>
 				))
 			)}
@@ -113,10 +84,6 @@ export function Programs() {
 	const activityField = useSignal("");
 	const saving = useSignal(false);
 	const formError = useSignal("");
-
-	// Delete confirm dialog
-	const deleteDialog = useDialog();
-	const deletingProgram = useSignal(null);
 
 	const fetchError = useSignal("");
 
@@ -150,11 +117,6 @@ export function Programs() {
 		programDialog.show();
 	};
 
-	const openDelete = (p) => {
-		deletingProgram.value = p;
-		deleteDialog.show();
-	};
-
 	const handleSave = async (e) => {
 		e.preventDefault();
 		if (!nameField.value.trim()) {
@@ -185,17 +147,11 @@ export function Programs() {
 		}
 	};
 
-	const handleDelete = async () => {
-		const p = deletingProgram.value;
-		if (!p) return;
-		const r = await apiFetch(`/api/programs/${p.id}`, {
-			method: "DELETE",
-		});
-		if (!r.ok) throw new Error("Failed to delete program");
-		if (selectedId === p.id) {
+	const handleProgramDeleted = () => {
+		if (selectedId) {
 			route("/programs");
 		}
-		await fetchPrograms();
+		fetchPrograms();
 	};
 
 	return (
@@ -209,7 +165,6 @@ export function Programs() {
 						selectedId={selectedId}
 						onSelect={handleSelect}
 						onNew={openNew}
-						onDelete={openDelete}
 						error={fetchError.value}
 					/>
 				}
@@ -218,6 +173,7 @@ export function Programs() {
 						<ProgramDetail
 							programId={selectedId}
 							onProgramUpdated={fetchPrograms}
+							onProgramDeleted={handleProgramDeleted}
 						/>
 					) : null
 				}
@@ -263,15 +219,6 @@ export function Programs() {
 					</form>
 				</DialogContent>
 			</Dialog>
-
-			{/* Delete confirm dialog */}
-			<ConfirmDialog
-				openSignal={deleteDialog.open}
-				title="Delete Program"
-				description="This will permanently delete the program and all its sets."
-				confirmLabel="Delete"
-				onConfirm={handleDelete}
-			/>
 		</>
 	);
 }
