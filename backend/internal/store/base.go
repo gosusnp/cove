@@ -7,10 +7,18 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var ErrNotFound = errors.New("not found")
 var ErrDuplicate = errors.New("duplicate")
+
+// isUniqueViolation reports whether err is a PostgreSQL unique constraint violation (23505).
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
 
 // Querier is implemented by both *sql.DB and *sql.Tx, allowing stores to
 // execute queries within or outside a transaction transparently.

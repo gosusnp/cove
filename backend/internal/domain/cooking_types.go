@@ -40,3 +40,137 @@ type Ingredient struct {
 	UpdatedBy       *UserID      `json:"updated_by,omitempty"`
 	UpdatedAt       time.Time    `json:"updated_at"`
 }
+
+// -----------------------------------------------------------------------------
+// Preparation
+// -----------------------------------------------------------------------------
+
+type PreparationID IntID[struct{ preparation struct{} }]
+type PreparationIngredientID IntID[struct{ preparationIngredient struct{} }]
+
+// PreparationStep is one step in a preparation's instructions.
+type PreparationStep struct {
+	Description string `json:"description"`
+}
+
+// PreparationIngredient is an ingredient used in a preparation.
+type PreparationIngredient struct {
+	ID            PreparationIngredientID `json:"id"`
+	PreparationID PreparationID           `json:"preparation_id"`
+	IngredientID  IngredientID            `json:"ingredient_id"`
+	Name          string                  `json:"name"`
+	Amount        float64                 `json:"amount"`
+	Unit          string                  `json:"unit"`
+	Prep          *string                 `json:"prep,omitempty"`
+}
+
+// PreparationParams holds the mutable fields for creating or updating a preparation.
+type PreparationParams struct {
+	Name        string
+	Description *string
+	YieldAmount float64
+	YieldUnit   string
+	Steps       []PreparationStep
+	IsPublic    bool
+}
+
+// PreparationIngredientParams holds the mutable fields for creating or updating a preparation ingredient.
+type PreparationIngredientParams struct {
+	IngredientID IngredientID
+	Name         string
+	Amount       float64
+	Unit         string
+	Prep         *string
+}
+
+// PreparationLite is a trimmed projection used for list endpoints.
+type PreparationLite struct {
+	ID          PreparationID `json:"id"`
+	Name        string        `json:"name"`
+	Description *string       `json:"description,omitempty"`
+	YieldAmount float64       `json:"yield_amount"`
+	YieldUnit   string        `json:"yield_unit"`
+	IsPublic    bool          `json:"is_public"`
+	OrgID       OrgID         `json:"org_id"`
+	CreatedAt   time.Time     `json:"created_at"`
+}
+
+// Preparation is the full entity including steps and ingredients.
+type Preparation struct {
+	ID          PreparationID           `json:"id"`
+	Name        string                  `json:"name"`
+	Description *string                 `json:"description,omitempty"`
+	YieldAmount float64                 `json:"yield_amount"`
+	YieldUnit   string                  `json:"yield_unit"`
+	Steps       []PreparationStep       `json:"steps"`
+	IsPublic    bool                    `json:"is_public"`
+	Ingredients []PreparationIngredient `json:"ingredients"`
+	OrgID       OrgID                   `json:"org_id"`
+	CreatedBy   UserID                  `json:"created_by"`
+	CreatedAt   time.Time               `json:"created_at"`
+	UpdatedBy   *UserID                 `json:"updated_by,omitempty"`
+	UpdatedAt   time.Time               `json:"updated_at"`
+}
+
+// -----------------------------------------------------------------------------
+// Recipe
+// -----------------------------------------------------------------------------
+
+type RecipeID IntID[struct{ recipe struct{} }]
+type RecipePreparationID IntID[struct{ recipePreparation struct{} }]
+
+// RecipePreparation links a preparation to a recipe with quantity and position.
+type RecipePreparation struct {
+	ID            RecipePreparationID `json:"id"`
+	RecipeID      RecipeID            `json:"recipe_id"`
+	PreparationID PreparationID       `json:"preparation_id"`
+	Position      int                 `json:"position"`
+	Amount        float64             `json:"amount"`
+	Unit          string              `json:"unit"`
+}
+
+// RecipePreparationParams holds the mutable fields for adding or updating a recipe preparation.
+type RecipePreparationParams struct {
+	PreparationID PreparationID
+	Position      int
+	Amount        float64
+	Unit          string
+}
+
+// RecipeParams holds the mutable fields for creating or updating a recipe.
+type RecipeParams struct {
+	Name        string
+	Description *string
+	YieldAmount *float64
+	YieldUnit   *string
+	Servings    int
+	IsPublic    bool
+}
+
+// RecipeLite is a trimmed projection used for list endpoints.
+type RecipeLite struct {
+	ID          RecipeID  `json:"id"`
+	Name        string    `json:"name"`
+	Description *string   `json:"description,omitempty"`
+	Servings    int       `json:"servings"`
+	IsPublic    bool      `json:"is_public"`
+	OrgID       OrgID     `json:"org_id"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+// Recipe is the full entity including linked preparations.
+type Recipe struct {
+	ID           RecipeID            `json:"id"`
+	Name         string              `json:"name"`
+	Description  *string             `json:"description,omitempty"`
+	YieldAmount  *float64            `json:"yield_amount,omitempty"`
+	YieldUnit    *string             `json:"yield_unit,omitempty"`
+	Servings     int                 `json:"servings"`
+	IsPublic     bool                `json:"is_public"`
+	Preparations []RecipePreparation `json:"preparations"`
+	OrgID        OrgID               `json:"org_id"`
+	CreatedBy    UserID              `json:"created_by"`
+	CreatedAt    time.Time           `json:"created_at"`
+	UpdatedBy    *UserID             `json:"updated_by,omitempty"`
+	UpdatedAt    time.Time           `json:"updated_at"`
+}
