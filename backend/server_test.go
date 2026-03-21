@@ -33,11 +33,12 @@ func newTestAPIHandler(t *testing.T) http.Handler {
 	pSvc := service.NewProgramService(database, exStore)
 	wsSvc := service.NewWorkoutSessionService(database, store.NewWorkoutSessionStore(), crypto.NewTestEncryptor())
 	ingSvc := service.NewIngredientService(database, store.NewIngredientStore())
+	recipeSvc := service.NewRecipeService(database, store.NewRecipeStore())
 	svcs := covemcp.Services{
 		Exercises: exSvc,
 		Programs:  pSvc,
 	}
-	return NewAPIHandler(userStore, userSvc, svcs, wsSvc, ingSvc, false)
+	return NewAPIHandler(userStore, userSvc, svcs, wsSvc, ingSvc, recipeSvc, false)
 }
 
 // TestAPIRoutesSmokeTest verifies every API route is wired correctly by sending
@@ -88,6 +89,12 @@ func TestAPIRoutesSmokeTest(t *testing.T) {
 		{"GET", "/api/ingredients/1"},
 		{"PUT", "/api/ingredients/1"},
 		{"DELETE", "/api/ingredients/1"},
+		// Recipes
+		{"GET", "/api/recipes"},
+		{"POST", "/api/recipes"},
+		{"GET", "/api/recipes/1"},
+		{"PUT", "/api/recipes/1"},
+		{"DELETE", "/api/recipes/1"},
 	}
 
 	for _, rt := range routes {

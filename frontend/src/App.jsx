@@ -9,6 +9,7 @@ import { DesignElements } from "./pages/DesignElements.jsx";
 import { Exercises } from "./pages/Exercises.jsx";
 import { Home } from "./pages/Home.jsx";
 import { Ingredients } from "./pages/Ingredients.jsx";
+import { Recipes } from "./pages/Recipes.jsx";
 import { Login } from "./pages/Login.jsx";
 import { Programs } from "./pages/Programs.jsx";
 import { Sessions } from "./pages/Sessions.jsx";
@@ -54,6 +55,8 @@ function Layout() {
 				<Route path="/" component={Home} />
 				<Route path="/cook/ingredients" component={Ingredients} />
 				<Route path="/cook/ingredients/:id" component={Ingredients} />
+				<Route path="/cook/recipes" component={Recipes} />
+				<Route path="/cook/recipes/:id" component={Recipes} />
 				<Route path="/exercises" component={Exercises} />
 				<Route path="/exercises/:id" component={Exercises} />
 				<Route path="/programs" component={Programs} />

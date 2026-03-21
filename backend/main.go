@@ -119,6 +119,7 @@ func main() {
 	pSvc := service.NewProgramService(database, exStore)
 	wsSvc := service.NewWorkoutSessionService(database, store.NewWorkoutSessionStore(), enc)
 	ingSvc := service.NewIngredientService(database, store.NewIngredientStore())
+	recipeSvc := service.NewRecipeService(database, store.NewRecipeStore())
 	oauthSvc := service.NewOAuthService(database, store.NewOAuthStore(), userStore)
 	svcs := covemcp.Services{
 		Exercises: exSvc,
@@ -128,7 +129,7 @@ func main() {
 	secureCookies := os.Getenv("COVE_DEV") == ""
 
 	mux := http.NewServeMux()
-	mux.Handle("/api/", NewAPIHandler(userStore, userSvc, svcs, wsSvc, ingSvc, secureCookies))
+	mux.Handle("/api/", NewAPIHandler(userStore, userSvc, svcs, wsSvc, ingSvc, recipeSvc, secureCookies))
 	mux.Handle("/mcp/", middleware.OAuth(userSvc, covemcp.NewHTTPHandler(svcs)))
 
 	var staticFS fs.FS

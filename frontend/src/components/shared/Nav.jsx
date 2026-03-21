@@ -30,7 +30,10 @@ const NAV_SECTIONS = [
 	},
 	{
 		label: "Cook",
-		items: [{ label: "Ingredients", href: "/cook/ingredients" }],
+		items: [
+			{ label: "Compose", href: "/cook/recipes" },
+			{ label: "Ingredients", href: "/cook/ingredients" },
+		],
 	},
 ];
 
@@ -43,6 +46,7 @@ const PAGE_TITLES = [
 	{ label: "Review Sessions", href: "/sessions" },
 	{ label: "Settings", href: "/settings" },
 	{ label: "Ingredients", href: "/cook/ingredients" },
+	{ label: "Compose", href: "/cook/recipes" },
 ];
 
 function pageTitle(url) {
