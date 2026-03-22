@@ -1213,6 +1213,7 @@ function AddComponentForm({ recipeId, position, onAdded, onCancel }) {
 export function RecipeDetail({ recipeId, onRecipeUpdated }) {
 	const recipe = useSignal(null);
 	const components = useSignal([]); // [{link, prep}]
+	const openItems = useSignal([]);
 	const loading = useSignal(true);
 	const error = useSignal("");
 	const showAddForm = useSignal(false);
@@ -1246,6 +1247,7 @@ export function RecipeDetail({ recipeId, onRecipeUpdated }) {
 				}),
 			);
 			components.value = preps;
+			openItems.value = preps.map(({ link }) => String(link.id));
 		} catch (err) {
 			error.value = err.message;
 		} finally {
@@ -1289,6 +1291,7 @@ export function RecipeDetail({ recipeId, onRecipeUpdated }) {
 
 	const handleComponentAdded = ({ link, prep }) => {
 		components.value = [...components.value, { link, prep }];
+		openItems.value = [...openItems.value, String(link.id)];
 		showAddForm.value = false;
 	};
 
@@ -1393,7 +1396,13 @@ export function RecipeDetail({ recipeId, onRecipeUpdated }) {
 				)}
 
 				{components.value.length > 0 && (
-					<Accordion type="multiple">
+					<Accordion
+						type="multiple"
+						value={openItems.value}
+						onValueChange={(v) => {
+							openItems.value = v;
+						}}
+					>
 						{components.value.map(({ link, prep }) => (
 							<PreparationSection
 								key={link.id}
