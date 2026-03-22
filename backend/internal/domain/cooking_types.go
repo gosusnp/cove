@@ -62,6 +62,7 @@ type PreparationIngredient struct {
 	Amount        float64                 `json:"amount"`
 	Unit          Unit                    `json:"unit"`
 	Prep          *string                 `json:"prep,omitempty"`
+	DensityGPerMl *float64                `json:"density_g_per_ml,omitempty"`
 }
 
 // PreparationParams holds the mutable fields for creating or updating a preparation.

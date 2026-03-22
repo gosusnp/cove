@@ -62,7 +62,7 @@ func NewTestApp(t *testing.T) *TestApp {
 
 	// Services
 	exSvc := service.NewExerciseService(database, exStore)
-	ingSvc := service.NewIngredientService(database, ingStore)
+	ingSvc := service.NewIngredientService(database, ingStore, nil)
 	prepSvc := service.NewPreparationService(database, prepStore)
 	pSvc := service.NewProgramService(database, exStore)
 	uSvc := service.NewUserService(database, uStore, oStore)

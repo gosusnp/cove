@@ -139,13 +139,15 @@ func (s *PreparationStore) Delete(ctx context.Context, q Querier, orgID domain.O
 	return nil
 }
 
-// listIngredients fetches all ingredients for a preparation.
+// listIngredients fetches all ingredients for a preparation, including ingredient density.
 func (s *PreparationStore) listIngredients(ctx context.Context, q Querier, orgID domain.OrgID, preparationID domain.PreparationID) ([]domain.PreparationIngredient, error) {
 	rows, err := q.QueryContext(ctx, `
-		SELECT id, preparation_id, ingredient_id, name, amount, unit, prep
-		FROM cove.preparation_ingredients
-		WHERE preparation_id = $1 AND org_id = $2
-		ORDER BY id
+		SELECT pi.id, pi.preparation_id, pi.ingredient_id, pi.name, pi.amount, pi.unit, pi.prep,
+		       ing.density_g_per_ml
+		FROM cove.preparation_ingredients pi
+		LEFT JOIN cove.ingredients ing ON ing.id = pi.ingredient_id
+		WHERE pi.preparation_id = $1 AND pi.org_id = $2
+		ORDER BY pi.id
 	`, preparationID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("list preparation ingredients: %w", err)
@@ -155,12 +157,31 @@ func (s *PreparationStore) listIngredients(ctx context.Context, q Querier, orgID
 	list := []domain.PreparationIngredient{}
 	for rows.Next() {
 		var i domain.PreparationIngredient
-		if err := rows.Scan(&i.ID, &i.PreparationID, &i.IngredientID, &i.Name, &i.Amount, &i.Unit, &i.Prep); err != nil {
+		if err := rows.Scan(&i.ID, &i.PreparationID, &i.IngredientID, &i.Name, &i.Amount, &i.Unit, &i.Prep, &i.DensityGPerMl); err != nil {
 			return nil, fmt.Errorf("scan preparation ingredient: %w", err)
 		}
 		list = append(list, i)
 	}
 	return list, rows.Err()
+}
+
+// getIngredient fetches a single preparation ingredient by id, including density from the linked ingredient.
+func (s *PreparationStore) getIngredient(ctx context.Context, q Querier, orgID domain.OrgID, id domain.PreparationIngredientID) (*domain.PreparationIngredient, error) {
+	var i domain.PreparationIngredient
+	err := q.QueryRowContext(ctx, `
+		SELECT pi.id, pi.preparation_id, pi.ingredient_id, pi.name, pi.amount, pi.unit, pi.prep,
+		       ing.density_g_per_ml
+		FROM cove.preparation_ingredients pi
+		LEFT JOIN cove.ingredients ing ON ing.id = pi.ingredient_id
+		WHERE pi.id = $1 AND pi.org_id = $2
+	`, id, orgID).Scan(&i.ID, &i.PreparationID, &i.IngredientID, &i.Name, &i.Amount, &i.Unit, &i.Prep, &i.DensityGPerMl)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get preparation ingredient: %w", err)
+	}
+	return &i, nil
 }
 
 // AddIngredient inserts an ingredient into a preparation. Verifies preparation ownership via subquery.
@@ -178,36 +199,27 @@ func (s *PreparationStore) AddIngredient(ctx context.Context, q Querier, orgID d
 	if err != nil {
 		return nil, fmt.Errorf("add preparation ingredient: %w", err)
 	}
-	return &domain.PreparationIngredient{
-		ID:            id,
-		PreparationID: preparationID,
-		IngredientID:  p.IngredientID,
-		Name:          p.Name,
-		Amount:        p.Amount,
-		Unit:          p.Unit,
-		Prep:          p.Prep,
-	}, nil
+	return s.getIngredient(ctx, q, orgID, id)
 }
 
 // UpdateIngredient modifies a preparation ingredient, filtering by preparation_id and org_id for defense-in-depth.
 func (s *PreparationStore) UpdateIngredient(ctx context.Context, q Querier, orgID domain.OrgID, preparationID domain.PreparationID, id domain.PreparationIngredientID, p domain.PreparationIngredientParams) (*domain.PreparationIngredient, error) {
-	var updated domain.PreparationIngredient
-	err := q.QueryRowContext(ctx, `
+	res, err := q.ExecContext(ctx, `
 		UPDATE cove.preparation_ingredients
 		SET name = $1, amount = $2, unit = $3, prep = $4
 		WHERE id = $5 AND preparation_id = $6 AND org_id = $7
-		RETURNING id, preparation_id, ingredient_id, name, amount, unit, prep
-	`, p.Name, p.Amount, p.Unit, p.Prep, id, preparationID, orgID).Scan(
-		&updated.ID, &updated.PreparationID, &updated.IngredientID,
-		&updated.Name, &updated.Amount, &updated.Unit, &updated.Prep,
-	)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
-	}
+	`, p.Name, p.Amount, p.Unit, p.Prep, id, preparationID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("update preparation ingredient: %w", err)
 	}
-	return &updated, nil
+	n, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return nil, ErrNotFound
+	}
+	return s.getIngredient(ctx, q, orgID, id)
 }
 
 // DeleteIngredient removes a preparation ingredient, filtering by preparation_id and org_id for defense-in-depth.

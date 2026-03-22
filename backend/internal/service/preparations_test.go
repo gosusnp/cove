@@ -17,7 +17,7 @@ func newTestPreparationService(t *testing.T) (*PreparationService, *IngredientSe
 	t.Helper()
 	db := testutil.NewDB(t)
 	svc := NewPreparationService(db, store.NewPreparationStore())
-	ingSvc := NewIngredientService(db, store.NewIngredientStore())
+	ingSvc := NewIngredientService(db, store.NewIngredientStore(), nil)
 
 	uSvc := NewUserService(db, store.NewUserStore(), store.NewOrgStore())
 	user, _, _ := uSvc.GetOrCreate(context.Background(), "test@example.com", "sub123")
@@ -44,6 +44,20 @@ func seedIngredient(t *testing.T, ingSvc *IngredientService, ctx context.Context
 	})
 	if err != nil {
 		t.Fatalf("seed ingredient: %v", err)
+	}
+	return ing
+}
+
+func seedIngredientWithDensity(t *testing.T, ingSvc *IngredientService, ctx context.Context) *domain.Ingredient {
+	t.Helper()
+	density := 1.03 // g/ml (whole milk)
+	ing, err := ingSvc.Create(ctx, domain.IngredientParams{
+		Name:            "whole milk",
+		CaloriesPer100g: 61,
+		DensityGPerMl:   &density,
+	})
+	if err != nil {
+		t.Fatalf("seed ingredient with density: %v", err)
 	}
 	return ing
 }
@@ -126,6 +140,32 @@ func TestPreparationService_Get(t *testing.T) {
 		}
 		if len(got.Ingredients) != 1 {
 			t.Errorf("got %d ingredients, want 1", len(got.Ingredients))
+		}
+	})
+
+	t.Run("ingredient density included in Get", func(t *testing.T) {
+		svc, ingSvc, ctx := newTestPreparationService(t)
+		p, _ := svc.Create(ctx, basePrep())
+		ing := seedIngredientWithDensity(t, ingSvc, ctx)
+		_, _ = svc.AddIngredient(ctx, p.ID, domain.PreparationIngredientParams{
+			IngredientID: ing.ID,
+			Name:         "whole milk",
+			Amount:       240,
+			Unit:         "ml",
+		})
+
+		got, err := svc.Get(ctx, p.ID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(got.Ingredients) != 1 {
+			t.Fatalf("got %d ingredients, want 1", len(got.Ingredients))
+		}
+		if got.Ingredients[0].DensityGPerMl == nil {
+			t.Fatal("expected DensityGPerMl on ingredient from Get, got nil")
+		}
+		if *got.Ingredients[0].DensityGPerMl != 1.03 {
+			t.Errorf("DensityGPerMl = %v, want 1.03", *got.Ingredients[0].DensityGPerMl)
 		}
 	})
 
@@ -419,6 +459,28 @@ func TestPreparationService_AddIngredient(t *testing.T) {
 		}
 		if got.Unit != domain.UnitEach {
 			t.Errorf("got unit %q, want %q", got.Unit, domain.UnitEach)
+		}
+	})
+
+	t.Run("density from ingredient is returned", func(t *testing.T) {
+		svc, ingSvc, ctx := newTestPreparationService(t)
+		p, _ := svc.Create(ctx, basePrep())
+		ing := seedIngredientWithDensity(t, ingSvc, ctx)
+
+		got, err := svc.AddIngredient(ctx, p.ID, domain.PreparationIngredientParams{
+			IngredientID: ing.ID,
+			Name:         "whole milk",
+			Amount:       240,
+			Unit:         "ml",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.DensityGPerMl == nil {
+			t.Fatal("expected DensityGPerMl to be populated from linked ingredient, got nil")
+		}
+		if *got.DensityGPerMl != 1.03 {
+			t.Errorf("DensityGPerMl = %v, want 1.03", *got.DensityGPerMl)
 		}
 	})
 }

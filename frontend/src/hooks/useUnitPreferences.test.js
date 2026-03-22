@@ -45,10 +45,24 @@ describe("convertUnit", () => {
 		expect(convertUnit(1000, "ml", "l")).toBe(1); // 1000ml → 1l
 	});
 
-	it("returns value unchanged for incompatible units", () => {
-		expect(convertUnit(100, "g", "ml")).toBe(100); // mass ↔ volume
+	it("returns value unchanged for incompatible units without density", () => {
+		expect(convertUnit(100, "g", "ml")).toBe(100); // mass ↔ volume, no density
 		expect(convertUnit(1, "cup", "kg")).toBe(1);
 		expect(convertUnit(5, "unit", "g")).toBe(5); // count
+	});
+
+	it("converts mass to volume using density", () => {
+		// Water: 1 g/ml. 236.588 g → 1 cup (quantized: nearest 0.125)
+		expect(convertUnit(236.588, "g", "cup", 1.0)).toBe(1.0);
+		// 500 g of water → 500 ml
+		expect(convertUnit(500, "g", "ml", 1.0)).toBe(500);
+	});
+
+	it("converts volume to mass using density", () => {
+		// 1 cup of water (1 g/ml) → 236.588 g → quantized to 236.6
+		expect(convertUnit(1, "cup", "g", 1.0)).toBe(236.6);
+		// 500 ml of water → 500 g
+		expect(convertUnit(500, "ml", "g", 1.0)).toBe(500);
 	});
 
 	it("quantizes the result", () => {

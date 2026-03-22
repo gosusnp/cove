@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -36,6 +37,11 @@ func NewClient(apiKey string) *Client {
 	return &Client{apiKey: apiKey, baseURL: defaultBaseURL, http: &http.Client{Timeout: 10 * time.Second}}
 }
 
+// NewClientWithBaseURL returns a Client with a custom base URL. Intended for tests.
+func NewClientWithBaseURL(apiKey, baseURL string) *Client {
+	return &Client{apiKey: apiKey, baseURL: baseURL, http: &http.Client{Timeout: 10 * time.Second}}
+}
+
 // FoodResult is one food item returned by a FDC search.
 type FoodResult struct {
 	FDCID           int      `json:"fdc_id"`
@@ -46,6 +52,24 @@ type FoodResult struct {
 	FatPer100g      float64  `json:"fat_per_100g"`
 	CarbsPer100g    float64  `json:"carbs_per_100g"`
 	DensityGPerMl   *float64 `json:"density_g_per_ml,omitempty"`
+}
+
+// fdcFoodDetail is the shape returned by GET /food/{fdcId}.
+type fdcFoodDetail struct {
+	FDCID        int              `json:"fdcId"`
+	Description  string           `json:"description"`
+	FoodPortions []fdcFoodPortion `json:"foodPortions"`
+}
+
+// fdcFoodPortion is one serving-size entry within a food detail response.
+type fdcFoodPortion struct {
+	Amount      float64        `json:"amount"`
+	GramWeight  float64        `json:"gramWeight"`
+	MeasureUnit fdcMeasureUnit `json:"measureUnit"`
+}
+
+type fdcMeasureUnit struct {
+	Name string `json:"name"`
 }
 
 // fdcSearchResponse is the top-level shape of the FDC search endpoint.
@@ -123,4 +147,70 @@ func (f *fdcFood) nutrient(id int) float64 {
 		}
 	}
 	return 0
+}
+
+// GetFood fetches a single food by FDC ID and returns its density if computable from portions.
+func (c *Client) GetFood(ctx context.Context, fdcID int) (*FoodResult, error) {
+	params := url.Values{}
+	params.Set("api_key", c.apiKey)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		fmt.Sprintf("%s/food/%d?%s", c.baseURL, fdcID, params.Encode()), nil)
+	if err != nil {
+		return nil, fmt.Errorf("fdc get food request: %w", err)
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fdc get food: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fdc get food: unexpected status %d", resp.StatusCode)
+	}
+
+	var body fdcFoodDetail
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, fmt.Errorf("fdc get food decode: %w", err)
+	}
+
+	return &FoodResult{
+		FDCID:         body.FDCID,
+		Name:          body.Description,
+		DensityGPerMl: computeDensity(body.FoodPortions),
+	}, nil
+}
+
+// volumeUnitMl maps known FDC measure unit names (lowercase) to ml equivalents.
+var volumeUnitMl = map[string]float64{
+	"cup":         236.588,
+	"tablespoon":  14.7868,
+	"teaspoon":    4.92892,
+	"fluid ounce": 29.5735,
+	"milliliter":  1.0,
+	"liter":       1000.0,
+}
+
+// computeDensity derives g/ml density by averaging across all volume-based portions.
+// Returns nil when no usable volume portions are present.
+func computeDensity(portions []fdcFoodPortion) *float64 {
+	var sum float64
+	var count int
+	for _, p := range portions {
+		if p.Amount <= 0 || p.GramWeight <= 0 {
+			continue
+		}
+		ml, ok := volumeUnitMl[strings.ToLower(strings.TrimSpace(p.MeasureUnit.Name))]
+		if !ok {
+			continue
+		}
+		sum += p.GramWeight / (p.Amount * ml)
+		count++
+	}
+	if count == 0 {
+		return nil
+	}
+	d := sum / float64(count)
+	return &d
 }

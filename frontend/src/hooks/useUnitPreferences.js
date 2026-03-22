@@ -83,16 +83,23 @@ export function convertFitnessWeight(value, fromUnit, toUnit) {
 }
 
 /**
- * Convert a value between any two compatible units (mass↔mass or volume↔volume),
- * quantized for display. Returns value unchanged when units are incompatible
- * (e.g. mass↔volume, or count units like "unit").
+ * Convert a value between any two compatible units, quantized for display.
+ *
+ * Supports:
+ *   - mass ↔ mass  (always)
+ *   - volume ↔ volume  (always)
+ *   - mass ↔ volume  (only when densityGPerMl is provided and > 0)
+ *
+ * Returns value unchanged when units are incompatible (e.g. count units like "unit",
+ * or mass↔volume without a density value).
  *
  * @param {number} value
  * @param {string} fromUnit
  * @param {string} toUnit
+ * @param {number|null|undefined} densityGPerMl  — ingredient density in g/ml (optional)
  * @returns {number}
  */
-export function convertUnit(value, fromUnit, toUnit) {
+export function convertUnit(value, fromUnit, toUnit, densityGPerMl) {
 	if (fromUnit === toUnit) return value;
 
 	const fromGrams = MASS_TO_GRAMS[fromUnit];
@@ -107,7 +114,21 @@ export function convertUnit(value, fromUnit, toUnit) {
 		return quantizeForDisplay((value * fromMl) / toMl, toUnit);
 	}
 
-	// Incompatible units (mass↔volume, count, free-text) — return unchanged.
+	// Cross-domain conversion: requires density.
+	if (densityGPerMl != null && densityGPerMl > 0) {
+		if (fromGrams != null && toMl != null) {
+			// mass → volume
+			const ml = (value * fromGrams) / densityGPerMl;
+			return quantizeForDisplay(ml / toMl, toUnit);
+		}
+		if (fromMl != null && toGrams != null) {
+			// volume → mass
+			const grams = value * fromMl * densityGPerMl;
+			return quantizeForDisplay(grams / toGrams, toUnit);
+		}
+	}
+
+	// Incompatible units (mass↔volume without density, count, free-text) — return unchanged.
 	return value;
 }
 

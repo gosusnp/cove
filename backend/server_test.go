@@ -31,7 +31,7 @@ func newTestAPIHandler(t *testing.T) http.Handler {
 	exSvc := service.NewExerciseService(database, exStore)
 	pSvc := service.NewProgramService(database, exStore)
 	wsSvc := service.NewWorkoutSessionService(database, store.NewWorkoutSessionStore(), crypto.NewTestEncryptor())
-	ingSvc := service.NewIngredientService(database, store.NewIngredientStore())
+	ingSvc := service.NewIngredientService(database, store.NewIngredientStore(), nil)
 	recipeSvc := service.NewRecipeService(database, store.NewRecipeStore())
 	prepSvc := service.NewPreparationService(database, store.NewPreparationStore())
 	return NewAPIHandler(Services{

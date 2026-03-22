@@ -115,11 +115,13 @@ func main() {
 		Endpoint:     google.Endpoint,
 	}
 
+	fdcClient := fdc.NewClient(getSecret("FDC_API_KEY"))
+
 	exStore := store.NewExerciseStore()
 	exSvc := service.NewExerciseService(database, exStore)
 	pSvc := service.NewProgramService(database, exStore)
 	wsSvc := service.NewWorkoutSessionService(database, store.NewWorkoutSessionStore(), enc)
-	ingSvc := service.NewIngredientService(database, store.NewIngredientStore())
+	ingSvc := service.NewIngredientService(database, store.NewIngredientStore(), fdcClient)
 	recipeSvc := service.NewRecipeService(database, store.NewRecipeStore())
 	prepSvc := service.NewPreparationService(database, store.NewPreparationStore())
 	oauthSvc := service.NewOAuthService(database, store.NewOAuthStore(), userStore)
@@ -127,7 +129,6 @@ func main() {
 		Exercises: exSvc,
 		Programs:  pSvc,
 	}
-	fdcClient := fdc.NewClient(getSecret("FDC_API_KEY"))
 
 	apiSvcs := Services{
 		Users:           userSvc,

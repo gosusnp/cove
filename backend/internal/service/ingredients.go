@@ -9,16 +9,18 @@ import (
 	"errors"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
+	"github.com/gosusnp/cove/backend/internal/fdc"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
 type IngredientService struct {
 	db    *sql.DB
 	store *store.IngredientStore
+	fdc   *fdc.Client // nullable; density computation is best-effort
 }
 
-func NewIngredientService(db *sql.DB, s *store.IngredientStore) *IngredientService {
-	return &IngredientService{db: db, store: s}
+func NewIngredientService(db *sql.DB, s *store.IngredientStore, fdcClient *fdc.Client) *IngredientService {
+	return &IngredientService{db: db, store: s, fdc: fdcClient}
 }
 
 func (s *IngredientService) List(ctx context.Context) ([]domain.Ingredient, error) {
@@ -58,6 +60,13 @@ func (s *IngredientService) Create(ctx context.Context, p domain.IngredientParam
 	p.Name = normalizeName(p.Name)
 	if p.Name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
+	}
+
+	// Best-effort: fetch density from FDC when an FDC ID is provided and density is unknown.
+	if p.FdcID != nil && s.fdc != nil && p.DensityGPerMl == nil {
+		if food, err := s.fdc.GetFood(ctx, *p.FdcID); err == nil {
+			p.DensityGPerMl = food.DensityGPerMl
+		}
 	}
 
 	var ing *domain.Ingredient

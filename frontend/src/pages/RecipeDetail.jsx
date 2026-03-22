@@ -129,7 +129,9 @@ function IngredientRow({ ingredient, prepId, onUpdated, onDeleted }) {
 							onChange={(v) => {
 								const a = parseFloat(amount.value);
 								if (!Number.isNaN(a) && amount.value !== "") {
-									amount.value = String(convertUnit(a, unit.value, v));
+									amount.value = String(
+										convertUnit(a, unit.value, v, ingredient.density_g_per_ml),
+									);
 								}
 								unit.value = v;
 							}}
@@ -349,6 +351,7 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 	const saving = useSignal(false);
 	const error = useSignal("");
 	const mode = useSignal("select");
+	const density = useSignal(null);
 
 	useEffect(() => {
 		apiFetch("/api/ingredients")
@@ -363,7 +366,10 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 			const id = val.slice("existing:".length);
 			selectedId.value = id;
 			const found = ingredients.value.find((i) => String(i.id) === id);
-			if (found) name.value = found.name;
+			if (found) {
+				name.value = found.name;
+				density.value = found.density_g_per_ml ?? null;
+			}
 		} else {
 			// Freeform "Create '...' from FDC" was selected
 			fdcQuery.value = val;
@@ -409,6 +415,7 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 				}
 				const created = await r.json();
 				ingredientId = created.id;
+				density.value = created.density_g_per_ml ?? null;
 			}
 
 			const r = await apiFetch(`/api/preparations/${prepId}/ingredients`, {
@@ -512,7 +519,9 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 								onChange={(v) => {
 									const a = parseFloat(amount.value);
 									if (!Number.isNaN(a) && amount.value !== "") {
-										amount.value = String(convertUnit(a, unit.value, v));
+										amount.value = String(
+											convertUnit(a, unit.value, v, density.value),
+										);
 									}
 									unit.value = v;
 								}}
