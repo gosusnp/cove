@@ -2,33 +2,41 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { fireEvent, screen, waitFor } from "@testing-library/preact";
+import { createContext } from "preact";
+import { useContext } from "preact/hooks";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Button } from "../components/ui/Button.jsx";
 import { withProviders } from "../test-utils.jsx";
 import { Recipes } from "./Recipes.jsx";
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 
-let dialogSignal = null;
+const DialogSignalCtx = createContext(null);
+
 vi.mock("../components/ui/Dialog.jsx", () => ({
-	Dialog: ({ children, openSignal }) => {
-		dialogSignal = openSignal;
-		return openSignal.value ? (
-			<div data-testid="mock-dialog">{children}</div>
-		) : null;
-	},
+	Dialog: ({ children, openSignal }) => (
+		<DialogSignalCtx.Provider value={openSignal}>
+			{openSignal.value ? (
+				<div data-testid="mock-dialog">{children}</div>
+			) : null}
+		</DialogSignalCtx.Provider>
+	),
 	DialogContent: ({ children }) => <div>{children}</div>,
 	DialogTitle: ({ children }) => <h2>{children}</h2>,
-	DialogClose: ({ children }) => (
-		<button
-			type="button"
-			data-testid="mock-dialog-close"
-			onClick={() => {
-				if (dialogSignal) dialogSignal.value = false;
-			}}
-		>
-			{children}
-		</button>
-	),
+	DialogClose: ({ children }) => {
+		const sig = useContext(DialogSignalCtx);
+		return (
+			<Button
+				variant="unstyled"
+				data-testid="mock-dialog-close"
+				onClick={() => {
+					if (sig) sig.value = false;
+				}}
+			>
+				{children}
+			</Button>
+		);
+	},
 }));
 
 vi.mock("../components/ui/ListDetail.jsx", () => ({

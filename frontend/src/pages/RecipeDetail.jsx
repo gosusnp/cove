@@ -394,7 +394,13 @@ function PreparationSection({
 	onUpdated,
 	onRemoved,
 }) {
-	const prep = useSignal(initialPrep);
+	const prep = useSignal({
+		...initialPrep,
+		steps: (initialPrep.steps ?? []).map((s) => ({
+			...s,
+			_key: crypto.randomUUID(),
+		})),
+	});
 	const link = useSignal(initialLink);
 	const showAddIngredient = useSignal(false);
 	const removeDialog = useDialog();
@@ -506,13 +512,20 @@ function PreparationSection({
 					description: prep.value.description,
 					yield_amount: prep.value.yield_amount,
 					yield_unit: prep.value.yield_unit,
-					steps: newSteps,
+					// eslint-disable-next-line no-unused-vars
+					steps: newSteps.map(({ _key, ...s }) => s),
 					is_public: prep.value.is_public,
 				}),
 			});
 			if (!r.ok) throw new Error("Failed to save steps");
 			const updated = await r.json();
-			prep.value = updated;
+			prep.value = {
+				...updated,
+				steps: updated.steps.map((s, i) => ({
+					...s,
+					_key: newSteps[i]?._key ?? crypto.randomUUID(),
+				})),
+			};
 			onUpdated(updated);
 		} finally {
 			savingSteps.value = false;
@@ -521,7 +534,7 @@ function PreparationSection({
 
 	const handleStepChange = (index, newDesc) => {
 		const newSteps = prep.value.steps.map((s, i) =>
-			i === index ? { description: newDesc } : s,
+			i === index ? { ...s, description: newDesc } : s,
 		);
 		saveSteps(newSteps);
 	};
@@ -532,7 +545,10 @@ function PreparationSection({
 	};
 
 	const handleAddStep = () => {
-		const newSteps = [...prep.value.steps, { description: "" }];
+		const newSteps = [
+			...prep.value.steps,
+			{ description: "", _key: crypto.randomUUID() },
+		];
 		saveSteps(newSteps);
 	};
 
@@ -813,7 +829,7 @@ function PreparationSection({
 							<div class="flex flex-col">
 								{prep.value.steps.map((step, i) => (
 									<StepRow
-										key={i}
+										key={step._key}
 										index={i}
 										description={step.description}
 										onChange={handleStepChange}
