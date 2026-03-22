@@ -918,8 +918,8 @@ describe("RecipeDetail — AddIngredientForm", () => {
 		fireEvent.input(screen.getByLabelText("Amount"), {
 			target: { value: "2" },
 		});
-		fireEvent.input(screen.getByLabelText("Unit (optional)"), {
-			target: { value: "cups" },
+		fireEvent.input(screen.getByTestId("mock-combobox"), {
+			target: { value: "cup" },
 		});
 
 		fireEvent.click(screen.getByTestId("add-ingredient-submit"));
@@ -934,7 +934,7 @@ describe("RecipeDetail — AddIngredientForm", () => {
 			const body = JSON.parse(prepCall[1].body);
 			expect(body.ingredient_id).toBe(42);
 			expect(body.amount).toBe(2);
-			expect(body.unit).toBe("cups");
+			expect(body.unit).toBe("cup");
 		});
 	});
 
@@ -984,7 +984,7 @@ describe("RecipeDetail — AddIngredientForm", () => {
 		});
 	});
 
-	it("unit is optional — saves with empty unit", async () => {
+	it("unit defaults to the cooking preference unit (g for metric)", async () => {
 		mockFetchForIngredients();
 		await openAddIngredientForm();
 
@@ -995,7 +995,7 @@ describe("RecipeDetail — AddIngredientForm", () => {
 			expect(screen.getByLabelText("Amount")).toBeInTheDocument(),
 		);
 
-		// Do not fill in unit — leave empty
+		// Do not change unit — leave as default
 		fireEvent.click(screen.getByTestId("add-ingredient-submit"));
 
 		await waitFor(() => {
@@ -1006,7 +1006,8 @@ describe("RecipeDetail — AddIngredientForm", () => {
 			);
 			expect(prepCall).toBeDefined();
 			const body = JSON.parse(prepCall[1].body);
-			expect(body.unit).toBe("");
+			// Default cooking preference (no user pref → metric fallback) resolves to "g"
+			expect(body.unit).toBe("g");
 		});
 	});
 

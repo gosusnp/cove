@@ -130,6 +130,38 @@ func TestProgramExerciseHandler_Create(t *testing.T) {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
 		}
 	})
+
+	t.Run("weight without unit returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
+		e := app.SeedExercise("Squat", nil)
+
+		body := fmt.Sprintf(`{"exercise_id": %d, "weight": 100}`, e.ID)
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises", p.ID, ps.ID)
+		r := httptest.NewRequest(http.MethodPost, url, strings.NewReader(body))
+		w := app.DoRaw(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("weight with non-mass unit returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
+		e := app.SeedExercise("Squat", nil)
+
+		body := fmt.Sprintf(`{"exercise_id": %d, "weight": 100, "weight_unit": "ml"}`, e.ID)
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises", p.ID, ps.ID)
+		r := httptest.NewRequest(http.MethodPost, url, strings.NewReader(body))
+		w := app.DoRaw(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
 }
 
 func TestProgramExerciseHandler_Update(t *testing.T) {
@@ -169,6 +201,40 @@ func TestProgramExerciseHandler_Update(t *testing.T) {
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("weight without unit returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
+		e := app.SeedExercise("Squat", nil)
+		pe := app.SeedProgramExercise(p.ID, ps.ID, e.ID)
+
+		body := fmt.Sprintf(`{"exercise_id": %d, "weight": 100}`, e.ID)
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/%d", p.ID, ps.ID, pe.ID)
+		r := httptest.NewRequest(http.MethodPut, url, strings.NewReader(body))
+		w := app.DoRaw(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("weight with non-mass unit returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
+		e := app.SeedExercise("Squat", nil)
+		pe := app.SeedProgramExercise(p.ID, ps.ID, e.ID)
+
+		body := fmt.Sprintf(`{"exercise_id": %d, "weight": 100, "weight_unit": "ml"}`, e.ID)
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/%d", p.ID, ps.ID, pe.ID)
+		r := httptest.NewRequest(http.MethodPut, url, strings.NewReader(body))
+		w := app.DoRaw(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
 		}
 	})
 }

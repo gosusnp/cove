@@ -64,10 +64,12 @@ type Email string
 type GoogleSub string
 
 type User struct {
-	ID        UserID    `json:"id"`
-	Email     Email     `json:"email"`
-	GoogleSub GoogleSub `json:"-"`
-	CreatedAt time.Time `json:"created_at"`
+	ID                UserID      `json:"id"`
+	Email             Email       `json:"email"`
+	GoogleSub         GoogleSub   `json:"-"`
+	FitnessUnitSystem *UnitSystem `json:"fitness_unit_system,omitempty"`
+	CookingUnitSystem *UnitSystem `json:"cooking_unit_system,omitempty"`
+	CreatedAt         time.Time   `json:"created_at"`
 }
 
 // -----------------------------------------------------------------------------

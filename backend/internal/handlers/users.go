@@ -31,6 +31,7 @@ func NewUserHandler(s *service.UserService, secureCookies bool) *UserHandler {
 // RegisterRoutes registers user routes on mux.
 func (h *UserHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /users/me", h.me)
+	mux.HandleFunc("PATCH /users/me", h.updatePreferences)
 	mux.HandleFunc("POST /users/logout", h.logout)
 	mux.HandleFunc("GET /users/tokens", h.listTokens)
 	mux.HandleFunc("POST /users/tokens", h.createToken)
@@ -55,9 +56,21 @@ func (h *UserHandler) logout(w http.ResponseWriter, r *http.Request) {
 }
 
 type userResponse struct {
-	ID        domain.UserID `json:"id"`
-	Email     domain.Email  `json:"email"`
-	CreatedAt time.Time     `json:"created_at"`
+	ID                domain.UserID      `json:"id"`
+	Email             domain.Email       `json:"email"`
+	FitnessUnitSystem *domain.UnitSystem `json:"fitness_unit_system,omitempty"`
+	CookingUnitSystem *domain.UnitSystem `json:"cooking_unit_system,omitempty"`
+	CreatedAt         time.Time          `json:"created_at"`
+}
+
+func userToResponse(u *domain.User) userResponse {
+	return userResponse{
+		ID:                u.ID,
+		Email:             u.Email,
+		FitnessUnitSystem: u.FitnessUnitSystem,
+		CookingUnitSystem: u.CookingUnitSystem,
+		CreatedAt:         u.CreatedAt,
+	}
 }
 
 func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
@@ -75,11 +88,73 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 		internalError(w, r, err)
 		return
 	}
-	jsonOK(w, userResponse{
-		ID:        user.ID,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-	})
+	jsonOK(w, userToResponse(user))
+}
+
+func (h *UserHandler) updatePreferences(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserIDFromContext(r.Context())
+	if userID.UUID == uuid.Nil {
+		jsonError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Decode to a raw map so we can distinguish absent keys from explicit nulls.
+	var raw map[string]json.RawMessage
+	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Load current user so absent keys retain their existing values.
+	current, err := h.svc.Get(r.Context(), userID)
+	if errors.Is(err, service.ErrNotFound) {
+		jsonError(w, "user not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		internalError(w, r, err)
+		return
+	}
+
+	newFitness := current.FitnessUnitSystem
+	newCooking := current.CookingUnitSystem
+
+	if v, ok := raw["fitness_unit_system"]; ok {
+		if string(v) == "null" {
+			newFitness = nil
+		} else {
+			var s domain.UnitSystem
+			if err := json.Unmarshal(v, &s); err != nil {
+				jsonError(w, "invalid fitness_unit_system", http.StatusBadRequest)
+				return
+			}
+			newFitness = &s
+		}
+	}
+	if v, ok := raw["cooking_unit_system"]; ok {
+		if string(v) == "null" {
+			newCooking = nil
+		} else {
+			var s domain.UnitSystem
+			if err := json.Unmarshal(v, &s); err != nil {
+				jsonError(w, "invalid cooking_unit_system", http.StatusBadRequest)
+				return
+			}
+			newCooking = &s
+		}
+	}
+
+	user, err := h.svc.UpdatePreferences(r.Context(), userID, newFitness, newCooking)
+	var ve *service.ValidationError
+	if errors.As(err, &ve) {
+		jsonError(w, ve.Msg, http.StatusBadRequest)
+		return
+	}
+	if err != nil {
+		internalError(w, r, err)
+		return
+	}
+	jsonOK(w, userToResponse(user))
 }
 
 type createTokenRequest struct {

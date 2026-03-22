@@ -124,6 +124,56 @@ func ConvertMassToVolume(amount float64, from Unit, densityGPerMl float64, to Un
 	return ConvertVolume(ml, UnitMilliliter, to)
 }
 
+// UnitSystem represents a measurement system preference.
+type UnitSystem string
+
+const (
+	UnitSystemMetric      UnitSystem = "metric"
+	UnitSystemImperial    UnitSystem = "imperial"
+	UnitSystemUSCustomary UnitSystem = "us_customary"
+)
+
+// Valid reports whether the system is a known value.
+func (s UnitSystem) Valid() bool {
+	switch s {
+	case UnitSystemMetric, UnitSystemImperial, UnitSystemUSCustomary:
+		return true
+	}
+	return false
+}
+
+// DefaultFitnessWeightUnit returns the default weight unit for the fitness domain.
+func (s UnitSystem) DefaultFitnessWeightUnit() Unit {
+	switch s {
+	case UnitSystemImperial:
+		return UnitPound
+	default:
+		return UnitKilogram
+	}
+}
+
+// DefaultCookingMassUnit returns the default mass unit for the cooking domain.
+func (s UnitSystem) DefaultCookingMassUnit() Unit {
+	switch s {
+	case UnitSystemMetric:
+		return UnitGram
+	default:
+		return UnitOunce
+	}
+}
+
+// DefaultCookingVolumeUnit returns the default volume unit for the cooking domain.
+func (s UnitSystem) DefaultCookingVolumeUnit() Unit {
+	switch s {
+	case UnitSystemMetric:
+		return UnitMilliliter
+	case UnitSystemImperial:
+		return UnitFluidOunce
+	default:
+		return UnitCup
+	}
+}
+
 // QuantizeSteps maps a Unit to its smallest practical increment.
 // Units absent from the map are not quantized (pass-through).
 type QuantizeSteps map[Unit]float64

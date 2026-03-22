@@ -147,6 +147,32 @@ func (s *UserService) DeletePAT(ctx context.Context, userID domain.UserID, id do
 	return nil
 }
 
+// UpdatePreferences updates the unit system preferences for the user.
+// Either value may be nil to clear the preference.
+func (s *UserService) UpdatePreferences(
+	ctx context.Context,
+	userID domain.UserID,
+	fitnessUnitSystem *domain.UnitSystem,
+	cookingUnitSystem *domain.UnitSystem,
+) (*domain.User, error) {
+	if fitnessUnitSystem != nil {
+		if !fitnessUnitSystem.Valid() || *fitnessUnitSystem == domain.UnitSystemUSCustomary {
+			return nil, &ValidationError{Msg: "fitness_unit_system must be 'metric' or 'imperial'"}
+		}
+	}
+	if cookingUnitSystem != nil && !cookingUnitSystem.Valid() {
+		return nil, &ValidationError{Msg: "cooking_unit_system must be 'metric', 'imperial', or 'us_customary'"}
+	}
+	user, err := s.users.UpdatePreferences(ctx, s.db, userID, fitnessUnitSystem, cookingUnitSystem)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("update preferences: %w", err)
+	}
+	return user, nil
+}
+
 // DeleteSession deletes the session with the given id for the user.
 func (s *UserService) DeleteSession(ctx context.Context, userID domain.UserID, sessionID domain.SessionID) error {
 	if err := s.users.DeleteSession(ctx, s.db, userID, sessionID); err != nil {

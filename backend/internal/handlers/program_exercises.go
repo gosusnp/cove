@@ -107,7 +107,7 @@ func (h *ProgramExerciseHandler) create(w http.ResponseWriter, r *http.Request) 
 	pe, err := h.svc.CreateExercise(r.Context(), programID, setID, req.ExerciseID, req.Laterality, req.TargetReps, req.TargetDurationSeconds, req.TargetWeight, req.WeightUnit)
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
-		jsonError(w, ve.Error(), http.StatusBadRequest)
+		jsonError(w, ve.Msg, http.StatusBadRequest)
 		return
 	}
 	if errors.Is(err, service.ErrNotFound) {
@@ -145,7 +145,7 @@ func (h *ProgramExerciseHandler) update(w http.ResponseWriter, r *http.Request) 
 	pe, err := h.svc.UpdateExercise(r.Context(), programID, setID, id, req.ExerciseID, req.Laterality, req.TargetReps, req.TargetDurationSeconds, req.TargetWeight, req.WeightUnit)
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
-		jsonError(w, ve.Error(), http.StatusBadRequest)
+		jsonError(w, ve.Msg, http.StatusBadRequest)
 		return
 	}
 	if errors.Is(err, service.ErrNotFound) {

@@ -144,7 +144,8 @@ const MOCK_PROGRAM = {
 					laterality: "bilateral",
 					reps: 8,
 					duration_s: null,
-					weight_kg: 60,
+					weight: 60,
+					weight_unit: "kg",
 					sort_order: 0,
 				},
 			],
@@ -298,19 +299,19 @@ describe("ProgramDetail — set display", () => {
 		expect(screen.getByText("8 reps")).toBeInTheDocument();
 	});
 
-	it('shows "+60kg" for weight_kg=60', async () => {
+	it('shows "+60kg" for weight=60 weight_unit=kg', async () => {
 		mockDefaultFetch();
 		renderDetail();
 		await waitFor(() => expect(screen.getByText("+60kg")).toBeInTheDocument());
 	});
 
-	it('shows "bodyweight" for weight_kg=0', async () => {
+	it('shows "bodyweight" for weight=0', async () => {
 		const prog = {
 			...MOCK_PROGRAM,
 			sets: [
 				{
 					...MOCK_PROGRAM.sets[0],
-					exercises: [{ ...MOCK_PROGRAM.sets[0].exercises[0], weight_kg: 0 }],
+					exercises: [{ ...MOCK_PROGRAM.sets[0].exercises[0], weight: 0 }],
 				},
 			],
 		};
@@ -332,15 +333,13 @@ describe("ProgramDetail — set display", () => {
 		);
 	});
 
-	it("shows bodyweight for weight_kg=null", async () => {
+	it("shows bodyweight for weight=null", async () => {
 		const prog = {
 			...MOCK_PROGRAM,
 			sets: [
 				{
 					...MOCK_PROGRAM.sets[0],
-					exercises: [
-						{ ...MOCK_PROGRAM.sets[0].exercises[0], weight_kg: null },
-					],
+					exercises: [{ ...MOCK_PROGRAM.sets[0].exercises[0], weight: null }],
 				},
 			],
 		};

@@ -40,11 +40,11 @@ func (s *UserStore) UpsertUser(
 		`INSERT INTO cove.users (id, email, google_sub)
 		 VALUES ($1, $2, $3)
 		 ON CONFLICT (google_sub) DO UPDATE SET email = EXCLUDED.email
-		 RETURNING id, email, google_sub, created_at, (xmax = 0)`,
+		 RETURNING id, email, google_sub, fitness_unit_system, cooking_unit_system, created_at, (xmax = 0)`,
 		id,
 		email,
 		googleSub,
-	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt, &created)
+	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.FitnessUnitSystem, &user.CookingUnitSystem, &user.CreatedAt, &created)
 
 	if err != nil {
 		return nil, false, fmt.Errorf("upsert user: %w", err)
@@ -61,10 +61,10 @@ func (s *UserStore) GetByID(
 	var user domain.User
 	err := q.QueryRowContext(
 		ctx,
-		`SELECT id, email, google_sub, created_at
+		`SELECT id, email, google_sub, fitness_unit_system, cooking_unit_system, created_at
 		 FROM cove.users WHERE id = $1`,
 		id,
-	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt)
+	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.FitnessUnitSystem, &user.CookingUnitSystem, &user.CreatedAt)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -74,6 +74,32 @@ func (s *UserStore) GetByID(
 		return nil, fmt.Errorf("get user by id: %w", err)
 	}
 
+	return &user, nil
+}
+
+// UpdatePreferences updates the fitness and cooking system preferences for the user.
+func (s *UserStore) UpdatePreferences(
+	ctx context.Context,
+	q Querier,
+	id domain.UserID,
+	fitnessUnitSystem *domain.UnitSystem,
+	cookingUnitSystem *domain.UnitSystem,
+) (*domain.User, error) {
+	var user domain.User
+	err := q.QueryRowContext(
+		ctx,
+		`UPDATE cove.users
+		 SET fitness_unit_system = $2, cooking_unit_system = $3
+		 WHERE id = $1
+		 RETURNING id, email, google_sub, fitness_unit_system, cooking_unit_system, created_at`,
+		id, fitnessUnitSystem, cookingUnitSystem,
+	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.FitnessUnitSystem, &user.CookingUnitSystem, &user.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("update preferences: %w", err)
+	}
 	return &user, nil
 }
 
@@ -338,11 +364,11 @@ func (s *UserStore) GetUserByToken(
 			  AND (expires_at IS NULL OR expires_at > NOW())
 			RETURNING user_id, org_id, id AS token_id
 		)
-		SELECT u.id, u.email, u.google_sub, u.created_at, t.org_id, t.token_id
+		SELECT u.id, u.email, u.google_sub, u.fitness_unit_system, u.cooking_unit_system, u.created_at, t.org_id, t.token_id
 		FROM t
 		JOIN cove.users u ON u.id = t.user_id`,
 		sha256TokenHash(token), ipMasked, browser, os,
-	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.CreatedAt, &org.ID, &tokenID)
+	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.FitnessUnitSystem, &user.CookingUnitSystem, &user.CreatedAt, &org.ID, &tokenID)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil, uuid.Nil, ErrNotFound

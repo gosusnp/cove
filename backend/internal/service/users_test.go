@@ -121,6 +121,78 @@ func TestUserService_GetUserByToken(t *testing.T) {
 	})
 }
 
+func TestUserService_UpdatePreferences(t *testing.T) {
+	t.Run("sets fitness and cooking system", func(t *testing.T) {
+		ctx, svc := newTestUserService(t)
+		user, _, _ := svc.GetOrCreate(ctx, "pref@example.com", "sub-pref")
+
+		fs := domain.UnitSystemImperial
+		cs := domain.UnitSystemUSCustomary
+		got, err := svc.UpdatePreferences(ctx, user.ID, &fs, &cs)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.FitnessUnitSystem == nil || *got.FitnessUnitSystem != domain.UnitSystemImperial {
+			t.Errorf("got fitness_unit_system %v, want imperial", got.FitnessUnitSystem)
+		}
+		if got.CookingUnitSystem == nil || *got.CookingUnitSystem != domain.UnitSystemUSCustomary {
+			t.Errorf("got cooking_unit_system %v, want us_customary", got.CookingUnitSystem)
+		}
+	})
+
+	t.Run("nil values clear preferences", func(t *testing.T) {
+		ctx, svc := newTestUserService(t)
+		user, _, _ := svc.GetOrCreate(ctx, "pref-clear@example.com", "sub-pref-clear")
+
+		fs := domain.UnitSystemImperial
+		_, _ = svc.UpdatePreferences(ctx, user.ID, &fs, nil)
+
+		got, err := svc.UpdatePreferences(ctx, user.ID, nil, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.FitnessUnitSystem != nil {
+			t.Errorf("expected nil fitness_unit_system, got %v", *got.FitnessUnitSystem)
+		}
+	})
+
+	t.Run("us_customary rejected for fitness", func(t *testing.T) {
+		ctx, svc := newTestUserService(t)
+		user, _, _ := svc.GetOrCreate(ctx, "pref-bad-fit@example.com", "sub-pref-bad-fit")
+
+		fs := domain.UnitSystemUSCustomary
+		_, err := svc.UpdatePreferences(ctx, user.ID, &fs, nil)
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("got %v, want ValidationError", err)
+		}
+	})
+
+	t.Run("invalid fitness system returns ValidationError", func(t *testing.T) {
+		ctx, svc := newTestUserService(t)
+		user, _, _ := svc.GetOrCreate(ctx, "pref-bad-fit2@example.com", "sub-pref-bad-fit2")
+
+		fs := domain.UnitSystem("furlong")
+		_, err := svc.UpdatePreferences(ctx, user.ID, &fs, nil)
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("got %v, want ValidationError", err)
+		}
+	})
+
+	t.Run("invalid cooking system returns ValidationError", func(t *testing.T) {
+		ctx, svc := newTestUserService(t)
+		user, _, _ := svc.GetOrCreate(ctx, "pref-bad-cook@example.com", "sub-pref-bad-cook")
+
+		cs := domain.UnitSystem("stone")
+		_, err := svc.UpdatePreferences(ctx, user.ID, nil, &cs)
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("got %v, want ValidationError", err)
+		}
+	})
+}
+
 func TestUserService_Tokens(t *testing.T) {
 	ctx, svc := newTestUserService(t)
 	user, _, _ := svc.GetOrCreate(ctx, "test@example.com", "sub")

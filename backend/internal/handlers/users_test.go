@@ -103,6 +103,125 @@ func TestUserHandler_Me(t *testing.T) {
 	})
 }
 
+func TestUserHandler_UpdatePreferences(t *testing.T) {
+	t.Run("sets preferences and returns updated user", func(t *testing.T) {
+		app := NewTestApp(t)
+		userID := app.SeedUser("prefs@example.com", "sub-prefs")
+
+		body := `{"fitness_unit_system":"imperial","cooking_unit_system":"us_customary"}`
+		r := app.AuthRequest(http.MethodPatch, "/api/users/me", strings.NewReader(body), userID)
+		w := app.Do(r)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("got status %d, want 200: %s", w.Code, w.Body.String())
+		}
+		var got userResponse
+		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if got.FitnessUnitSystem == nil || *got.FitnessUnitSystem != "imperial" {
+			t.Errorf("got fitness_unit_system %v, want imperial", got.FitnessUnitSystem)
+		}
+		if got.CookingUnitSystem == nil || *got.CookingUnitSystem != "us_customary" {
+			t.Errorf("got cooking_unit_system %v, want us_customary", got.CookingUnitSystem)
+		}
+	})
+
+	t.Run("GET /users/me reflects saved preferences", func(t *testing.T) {
+		app := NewTestApp(t)
+		userID := app.SeedUser("prefs-get@example.com", "sub-prefs-get")
+
+		// Set preferences
+		body := `{"fitness_unit_system":"metric","cooking_unit_system":"metric"}`
+		r := app.AuthRequest(http.MethodPatch, "/api/users/me", strings.NewReader(body), userID)
+		app.Do(r)
+
+		// Fetch via GET
+		r = app.AuthRequest(http.MethodGet, "/api/users/me", nil, userID)
+		w := app.Do(r)
+
+		var got userResponse
+		_ = json.NewDecoder(w.Body).Decode(&got)
+		if got.FitnessUnitSystem == nil || *got.FitnessUnitSystem != "metric" {
+			t.Errorf("got fitness_unit_system %v, want metric", got.FitnessUnitSystem)
+		}
+	})
+
+	t.Run("patch preserves unmentioned keys", func(t *testing.T) {
+		app := NewTestApp(t)
+		userID := app.SeedUser("prefs-preserve@example.com", "sub-prefs-preserve")
+
+		// Set both preferences.
+		body := `{"fitness_unit_system":"imperial","cooking_unit_system":"us_customary"}`
+		r := app.AuthRequest(http.MethodPatch, "/api/users/me", strings.NewReader(body), userID)
+		app.Do(r)
+
+		// Patch only cooking — fitness must remain imperial.
+		body = `{"cooking_unit_system":"metric"}`
+		r = app.AuthRequest(http.MethodPatch, "/api/users/me", strings.NewReader(body), userID)
+		w := app.Do(r)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("got status %d, want 200: %s", w.Code, w.Body.String())
+		}
+		var got userResponse
+		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if got.FitnessUnitSystem == nil || *got.FitnessUnitSystem != "imperial" {
+			t.Errorf("got fitness_unit_system %v, want imperial", got.FitnessUnitSystem)
+		}
+		if got.CookingUnitSystem == nil || *got.CookingUnitSystem != "metric" {
+			t.Errorf("got cooking_unit_system %v, want metric", got.CookingUnitSystem)
+		}
+	})
+
+	t.Run("us_customary for fitness returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		userID := app.SeedUser("prefs-bad@example.com", "sub-prefs-bad")
+
+		body := `{"fitness_unit_system":"us_customary"}`
+		r := app.AuthRequest(http.MethodPatch, "/api/users/me", strings.NewReader(body), userID)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want 400", w.Code)
+		}
+	})
+
+	t.Run("invalid cooking system returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		userID := app.SeedUser("prefs-bad2@example.com", "sub-prefs-bad2")
+
+		body := `{"cooking_unit_system":"furlong"}`
+		r := app.AuthRequest(http.MethodPatch, "/api/users/me", strings.NewReader(body), userID)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want 400", w.Code)
+		}
+	})
+
+	t.Run("missing auth returns 401", func(t *testing.T) {
+		app := NewTestApp(t)
+		r := httptest.NewRequest(http.MethodPatch, "/api/users/me", strings.NewReader(`{}`))
+		w := app.Do(r)
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("got status %d, want 401", w.Code)
+		}
+	})
+
+	t.Run("invalid body returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		userID := app.SeedUser("prefs-inv@example.com", "sub-prefs-inv")
+		r := app.AuthRequest(http.MethodPatch, "/api/users/me", strings.NewReader(`not json`), userID)
+		w := app.Do(r)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want 400", w.Code)
+		}
+	})
+}
+
 func TestUserHandler_Sessions(t *testing.T) {
 	t.Run("list returns active sessions with is_current", func(t *testing.T) {
 		app := NewTestApp(t)

@@ -16,7 +16,24 @@ import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
 import { EditableMarkdown } from "../components/ui/EditableMarkdown.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { useDialog } from "../hooks/useDialog.js";
+import { useUnitPreferences } from "../hooks/useUnitPreferences.js";
 import { apiFetch } from "../lib/api.js";
+
+// ── Cooking unit options ───────────────────────────────────────────────────────
+
+const COOKING_UNIT_OPTIONS = [
+	{ value: "g", label: "g — gram" },
+	{ value: "kg", label: "kg" },
+	{ value: "oz", label: "oz — ounce" },
+	{ value: "lb", label: "lb — pound" },
+	{ value: "ml", label: "ml" },
+	{ value: "l", label: "l — liter" },
+	{ value: "tsp", label: "tsp — teaspoon" },
+	{ value: "tbsp", label: "tbsp — tablespoon" },
+	{ value: "fl_oz", label: "fl oz" },
+	{ value: "cup", label: "cup" },
+	{ value: "unit", label: "unit — each" },
+];
 
 // ─── IngredientRow ────────────────────────────────────────────────────────────
 
@@ -100,13 +117,15 @@ function IngredientRow({ ingredient, prepId, onUpdated, onDeleted }) {
 							}}
 						/>
 					</div>
-					<div style={{ width: "80px" }}>
-						<TextField
+					<div style={{ width: "130px" }}>
+						<Combobox
 							label="Unit"
 							value={unit.value}
-							onInput={(e) => {
-								unit.value = e.target.value;
+							onChange={(v) => {
+								unit.value = v;
 							}}
+							options={COOKING_UNIT_OPTIONS}
+							placeholder="unit…"
 						/>
 					</div>
 				</div>
@@ -308,13 +327,15 @@ function FDCSearch({ initialQuery = "", onSelect }) {
 //       "fdc"     — FDC search panel; ingredient not yet created
 //       "confirm" — FDC entry chosen; fill amount/unit/prep and save
 function AddIngredientForm({ prepId, onAdded, onCancel }) {
+	const { cookingMassUnit } = useUnitPreferences();
+
 	const ingredients = useSignal([]);
 	const selectedId = useSignal("");
 	const fdcQuery = useSignal("");
 	const selectedFDC = useSignal(null);
 	const name = useSignal("");
 	const amount = useSignal("1");
-	const unit = useSignal("");
+	const unit = useSignal(cookingMassUnit);
 	const prepNote = useSignal("");
 	const saving = useSignal(false);
 	const error = useSignal("");
@@ -474,13 +495,15 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 							/>
 						</div>
 						<div class="flex-1">
-							<TextField
+							<Combobox
 								id="ing-unit"
-								label="Unit (optional)"
+								label="Unit"
 								value={unit.value}
-								onInput={(e) => {
-									unit.value = e.target.value;
+								onChange={(v) => {
+									unit.value = v;
 								}}
+								options={COOKING_UNIT_OPTIONS}
+								placeholder="unit…"
 							/>
 						</div>
 					</div>

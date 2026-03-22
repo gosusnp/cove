@@ -17,6 +17,7 @@ import {
 import { PageTitle } from "../components/ui/PageTitle.jsx";
 import { Row, Section } from "../components/ui/Section.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
+import { ToggleGroup } from "../components/ui/ToggleGroup.jsx";
 import { useDialog } from "../hooks/useDialog.js";
 import { timeAgo } from "../lib/utils";
 import { apiFetch } from "../lib/api.js";
@@ -197,6 +198,44 @@ export function Settings() {
 						<span>{user.name}</span>
 					</Row>
 				)}
+			</Section>
+
+			<Section title="Units">
+				<Row label="Fitness weight">
+					<ToggleGroup
+						value={user?.fitness_unit_system ?? "metric"}
+						onChange={async (v) => {
+							const r = await apiFetch("/api/users/me", {
+								method: "PATCH",
+								headers: { "Content-Type": "application/json" },
+								body: JSON.stringify({ fitness_unit_system: v }),
+							});
+							if (r.ok) updateUser(await r.json());
+						}}
+						options={[
+							{ value: "metric", label: "kg" },
+							{ value: "imperial", label: "lb" },
+						]}
+					/>
+				</Row>
+				<Row label="Cooking" last>
+					<ToggleGroup
+						value={user?.cooking_unit_system ?? "metric"}
+						onChange={async (v) => {
+							const r = await apiFetch("/api/users/me", {
+								method: "PATCH",
+								headers: { "Content-Type": "application/json" },
+								body: JSON.stringify({ cooking_unit_system: v }),
+							});
+							if (r.ok) updateUser(await r.json());
+						}}
+						options={[
+							{ value: "metric", label: "Metric" },
+							{ value: "imperial", label: "Imperial" },
+							{ value: "us_customary", label: "US (cups)" },
+						]}
+					/>
+				</Row>
 			</Section>
 
 			<Section title="Connected Accounts">

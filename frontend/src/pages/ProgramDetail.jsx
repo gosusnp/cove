@@ -49,6 +49,7 @@ import { useSortableGroups } from "../hooks/useSortableGroups.js";
 import { cn } from "../lib/utils.js";
 import { apiFetch } from "../lib/api.js";
 import { ActivityPicker } from "../components/shared/ActivityPicker.jsx";
+import { useUnitPreferences } from "../hooks/useUnitPreferences.js";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -62,21 +63,27 @@ const LATERALITY_OPTIONS = [
 
 // ── Weight tag ────────────────────────────────────────────────────────────────
 
-function WeightTag({ weight_kg }) {
-	if (weight_kg == null || weight_kg === 0) {
+const WEIGHT_UNIT_OPTIONS = [
+	{ value: "kg", label: "kg" },
+	{ value: "lb", label: "lb" },
+];
+
+function WeightTag({ weight, weight_unit }) {
+	const unit = weight_unit ?? "kg";
+	if (weight == null || weight === 0) {
 		return (
 			<span class="text-xs" style={{ color: "var(--color-muted)" }}>
 				bodyweight
 			</span>
 		);
 	}
-	if (weight_kg > 0) {
+	if (weight > 0) {
 		return (
 			<span
 				class="text-xs font-medium"
 				style={{ color: "var(--color-success, #1a6e1a)" }}
 			>
-				+{weight_kg}kg
+				{`+${weight}${unit}`}
 			</span>
 		);
 	}
@@ -85,7 +92,7 @@ function WeightTag({ weight_kg }) {
 			class="text-xs font-medium"
 			style={{ color: "var(--color-info, #0055aa)" }}
 		>
-			{weight_kg}kg (assisted)
+			{`${weight}${unit} (assisted)`}
 		</span>
 	);
 }
@@ -184,7 +191,7 @@ function SortableExerciseRow({ exercise, setId, onEdit, onRemove }) {
 					{exercise.duration_s}s
 				</span>
 			)}
-			<WeightTag weight_kg={exercise.weight_kg} />
+			<WeightTag weight={exercise.weight} weight_unit={exercise.weight_unit} />
 			<div class="flex gap-1 shrink-0">
 				<Tooltip>
 					<TooltipTrigger>
@@ -581,6 +588,8 @@ function ProgramDetailInner({
 	};
 
 	// ── Add / Edit Exercise dialog ────────────────────────────────────────────
+	const { fitnessWeightUnit } = useUnitPreferences();
+
 	const pexDialog = useDialog();
 	const editingPex = useSignal(null);
 	const pexSetId = useSignal(null);
@@ -589,6 +598,7 @@ function ProgramDetailInner({
 	const pexReps = useSignal("");
 	const pexDuration = useSignal("");
 	const pexWeight = useSignal("");
+	const pexWeightUnit = useSignal(fitnessWeightUnit);
 	const pexFormError = useSignal("");
 	const pexFormSaving = useSignal(false);
 
@@ -600,6 +610,7 @@ function ProgramDetailInner({
 		pexReps.value = "";
 		pexDuration.value = "";
 		pexWeight.value = "";
+		pexWeightUnit.value = fitnessWeightUnit;
 		pexFormError.value = "";
 		pexDialog.show();
 	};
@@ -611,7 +622,8 @@ function ProgramDetailInner({
 		pexLaterality.value = pex.laterality ?? null;
 		pexReps.value = pex.reps != null ? String(pex.reps) : "";
 		pexDuration.value = pex.duration_s != null ? String(pex.duration_s) : "";
-		pexWeight.value = pex.weight_kg != null ? String(pex.weight_kg) : "";
+		pexWeight.value = pex.weight != null ? String(pex.weight) : "";
+		pexWeightUnit.value = pex.weight_unit ?? fitnessWeightUnit;
 		pexFormError.value = "";
 		pexDialog.show();
 	};
@@ -646,7 +658,8 @@ function ProgramDetailInner({
 					laterality: pexLaterality.value ?? undefined,
 					reps: repsVal,
 					duration_s: durVal,
-					weight_kg: weightVal,
+					weight: weightVal,
+					weight_unit: weightVal != null ? pexWeightUnit.value : undefined,
 				}),
 			});
 			if (!r.ok) {
@@ -1186,16 +1199,27 @@ function ProgramDetailInner({
 									pexDuration.value = e.target.value;
 								}}
 							/>
-							<TextField
-								label="Target Weight (kg)"
-								type="number"
-								step="0.5"
-								placeholder="0 = bodyweight"
-								value={pexWeight.value}
-								onInput={(e) => {
-									pexWeight.value = e.target.value;
-								}}
-							/>
+							<div class="flex gap-2 items-end">
+								<div class="flex-1">
+									<TextField
+										label={`Target Weight (${pexWeightUnit.value})`}
+										type="number"
+										step="0.5"
+										placeholder="0 = bodyweight"
+										value={pexWeight.value}
+										onInput={(e) => {
+											pexWeight.value = e.target.value;
+										}}
+									/>
+								</div>
+								<ToggleGroup
+									value={pexWeightUnit.value}
+									onChange={(v) => {
+										pexWeightUnit.value = v;
+									}}
+									options={WEIGHT_UNIT_OPTIONS}
+								/>
+							</div>
 							{pexFormError.value && (
 								<p class="text-sm" style={{ color: "var(--color-error)" }}>
 									{pexFormError.value}
