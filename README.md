@@ -1,6 +1,6 @@
 # Cove
 
-Personal fitness tracking app with an MCP interface for AI-assisted workout planning.
+Personal fitness and cooking companion with an MCP interface for AI-assisted workout planning.
 
 ## Prerequisites
 
@@ -26,6 +26,7 @@ Personal fitness tracking app with an MCP interface for AI-assisted workout plan
    | `GOOGLE_CLIENT_SECRET` | — | yes | From Google Cloud Console |
    | `GOOGLE_REDIRECT_URL` | `http://localhost:8080/auth/callback` | yes | |
    | `SESSION_ENCRYPTION_KEY` | — | yes | Base64-encoded 32-byte key; generate with `python3 -c "import os,base64; print(base64.b64encode(os.urandom(32)).decode())"` |
+   | `FDC_API_KEY` | _(empty)_ | no | USDA FoodData Central API key; ingredient search is disabled without it |
    | `COVE_ALLOWED_EMAILS` | _(empty = allow all)_ | no | Comma-separated allowlist |
    | `COVE_PORT` | `8080` | no | HTTP listen port |
    | `COVE_DB_SCHEMA` | `cove` | no | Database schema; set to a unique name when sharing a Postgres instance |
@@ -42,11 +43,17 @@ Personal fitness tracking app with an MCP interface for AI-assisted workout plan
 
 ## Development
 
-Run backend and frontend in separate terminals:
+Run backend and frontend together (recommended):
 
 ```sh
-make run.backend    # Go server on :8080
-make run.frontend   # Vite dev server on :5173
+make dev    # backend + frontend in parallel
+```
+
+Or in separate terminals:
+
+```sh
+make backend.run    # Go server on :8080
+make frontend.run   # Vite dev server on :5173
 ```
 
 > The Vite dev server is the working dev setup. The Go binary embeds the built frontend for production (`make preview` to test that path).
@@ -54,7 +61,7 @@ make run.frontend   # Vite dev server on :5173
 ## Testing
 
 ```sh
-make test
+make check
 ```
 
 Backend tests spin up a real Postgres container via testcontainers — Docker must be running.
@@ -64,11 +71,12 @@ Backend tests spin up a real Postgres container via testcontainers — Docker mu
 | Command | Description |
 |---|---|
 | `make fix` | Format code and apply license headers |
-| `make lint` | Lint backend and frontend |
-| `make check` | Lint + test |
+| `make check` | Lint + test (backend, frontend, and Android) |
 | `make devenv.down` | Stop the database |
 | `make devenv.reset` | Stop and wipe database volume |
 | `make build` | Production build (frontend embedded in Go binary) |
+| `make android.build` | Build and sync the Android Capacitor project |
+| `make android.run` | Run the app on an Android device/emulator |
 
 ## License
 

@@ -7,6 +7,7 @@ Structural rules for how the Cove backend is organized and how layers interact.
 ## Project Layout
 
 ```
+android/          — Capacitor Android project (mobile builds)
 backend/          — Go module (github.com/gosusnp/cove/backend)
   cmd/mcp/        — standalone MCP server entry point
   internal/
@@ -18,13 +19,17 @@ backend/          — Go module (github.com/gosusnp/cove/backend)
     middleware/   — APIKey and OAuth auth, request logging
     mcp/          — MCP tool registration grouped by resource
     crypto/       — Encryptor interface, AES-256-GCM impl, EncryptedField[T] hardened type, SensitiveString
+    fdc/          — USDA FoodData Central API client (ingredient search and import)
+    markdown/     — program-to-markdown rendering (used by MCP)
+    httputil/     — shared HTTP helpers
     testutil/     — shared test infrastructure (testcontainers + pgtestdb)
   main.go         — HTTP server entry point
 frontend/         — Preact + Vite + Tailwind v4
+  capacitor.config.json — Capacitor configuration for mobile asset bundling
   src/
     __mocks__/    — jsdom-compatible mocks for Radix packages used in tests
     components/
-      shared/     — cross-cutting app components (Nav, …)
+      shared/     — cross-cutting app components (Nav, ActivityPicker, …)
       ui/         — gold standard primitives (Button, Dialog, Switch, NavigationMenu, NavigationMenuBrand, TopBar, Avatar)
     hooks/        — signal-based hooks (useDialog, …)
     lib/          — shared utilities (cn, apiFetch)

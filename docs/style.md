@@ -187,6 +187,8 @@ All interactive and reusable UI elements **must** come from `src/components/ui/`
 | `ListDetail` | `components/ui/ListDetail.jsx` | Responsive two-column list+detail layout; collapses to single panel on mobile; `list`, `detail`, `emptyState`, `hasDetail` props |
 | `ListItem` | `components/ui/ListItem.jsx` | Clickable list row with label, optional sublabel, active highlight, and right-side `actions` slot |
 | `Markdown` | `components/ui/Markdown.jsx` | Renders a markdown string as styled HTML using design-token typography; `children`, `class` props |
+| `EditableMarkdown` | `components/ui/EditableMarkdown.jsx` | Inline editable markdown field; switches between rendered view and textarea; `value`, `placeholder`, `onSave`, `variant` (`"default"` bordered card \| `"plain"` borderless), `minRows`, `maxRows`, `resizable`, `editLabel`, `disabled` props |
+| `CheckList`, `CheckListSection`, `CheckListItem` | `components/ui/CheckList.jsx` | Swipeable checklist for session tracking; `CheckListSection` groups items under a sticky header (swipe right to check all); `CheckListItem` supports swipe-to-toggle and click-to-toggle, `subtitle` renders a second line, `defaultChecked` sets initial state |
 
 Supporting utilities:
 
