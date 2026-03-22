@@ -65,7 +65,7 @@ func exerciseLine(e domain.ProgramExercise) string {
 	if e.TargetDurationSeconds != nil {
 		details = append(details, fmt.Sprintf("%ds", *e.TargetDurationSeconds))
 	}
-	if w := weightLabel(e.TargetWeightKg); w != "" {
+	if w := weightLabel(e.TargetWeight, e.WeightUnit); w != "" {
 		details = append(details, w)
 	}
 
@@ -84,12 +84,16 @@ func roundsLabel(n int) string {
 }
 
 // weightLabel returns a human-readable weight string, or empty string for bodyweight.
-func weightLabel(kg *float64) string {
-	if kg == nil || *kg == 0 {
+func weightLabel(weight *float64, unit *domain.Unit) string {
+	if weight == nil || *weight == 0 {
 		return ""
 	}
-	if *kg > 0 {
-		return fmt.Sprintf("+%gkg", *kg)
+	u := domain.UnitKilogram
+	if unit != nil {
+		u = *unit
 	}
-	return fmt.Sprintf("%gkg (assisted)", *kg)
+	if *weight > 0 {
+		return fmt.Sprintf("+%g%s", *weight, u)
+	}
+	return fmt.Sprintf("%g%s (assisted)", *weight, u)
 }

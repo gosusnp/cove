@@ -17,15 +17,16 @@ func registerProgramExerciseTools(server *mcp.Server, svc *service.ProgramServic
 		Name:        "create_program_exercise",
 		Description: "Add an exercise to a program set",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
-		ProgramID             int64    `json:"program_id"`
-		SetID                 int64    `json:"set_id"`
-		ExerciseID            int64    `json:"exercise_id"`
-		Laterality            *string  `json:"laterality,omitempty"`
-		TargetReps            *int     `json:"reps,omitempty"`
-		TargetDurationSeconds *int     `json:"duration_s,omitempty"`
-		TargetWeightKg        *float64 `json:"weight_kg,omitempty"`
+		ProgramID             int64        `json:"program_id"`
+		SetID                 int64        `json:"set_id"`
+		ExerciseID            int64        `json:"exercise_id"`
+		Laterality            *string      `json:"laterality,omitempty"`
+		TargetReps            *int         `json:"reps,omitempty"`
+		TargetDurationSeconds *int         `json:"duration_s,omitempty"`
+		TargetWeight          *float64     `json:"weight,omitempty"`
+		WeightUnit            *domain.Unit `json:"weight_unit,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		pe, err := svc.CreateExercise(ctx, domain.ProgramID(params.ProgramID), params.SetID, domain.ExerciseID(params.ExerciseID), params.Laterality, params.TargetReps, params.TargetDurationSeconds, params.TargetWeightKg)
+		pe, err := svc.CreateExercise(ctx, domain.ProgramID(params.ProgramID), params.SetID, domain.ExerciseID(params.ExerciseID), params.Laterality, params.TargetReps, params.TargetDurationSeconds, params.TargetWeight, params.WeightUnit)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
@@ -40,16 +41,17 @@ func registerProgramExerciseTools(server *mcp.Server, svc *service.ProgramServic
 		Name:        "update_program_exercise",
 		Description: "Update a program exercise's targets or laterality",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
-		ProgramID             int64    `json:"program_id"`
-		SetID                 int64    `json:"set_id"`
-		ID                    int64    `json:"id"`
-		ExerciseID            int64    `json:"exercise_id"`
-		Laterality            *string  `json:"laterality,omitempty"`
-		TargetReps            *int     `json:"reps,omitempty"`
-		TargetDurationSeconds *int     `json:"duration_s,omitempty"`
-		TargetWeightKg        *float64 `json:"weight_kg,omitempty"`
+		ProgramID             int64        `json:"program_id"`
+		SetID                 int64        `json:"set_id"`
+		ID                    int64        `json:"id"`
+		ExerciseID            int64        `json:"exercise_id"`
+		Laterality            *string      `json:"laterality,omitempty"`
+		TargetReps            *int         `json:"reps,omitempty"`
+		TargetDurationSeconds *int         `json:"duration_s,omitempty"`
+		TargetWeight          *float64     `json:"weight,omitempty"`
+		WeightUnit            *domain.Unit `json:"weight_unit,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		pe, err := svc.UpdateExercise(ctx, domain.ProgramID(params.ProgramID), params.SetID, params.ID, domain.ExerciseID(params.ExerciseID), params.Laterality, params.TargetReps, params.TargetDurationSeconds, params.TargetWeightKg)
+		pe, err := svc.UpdateExercise(ctx, domain.ProgramID(params.ProgramID), params.SetID, params.ID, domain.ExerciseID(params.ExerciseID), params.Laterality, params.TargetReps, params.TargetDurationSeconds, params.TargetWeight, params.WeightUnit)
 		if err != nil {
 			return nil, struct{}{}, err
 		}

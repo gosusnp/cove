@@ -84,7 +84,7 @@ func TestProgram_ExerciseLine_AllFields(t *testing.T) {
 						Laterality:            ptr("bilateral"),
 						TargetReps:            ptr(8),
 						TargetDurationSeconds: nil,
-						TargetWeightKg:        ptr(80.0),
+						TargetWeight:          ptr(80.0),
 					},
 				},
 			},
@@ -93,6 +93,31 @@ func TestProgram_ExerciseLine_AllFields(t *testing.T) {
 	got := markdown.Program(p)
 	if !strings.Contains(got, "- Bench Press — bilateral · 8 reps · +80kg") {
 		t.Errorf("unexpected exercise line, got: %q", got)
+	}
+}
+
+func TestProgram_ExerciseLine_ExplicitPoundUnit(t *testing.T) {
+	u := domain.UnitPound
+	p := &domain.Program{
+		Name: "Strength",
+		Sets: []domain.ProgramSet{
+			{
+				ID:     1,
+				Rounds: 3,
+				Exercises: []domain.ProgramExercise{
+					{
+						Name:         "Bench Press",
+						TargetReps:   ptr(5),
+						TargetWeight: ptr(62.5),
+						WeightUnit:   &u,
+					},
+				},
+			},
+		},
+	}
+	got := markdown.Program(p)
+	if !strings.Contains(got, "+62.5lb") {
+		t.Errorf("expected +62.5lb in output, got: %q", got)
 	}
 }
 
@@ -126,7 +151,7 @@ func TestProgram_ExerciseLine_AssistedWeight(t *testing.T) {
 				ID:     1,
 				Rounds: 3,
 				Exercises: []domain.ProgramExercise{
-					{Name: "Pull-up", TargetReps: ptr(10), TargetWeightKg: ptr(-10.0)},
+					{Name: "Pull-up", TargetReps: ptr(10), TargetWeight: ptr(-10.0)},
 				},
 			},
 		},
@@ -185,14 +210,14 @@ func TestProgram_MultipleSetsAndExercises(t *testing.T) {
 			{
 				ID: 1, Name: ptr("Push"), Rounds: 3,
 				Exercises: []domain.ProgramExercise{
-					{Name: "Bench Press", TargetReps: ptr(8), TargetWeightKg: ptr(80.0)},
-					{Name: "Overhead Press", TargetReps: ptr(10), TargetWeightKg: ptr(50.0)},
+					{Name: "Bench Press", TargetReps: ptr(8), TargetWeight: ptr(80.0)},
+					{Name: "Overhead Press", TargetReps: ptr(10), TargetWeight: ptr(50.0)},
 				},
 			},
 			{
 				ID: 2, Name: ptr("Pull"), Rounds: 3,
 				Exercises: []domain.ProgramExercise{
-					{Name: "Barbell Row", TargetReps: ptr(8), TargetWeightKg: ptr(70.0)},
+					{Name: "Barbell Row", TargetReps: ptr(8), TargetWeight: ptr(70.0)},
 				},
 			},
 		},

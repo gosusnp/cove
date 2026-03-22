@@ -21,7 +21,8 @@ type JSONProgramExercise struct {
 	Laterality            *string           `json:"laterality,omitempty"`
 	TargetReps            *int              `json:"reps,omitempty"`
 	TargetDurationSeconds *int              `json:"duration_s,omitempty"`
-	TargetWeightKg        *float64          `json:"weight_kg,omitempty"`
+	TargetWeight          *float64          `json:"weight,omitempty"`
+	WeightUnit            *domain.Unit      `json:"weight_unit,omitempty"`
 }
 
 // JSONProgramSet is the JSONB representation of a program set stored in programs.sets.
@@ -157,7 +158,8 @@ func (s *ProgramStore) Get(ctx context.Context, q Querier, orgID domain.OrgID, i
 				Laterality:            ex.Laterality,
 				TargetReps:            ex.TargetReps,
 				TargetDurationSeconds: ex.TargetDurationSeconds,
-				TargetWeightKg:        ex.TargetWeightKg,
+				TargetWeight:          ex.TargetWeight,
+				WeightUnit:            ex.WeightUnit,
 			})
 		}
 		p.Sets = append(p.Sets, sd)
@@ -413,7 +415,7 @@ func (s *ProgramStore) DeleteSet(ctx context.Context, q Querier, orgID domain.Or
 // CreateExercise appends a new exercise to the target set in the programs.sets JSONB column.
 // nameSnapshot is written once and never updated; callers are responsible for resolving it
 // via ExerciseService before calling this method.
-func (s *ProgramStore) CreateExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID int64, exerciseID domain.ExerciseID, nameSnapshot string, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64) (*ProgramExercise, error) {
+func (s *ProgramStore) CreateExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID int64, exerciseID domain.ExerciseID, nameSnapshot string, laterality *string, targetReps, targetDurationSeconds *int, targetWeight *float64, weightUnit *domain.Unit) (*ProgramExercise, error) {
 	if err := s.lockProgram(ctx, q, orgID, programID); err != nil {
 		return nil, err
 	}
@@ -447,7 +449,8 @@ func (s *ProgramStore) CreateExercise(ctx context.Context, q Querier, orgID doma
 		Laterality:            laterality,
 		TargetReps:            targetReps,
 		TargetDurationSeconds: targetDurationSeconds,
-		TargetWeightKg:        targetWeightKg,
+		TargetWeight:          targetWeight,
+		WeightUnit:            weightUnit,
 	}
 	for i, r := range sets {
 		if r.ID == setID {
@@ -465,13 +468,14 @@ func (s *ProgramStore) CreateExercise(ctx context.Context, q Querier, orgID doma
 		Laterality:            laterality,
 		TargetReps:            targetReps,
 		TargetDurationSeconds: targetDurationSeconds,
-		TargetWeightKg:        targetWeightKg,
+		TargetWeight:          targetWeight,
+		WeightUnit:            weightUnit,
 	}, nil
 }
 
 // UpdateExercise updates an existing exercise in the programs.sets JSONB column.
 // name_snapshot is never mutated on update; the existing value is preserved.
-func (s *ProgramStore) UpdateExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID, id int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64) (*ProgramExercise, error) {
+func (s *ProgramStore) UpdateExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID, id int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeight *float64, weightUnit *domain.Unit) (*ProgramExercise, error) {
 	if err := s.lockProgram(ctx, q, orgID, programID); err != nil {
 		return nil, err
 	}
@@ -495,7 +499,8 @@ func (s *ProgramStore) UpdateExercise(ctx context.Context, q Querier, orgID doma
 					Laterality:            laterality,
 					TargetReps:            targetReps,
 					TargetDurationSeconds: targetDurationSeconds,
-					TargetWeightKg:        targetWeightKg,
+					TargetWeight:          targetWeight,
+					WeightUnit:            weightUnit,
 				}
 				found = true
 				break
@@ -516,7 +521,8 @@ func (s *ProgramStore) UpdateExercise(ctx context.Context, q Querier, orgID doma
 		Laterality:            laterality,
 		TargetReps:            targetReps,
 		TargetDurationSeconds: targetDurationSeconds,
-		TargetWeightKg:        targetWeightKg,
+		TargetWeight:          targetWeight,
+		WeightUnit:            weightUnit,
 	}, nil
 }
 
@@ -597,7 +603,8 @@ func (s *ProgramStore) ListExercises(ctx context.Context, q Querier, orgID domai
 				Laterality:            ex.Laterality,
 				TargetReps:            ex.TargetReps,
 				TargetDurationSeconds: ex.TargetDurationSeconds,
-				TargetWeightKg:        ex.TargetWeightKg,
+				TargetWeight:          ex.TargetWeight,
+				WeightUnit:            ex.WeightUnit,
 			}
 		}
 		return exercises, nil

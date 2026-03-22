@@ -322,10 +322,37 @@ func TestProgramService_Exercises(t *testing.T) {
 		p, _ := svc.Create(ctx, "Test", nil, nil, true)
 		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
 
-		_, err := svc.CreateExercise(ctx, p.ID, ps.ID, 0, nil, nil, nil, nil)
+		_, err := svc.CreateExercise(ctx, p.ID, ps.ID, 0, nil, nil, nil, nil, nil)
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("got %v, want ValidationError", err)
+		}
+	})
+
+	t.Run("weight without unit returns ValidationError", func(t *testing.T) {
+		svc, ctx := newTestProgramService(t)
+		p, _ := svc.Create(ctx, "Test", nil, nil, true)
+		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
+		w := 80.0
+
+		_, err := svc.CreateExercise(ctx, p.ID, ps.ID, 1, nil, nil, nil, &w, nil)
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("weight with nil unit: got %v, want ValidationError", err)
+		}
+	})
+
+	t.Run("weight with non-mass unit returns ValidationError", func(t *testing.T) {
+		svc, ctx := newTestProgramService(t)
+		p, _ := svc.Create(ctx, "Test", nil, nil, true)
+		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
+		w := 80.0
+		u := domain.UnitMilliliter
+
+		_, err := svc.CreateExercise(ctx, p.ID, ps.ID, 1, nil, nil, nil, &w, &u)
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("weight with volume unit: got %v, want ValidationError", err)
 		}
 	})
 
@@ -339,7 +366,7 @@ func TestProgramService_Exercises(t *testing.T) {
 		e, _ := exSvc.Create(ctx, "Squat", nil, nil, true)
 
 		// Create
-		pe, err := svc.CreateExercise(ctx, p.ID, ps.ID, e.ID, nil, nil, nil, nil)
+		pe, err := svc.CreateExercise(ctx, p.ID, ps.ID, e.ID, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -352,7 +379,7 @@ func TestProgramService_Exercises(t *testing.T) {
 
 		// Update
 		reps := 10
-		updated, err := svc.UpdateExercise(ctx, p.ID, ps.ID, pe.ID, e.ID, nil, &reps, nil, nil)
+		updated, err := svc.UpdateExercise(ctx, p.ID, ps.ID, pe.ID, e.ID, nil, &reps, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -379,7 +406,7 @@ func TestProgramService_NameResolution(t *testing.T) {
 
 		p, _ := svc.Create(ctx, "Test", nil, nil, true)
 		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
-		if _, err := svc.CreateExercise(ctx, p.ID, ps.ID, e.ID, nil, nil, nil, nil); err != nil {
+		if _, err := svc.CreateExercise(ctx, p.ID, ps.ID, e.ID, nil, nil, nil, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 
@@ -413,7 +440,7 @@ func TestProgramService_NameResolution(t *testing.T) {
 
 		pStore := store.NewProgramStore()
 		if err := withScopedTx(ctx, svc.db, func(q store.Querier) error {
-			_, err := pStore.CreateExercise(t.Context(), q, id.OrgID, p.ID, ps.ID, e.ID, "Deadlift", nil, nil, nil, nil)
+			_, err := pStore.CreateExercise(t.Context(), q, id.OrgID, p.ID, ps.ID, e.ID, "Deadlift", nil, nil, nil, nil, nil)
 			return err
 		}); err != nil {
 			t.Fatal(err)
@@ -433,7 +460,7 @@ func TestProgramService_NameResolution(t *testing.T) {
 		p, _ := svc.Create(ctx, "Test", nil, nil, true)
 		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
 
-		_, err := svc.CreateExercise(ctx, p.ID, ps.ID, domain.ExerciseID(999), nil, nil, nil, nil)
+		_, err := svc.CreateExercise(ctx, p.ID, ps.ID, domain.ExerciseID(999), nil, nil, nil, nil, nil)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -446,10 +473,10 @@ func TestProgramService_NameResolution(t *testing.T) {
 
 		p, _ := svc.Create(ctx, "Test", nil, nil, true)
 		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
-		pe, _ := svc.CreateExercise(ctx, p.ID, ps.ID, e.ID, nil, nil, nil, nil)
+		pe, _ := svc.CreateExercise(ctx, p.ID, ps.ID, e.ID, nil, nil, nil, nil, nil)
 
 		reps := 5
-		if _, err := svc.UpdateExercise(ctx, p.ID, ps.ID, pe.ID, e.ID, nil, &reps, nil, nil); err != nil {
+		if _, err := svc.UpdateExercise(ctx, p.ID, ps.ID, pe.ID, e.ID, nil, &reps, nil, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 

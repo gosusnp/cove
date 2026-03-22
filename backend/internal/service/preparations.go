@@ -68,8 +68,8 @@ func (s *PreparationService) Create(ctx context.Context, p domain.PreparationPar
 	if p.YieldAmount <= 0 {
 		return nil, &ValidationError{Msg: "yield_amount must be greater than zero"}
 	}
-	if strings.TrimSpace(p.YieldUnit) == "" {
-		return nil, &ValidationError{Msg: "yield_unit is required"}
+	if !p.YieldUnit.Valid() {
+		return nil, &ValidationError{Msg: "yield_unit is required and must be a known unit"}
 	}
 	if p.Steps == nil {
 		p.Steps = []domain.PreparationStep{}
@@ -96,8 +96,8 @@ func (s *PreparationService) Update(ctx context.Context, id domain.PreparationID
 	if p.YieldAmount <= 0 {
 		return nil, &ValidationError{Msg: "yield_amount must be greater than zero"}
 	}
-	if strings.TrimSpace(p.YieldUnit) == "" {
-		return nil, &ValidationError{Msg: "yield_unit is required"}
+	if !p.YieldUnit.Valid() {
+		return nil, &ValidationError{Msg: "yield_unit is required and must be a known unit"}
 	}
 	if p.Steps == nil {
 		p.Steps = []domain.PreparationStep{}
@@ -141,6 +141,9 @@ func (s *PreparationService) AddIngredient(ctx context.Context, preparationID do
 	if p.Amount <= 0 {
 		return nil, &ValidationError{Msg: "amount must be greater than zero"}
 	}
+	if !p.Unit.Valid() {
+		return nil, &ValidationError{Msg: "unit is required and must be a known unit"}
+	}
 	var ingredient *domain.PreparationIngredient
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var err error
@@ -164,6 +167,9 @@ func (s *PreparationService) UpdateIngredient(ctx context.Context, preparationID
 	}
 	if p.Amount <= 0 {
 		return nil, &ValidationError{Msg: "amount must be greater than zero"}
+	}
+	if !p.Unit.Valid() {
+		return nil, &ValidationError{Msg: "unit is required and must be a known unit"}
 	}
 	var ingredient *domain.PreparationIngredient
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {

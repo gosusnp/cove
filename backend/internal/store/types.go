@@ -20,5 +20,6 @@ type ProgramExercise struct {
 	Laterality            *string           `json:"laterality,omitempty"`
 	TargetReps            *int              `json:"reps,omitempty"`
 	TargetDurationSeconds *int              `json:"duration_s,omitempty"`
-	TargetWeightKg        *float64          `json:"weight_kg,omitempty"`
+	TargetWeight          *float64          `json:"weight,omitempty"`
+	WeightUnit            *domain.Unit      `json:"weight_unit,omitempty"`
 }

@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
@@ -129,8 +128,8 @@ func (s *RecipeService) AddPreparation(ctx context.Context, recipeID domain.Reci
 	if p.Amount <= 0 {
 		return nil, &ValidationError{Msg: "amount must be greater than zero"}
 	}
-	if strings.TrimSpace(p.Unit) == "" {
-		return nil, &ValidationError{Msg: "unit is required"}
+	if !p.Unit.Valid() {
+		return nil, &ValidationError{Msg: "unit is required and must be a known unit"}
 	}
 	var rp *domain.RecipePreparation
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
@@ -156,8 +155,8 @@ func (s *RecipeService) UpdatePreparation(ctx context.Context, id domain.RecipeP
 	if p.Amount <= 0 {
 		return nil, &ValidationError{Msg: "amount must be greater than zero"}
 	}
-	if strings.TrimSpace(p.Unit) == "" {
-		return nil, &ValidationError{Msg: "unit is required"}
+	if !p.Unit.Valid() {
+		return nil, &ValidationError{Msg: "unit is required and must be a known unit"}
 	}
 	var rp *domain.RecipePreparation
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {

@@ -39,17 +39,17 @@ type preparationRequest struct {
 	Name        string                   `json:"name"`
 	Description *string                  `json:"description,omitempty"`
 	YieldAmount float64                  `json:"yield_amount"`
-	YieldUnit   string                   `json:"yield_unit"`
+	YieldUnit   domain.Unit              `json:"yield_unit"`
 	Steps       []preparationStepRequest `json:"steps"`
 	IsPublic    bool                     `json:"is_public"`
 }
 
 type preparationIngredientRequest struct {
-	IngredientID int64   `json:"ingredient_id"`
-	Name         string  `json:"name"`
-	Amount       float64 `json:"amount"`
-	Unit         string  `json:"unit"`
-	Prep         *string `json:"prep,omitempty"`
+	IngredientID int64       `json:"ingredient_id"`
+	Name         string      `json:"name"`
+	Amount       float64     `json:"amount"`
+	Unit         domain.Unit `json:"unit"`
+	Prep         *string     `json:"prep,omitempty"`
 }
 
 func (h *PreparationHandler) list(w http.ResponseWriter, r *http.Request) {

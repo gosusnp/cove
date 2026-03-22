@@ -211,7 +211,7 @@ func TestProgramStore_Get(t *testing.T) {
 		}
 
 		reps := 8
-		_, err = s.CreateExercise(ctx, db, id.OrgID, p.ID, ps.ID, e.ID, "Pull-up", nil, &reps, nil, nil)
+		_, err = s.CreateExercise(ctx, db, id.OrgID, p.ID, ps.ID, e.ID, "Pull-up", nil, &reps, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

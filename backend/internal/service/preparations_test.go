@@ -386,7 +386,24 @@ func TestPreparationService_AddIngredient(t *testing.T) {
 		}
 	})
 
-	t.Run("empty unit succeeds", func(t *testing.T) {
+	t.Run("invalid unit returns ValidationError", func(t *testing.T) {
+		svc, ingSvc, ctx := newTestPreparationService(t)
+		p, _ := svc.Create(ctx, basePrep())
+		ing := seedIngredient(t, ingSvc, ctx)
+
+		_, err := svc.AddIngredient(ctx, p.ID, domain.PreparationIngredientParams{
+			IngredientID: ing.ID,
+			Name:         "flour",
+			Amount:       100,
+			Unit:         "handful",
+		})
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("got %v, want ValidationError for unknown unit", err)
+		}
+	})
+
+	t.Run("count unit succeeds", func(t *testing.T) {
 		svc, ingSvc, ctx := newTestPreparationService(t)
 		p, _ := svc.Create(ctx, basePrep())
 		ing := seedIngredient(t, ingSvc, ctx)
@@ -395,13 +412,13 @@ func TestPreparationService_AddIngredient(t *testing.T) {
 			IngredientID: ing.ID,
 			Name:         "egg",
 			Amount:       1,
-			Unit:         "",
+			Unit:         domain.UnitEach,
 		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if got.Unit != "" {
-			t.Errorf("got unit %q, want empty", got.Unit)
+		if got.Unit != domain.UnitEach {
+			t.Errorf("got unit %q, want %q", got.Unit, domain.UnitEach)
 		}
 	})
 }
@@ -478,7 +495,7 @@ func TestPreparationService_UpdateIngredient(t *testing.T) {
 		}
 	})
 
-	t.Run("empty unit succeeds", func(t *testing.T) {
+	t.Run("count unit succeeds", func(t *testing.T) {
 		svc, ingSvc, ctx := newTestPreparationService(t)
 		p, _ := svc.Create(ctx, basePrep())
 		ing := seedIngredient(t, ingSvc, ctx)
@@ -486,20 +503,20 @@ func TestPreparationService_UpdateIngredient(t *testing.T) {
 			IngredientID: ing.ID,
 			Name:         "egg",
 			Amount:       1,
-			Unit:         "piece",
+			Unit:         domain.UnitEach,
 		})
 
 		updated, err := svc.UpdateIngredient(ctx, p.ID, added.ID, domain.PreparationIngredientParams{
 			IngredientID: ing.ID,
 			Name:         "egg",
-			Amount:       1,
-			Unit:         "",
+			Amount:       2,
+			Unit:         domain.UnitEach,
 		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if updated.Unit != "" {
-			t.Errorf("got unit %q, want empty", updated.Unit)
+		if updated.Unit != domain.UnitEach {
+			t.Errorf("got unit %q, want %q", updated.Unit, domain.UnitEach)
 		}
 	})
 }

@@ -15,6 +15,21 @@ import (
 	"github.com/gosusnp/cove/backend/internal/store"
 )
 
+// validateWeightUnit returns a ValidationError when weight is set but the unit
+// is missing or is not a mass unit.
+func validateWeightUnit(weight *float64, unit *domain.Unit) error {
+	if weight == nil {
+		return nil
+	}
+	if unit == nil {
+		return &ValidationError{Msg: "weight_unit is required when weight is set"}
+	}
+	if !unit.Valid() || unit.Category() != domain.UnitCategoryMass {
+		return &ValidationError{Msg: "weight_unit must be a mass unit (g, kg, oz, lb)"}
+	}
+	return nil
+}
+
 // normalizeActivity trims whitespace from the activity value and returns nil
 // for empty strings, ensuring the database never stores an empty string.
 func normalizeActivity(s *string) *string {
@@ -39,7 +54,8 @@ type ProgramExerciseInput struct {
 	Laterality            *string           `json:"laterality,omitempty"`
 	TargetReps            *int              `json:"reps,omitempty"`
 	TargetDurationSeconds *int              `json:"duration_s,omitempty"`
-	TargetWeightKg        *float64          `json:"weight_kg,omitempty"`
+	TargetWeight          *float64          `json:"weight,omitempty"`
+	WeightUnit            *domain.Unit      `json:"weight_unit,omitempty"`
 }
 
 type ProgramSetInput struct {
@@ -280,9 +296,12 @@ func (s *ProgramService) GetExercise(ctx context.Context, programID domain.Progr
 	return pe, err
 }
 
-func (s *ProgramService) CreateExercise(ctx context.Context, programID domain.ProgramID, setID int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64) (*store.ProgramExercise, error) {
+func (s *ProgramService) CreateExercise(ctx context.Context, programID domain.ProgramID, setID int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeight *float64, weightUnit *domain.Unit) (*store.ProgramExercise, error) {
 	if exerciseID == 0 {
 		return nil, &ValidationError{Msg: "exercise_id is required"}
+	}
+	if err := validateWeightUnit(targetWeight, weightUnit); err != nil {
+		return nil, err
 	}
 
 	var pe *store.ProgramExercise
@@ -299,7 +318,7 @@ func (s *ProgramService) CreateExercise(ctx context.Context, programID domain.Pr
 		}
 		nameSnapshot := found[0].Name
 
-		pe, err = s.store.CreateExercise(ctx, q, idInfo.OrgID, programID, setID, exerciseID, nameSnapshot, laterality, targetReps, targetDurationSeconds, targetWeightKg)
+		pe, err = s.store.CreateExercise(ctx, q, idInfo.OrgID, programID, setID, exerciseID, nameSnapshot, laterality, targetReps, targetDurationSeconds, targetWeight, weightUnit)
 		return err
 	})
 	if errors.Is(err, store.ErrNotFound) {
@@ -308,9 +327,12 @@ func (s *ProgramService) CreateExercise(ctx context.Context, programID domain.Pr
 	return pe, err
 }
 
-func (s *ProgramService) UpdateExercise(ctx context.Context, programID domain.ProgramID, setID, id int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeightKg *float64) (*store.ProgramExercise, error) {
+func (s *ProgramService) UpdateExercise(ctx context.Context, programID domain.ProgramID, setID, id int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeight *float64, weightUnit *domain.Unit) (*store.ProgramExercise, error) {
 	if exerciseID == 0 {
 		return nil, &ValidationError{Msg: "exercise_id is required"}
+	}
+	if err := validateWeightUnit(targetWeight, weightUnit); err != nil {
+		return nil, err
 	}
 
 	var pe *store.ProgramExercise
@@ -326,7 +348,7 @@ func (s *ProgramService) UpdateExercise(ctx context.Context, programID domain.Pr
 			return ErrNotFound
 		}
 
-		pe, err = s.store.UpdateExercise(ctx, q, idInfo.OrgID, programID, setID, id, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeightKg)
+		pe, err = s.store.UpdateExercise(ctx, q, idInfo.OrgID, programID, setID, id, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeight, weightUnit)
 		return err
 	})
 	if errors.Is(err, store.ErrNotFound) {
@@ -450,7 +472,8 @@ func (s *ProgramService) CreateFull(ctx context.Context, name string, descriptio
 					Laterality:            ex.Laterality,
 					TargetReps:            ex.TargetReps,
 					TargetDurationSeconds: ex.TargetDurationSeconds,
-					TargetWeightKg:        ex.TargetWeightKg,
+					TargetWeight:          ex.TargetWeight,
+					WeightUnit:            ex.WeightUnit,
 				})
 				nextExID++
 			}

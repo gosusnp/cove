@@ -32,12 +32,12 @@ func (h *RecipeHandler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 type recipeRequest struct {
-	Name        string   `json:"name"`
-	Description *string  `json:"description,omitempty"`
-	YieldAmount *float64 `json:"yield_amount,omitempty"`
-	YieldUnit   *string  `json:"yield_unit,omitempty"`
-	Servings    int      `json:"servings"`
-	IsPublic    bool     `json:"is_public"`
+	Name        string       `json:"name"`
+	Description *string      `json:"description,omitempty"`
+	YieldAmount *float64     `json:"yield_amount,omitempty"`
+	YieldUnit   *domain.Unit `json:"yield_unit,omitempty"`
+	Servings    int          `json:"servings"`
+	IsPublic    bool         `json:"is_public"`
 }
 
 func (h *RecipeHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -127,13 +127,13 @@ type addRecipePreparationRequest struct {
 	PreparationID domain.PreparationID `json:"preparation_id"`
 	Position      int                  `json:"position"`
 	Amount        float64              `json:"amount"`
-	Unit          string               `json:"unit"`
+	Unit          domain.Unit          `json:"unit"`
 }
 
 type updateRecipePreparationRequest struct {
-	Position int     `json:"position"`
-	Amount   float64 `json:"amount"`
-	Unit     string  `json:"unit"`
+	Position int         `json:"position"`
+	Amount   float64     `json:"amount"`
+	Unit     domain.Unit `json:"unit"`
 }
 
 func (h *RecipeHandler) addPreparation(w http.ResponseWriter, r *http.Request) {

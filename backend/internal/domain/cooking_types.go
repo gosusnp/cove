@@ -60,7 +60,7 @@ type PreparationIngredient struct {
 	IngredientID  IngredientID            `json:"ingredient_id"`
 	Name          string                  `json:"name"`
 	Amount        float64                 `json:"amount"`
-	Unit          string                  `json:"unit"`
+	Unit          Unit                    `json:"unit"`
 	Prep          *string                 `json:"prep,omitempty"`
 }
 
@@ -69,7 +69,7 @@ type PreparationParams struct {
 	Name        string
 	Description *string
 	YieldAmount float64
-	YieldUnit   string
+	YieldUnit   Unit
 	Steps       []PreparationStep
 	IsPublic    bool
 }
@@ -79,7 +79,7 @@ type PreparationIngredientParams struct {
 	IngredientID IngredientID
 	Name         string
 	Amount       float64
-	Unit         string
+	Unit         Unit
 	Prep         *string
 }
 
@@ -89,7 +89,7 @@ type PreparationLite struct {
 	Name        string        `json:"name"`
 	Description *string       `json:"description,omitempty"`
 	YieldAmount float64       `json:"yield_amount"`
-	YieldUnit   string        `json:"yield_unit"`
+	YieldUnit   Unit          `json:"yield_unit"`
 	IsPublic    bool          `json:"is_public"`
 	OrgID       OrgID         `json:"org_id"`
 	CreatedAt   time.Time     `json:"created_at"`
@@ -101,7 +101,7 @@ type Preparation struct {
 	Name        string                  `json:"name"`
 	Description *string                 `json:"description,omitempty"`
 	YieldAmount float64                 `json:"yield_amount"`
-	YieldUnit   string                  `json:"yield_unit"`
+	YieldUnit   Unit                    `json:"yield_unit"`
 	Steps       []PreparationStep       `json:"steps"`
 	IsPublic    bool                    `json:"is_public"`
 	Ingredients []PreparationIngredient `json:"ingredients"`
@@ -126,7 +126,7 @@ type RecipePreparation struct {
 	PreparationID PreparationID       `json:"preparation_id"`
 	Position      int                 `json:"position"`
 	Amount        float64             `json:"amount"`
-	Unit          string              `json:"unit"`
+	Unit          Unit                `json:"unit"`
 }
 
 // RecipePreparationParams holds the mutable fields for adding or updating a recipe preparation.
@@ -134,7 +134,7 @@ type RecipePreparationParams struct {
 	PreparationID PreparationID
 	Position      int
 	Amount        float64
-	Unit          string
+	Unit          Unit
 }
 
 // RecipeParams holds the mutable fields for creating or updating a recipe.
@@ -142,7 +142,7 @@ type RecipeParams struct {
 	Name        string
 	Description *string
 	YieldAmount *float64
-	YieldUnit   *string
+	YieldUnit   *Unit
 	Servings    int
 	IsPublic    bool
 }
@@ -164,7 +164,7 @@ type Recipe struct {
 	Name         string              `json:"name"`
 	Description  *string             `json:"description,omitempty"`
 	YieldAmount  *float64            `json:"yield_amount,omitempty"`
-	YieldUnit    *string             `json:"yield_unit,omitempty"`
+	YieldUnit    *Unit               `json:"yield_unit,omitempty"`
 	Servings     int                 `json:"servings"`
 	IsPublic     bool                `json:"is_public"`
 	Preparations []RecipePreparation `json:"preparations"`

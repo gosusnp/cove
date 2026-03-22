@@ -316,7 +316,7 @@ func (a *TestApp) SeedProgramExercise(programID domain.ProgramID, setID int64, e
 	}
 	ctx := domain.NewContext(context.Background(), identity)
 
-	pe, err := a.Programs.CreateExercise(ctx, programID, setID, exerciseID, nil, nil, nil, nil)
+	pe, err := a.Programs.CreateExercise(ctx, programID, setID, exerciseID, nil, nil, nil, nil, nil)
 	if err != nil {
 		a.T.Fatalf("seed program exercise: %v", err)
 	}
