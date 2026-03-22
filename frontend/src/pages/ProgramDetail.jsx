@@ -49,7 +49,11 @@ import { useSortableGroups } from "../hooks/useSortableGroups.js";
 import { cn } from "../lib/utils.js";
 import { apiFetch } from "../lib/api.js";
 import { ActivityPicker } from "../components/shared/ActivityPicker.jsx";
-import { useUnitPreferences } from "../hooks/useUnitPreferences.js";
+import {
+	DISPLAY_STEPS,
+	convertFitnessWeight,
+	useUnitPreferences,
+} from "../hooks/useUnitPreferences.js";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1204,7 +1208,7 @@ function ProgramDetailInner({
 									<TextField
 										label={`Target Weight (${pexWeightUnit.value})`}
 										type="number"
-										step="0.5"
+										step={DISPLAY_STEPS[pexWeightUnit.value] ?? "any"}
 										placeholder="0 = bodyweight"
 										value={pexWeight.value}
 										onInput={(e) => {
@@ -1215,6 +1219,12 @@ function ProgramDetailInner({
 								<ToggleGroup
 									value={pexWeightUnit.value}
 									onChange={(v) => {
+										const w = parseFloat(pexWeight.value);
+										if (!Number.isNaN(w) && pexWeight.value !== "") {
+											pexWeight.value = String(
+												convertFitnessWeight(w, pexWeightUnit.value, v),
+											);
+										}
 										pexWeightUnit.value = v;
 									}}
 									options={WEIGHT_UNIT_OPTIONS}

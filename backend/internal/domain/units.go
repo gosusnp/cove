@@ -5,7 +5,6 @@ package domain
 
 import (
 	"fmt"
-	"math"
 )
 
 // Unit represents a unit of measurement.
@@ -172,35 +171,4 @@ func (s UnitSystem) DefaultCookingVolumeUnit() Unit {
 	default:
 		return UnitCup
 	}
-}
-
-// QuantizeSteps maps a Unit to its smallest practical increment.
-// Units absent from the map are not quantized (pass-through).
-type QuantizeSteps map[Unit]float64
-
-// FitnessWeightSteps defines standard plate increments for program building.
-// These represent realistic program targets, not exact plate-loading calculations.
-var FitnessWeightSteps = QuantizeSteps{
-	UnitPound:    2.5,
-	UnitKilogram: 1.25,
-	UnitOunce:    0.25,
-	UnitGram:     1.0,
-}
-
-// CookingVolumeSteps defines practical measuring tool increments for cooking.
-// Precise units (ml, fl_oz, l) are intentionally absent — no rounding needed.
-var CookingVolumeSteps = QuantizeSteps{
-	UnitCup:        1.0 / 8,
-	UnitTablespoon: 0.5,
-	UnitTeaspoon:   0.25,
-}
-
-// Quantize rounds amount to the nearest step for the given unit.
-// If the unit has no entry in steps, the original amount is returned unchanged.
-func Quantize(amount float64, unit Unit, steps QuantizeSteps) float64 {
-	step, ok := steps[unit]
-	if !ok || step == 0 {
-		return amount
-	}
-	return math.Round(amount/step) * step
 }

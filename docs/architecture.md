@@ -701,15 +701,30 @@ This distinction matters because the author and the viewer may be different peop
 
 - `domain.ConvertMass` / `domain.ConvertVolume` — canonical conversion primitives.
 - `UnitSystem.DefaultFitnessWeightUnit()` / `DefaultCookingMassUnit()` / `DefaultCookingVolumeUnit()` — canonical mapping from a unit system to the meaningful display unit for each domain (e.g. metric fitness → `kg`, never `g`).
-- `domain.Quantize` + `FitnessWeightSteps` / `CookingVolumeSteps` — used on **write** to snap authored values to practical increments; not applied on read or display.
 
 ### Frontend responsibilities
 
 - `useUnitPreferences()` — resolves the viewer's preferred units from their profile.
-- `convertFitnessWeight(value, fromUnit, toUnit)` in `useUnitPreferences.js` — thin display-only utility that mirrors the backend conversion factors; used exclusively in consumption views.
-- **DO** call `convertFitnessWeight` only in consumption contexts (e.g. `SessionTracker`).
-- **DON'T** call it in edit contexts (e.g. `ProgramDetail`) — render the stored unit directly.
+- `DISPLAY_STEPS` / `quantizeForDisplay(value, unit)` in `useUnitPreferences.js` — rounds a converted value to the smallest meaningful increment for the target unit (see table below). Also drives the `step` attribute on amount/weight input fields so browser validation matches display precision.
+- `convertFitnessWeight(value, fromUnit, toUnit)` in `useUnitPreferences.js` — converts between kg and lb and applies `quantizeForDisplay`; used in consumption views and on unit toggle in edit views.
+- **DO** call `convertFitnessWeight` in consumption contexts (e.g. `SessionTracker`) and when the user explicitly toggles the unit in an edit context (e.g. `ProgramDetail`).
+- **DON'T** convert on read in edit contexts — render the stored unit directly without conversion.
 - **DON'T** duplicate the meaningful-unit mapping; `useUnitPreferences()` mirrors `DefaultFitnessWeightUnit()` and is the single frontend source of truth.
+
+### Display quantization steps
+
+| Unit | Step | Notes |
+|---|---|---|
+| `kg` | 0.01 | |
+| `lb` | 0.5 | fitness context; 0.1 for cooking if ever needed |
+| `g` | 0.1 | scale precision |
+| `oz` | 0.1 | |
+| `ml` | 1 | |
+| `l` | 0.01 | |
+| `fl_oz` | 0.1 | |
+| `tsp` | 0.125 | 1/8 tsp — smallest common measuring spoon |
+| `tbsp` | 0.5 | 1/2 tbsp — smallest common measuring spoon |
+| `cup` | 0.125 | 1/8 cup |
 
 ---
 

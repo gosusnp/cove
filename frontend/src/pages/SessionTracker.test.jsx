@@ -338,8 +338,8 @@ describe("SessionTracker", () => {
 			});
 			await selectProgramAndStart();
 			await waitFor(() =>
-				// 100 kg → 220.46 lb
-				expect(screen.getByText("220.46 lb")).toBeInTheDocument(),
+				// 100 kg → 220.46 lb → quantized to nearest 0.5 lb = 220.5 lb
+				expect(screen.getByText("220.5 lb")).toBeInTheDocument(),
 			);
 		});
 	});

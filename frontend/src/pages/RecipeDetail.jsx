@@ -16,7 +16,11 @@ import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
 import { EditableMarkdown } from "../components/ui/EditableMarkdown.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { useDialog } from "../hooks/useDialog.js";
-import { useUnitPreferences } from "../hooks/useUnitPreferences.js";
+import {
+	DISPLAY_STEPS,
+	convertUnit,
+	useUnitPreferences,
+} from "../hooks/useUnitPreferences.js";
 import { apiFetch } from "../lib/api.js";
 
 // ── Cooking unit options ───────────────────────────────────────────────────────
@@ -111,6 +115,7 @@ function IngredientRow({ ingredient, prepId, onUpdated, onDeleted }) {
 						<TextField
 							label="Amount"
 							type="number"
+							step={DISPLAY_STEPS[unit.value] ?? "any"}
 							value={amount.value}
 							onInput={(e) => {
 								amount.value = e.target.value;
@@ -122,6 +127,10 @@ function IngredientRow({ ingredient, prepId, onUpdated, onDeleted }) {
 							label="Unit"
 							value={unit.value}
 							onChange={(v) => {
+								const a = parseFloat(amount.value);
+								if (!Number.isNaN(a) && amount.value !== "") {
+									amount.value = String(convertUnit(a, unit.value, v));
+								}
 								unit.value = v;
 							}}
 							options={COOKING_UNIT_OPTIONS}
@@ -488,6 +497,7 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 								id="ing-amount"
 								label="Amount"
 								type="number"
+								step={DISPLAY_STEPS[unit.value] ?? "any"}
 								value={amount.value}
 								onInput={(e) => {
 									amount.value = e.target.value;
@@ -500,6 +510,10 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 								label="Unit"
 								value={unit.value}
 								onChange={(v) => {
+									const a = parseFloat(amount.value);
+									if (!Number.isNaN(a) && amount.value !== "") {
+										amount.value = String(convertUnit(a, unit.value, v));
+									}
 									unit.value = v;
 								}}
 								options={COOKING_UNIT_OPTIONS}
