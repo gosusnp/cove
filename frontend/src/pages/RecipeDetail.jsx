@@ -420,6 +420,7 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 		>
 			{mode.value === "select" && (
 				<Combobox
+					autoFocus
 					label="Ingredient"
 					value={selectedId.value ? `existing:${selectedId.value}` : ""}
 					onChange={handleIngredientChange}
@@ -546,9 +547,19 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 
 // ─── StepRow ──────────────────────────────────────────────────────────────────
 
-function StepRow({ index, description, onChange, onDelete }) {
+function StepRow({
+	index,
+	description,
+	onChange,
+	onDelete,
+	autoFocus = false,
+}) {
 	const inputRef = useRef(null);
 	const local = useSignal(description);
+
+	useEffect(() => {
+		if (autoFocus) inputRef.current?.focus();
+	}, []);
 
 	const handleBlur = () => {
 		if (local.value.trim() !== description) {
@@ -621,6 +632,7 @@ function PreparationSection({
 	const removeDialog = useDialog();
 	const removeError = useSignal("");
 	const savingSteps = useSignal(false);
+	const focusNextStepKey = useSignal(null);
 
 	// Editable link amount/unit
 	const editingAmount = useSignal(false);
@@ -760,10 +772,9 @@ function PreparationSection({
 	};
 
 	const handleAddStep = () => {
-		const newSteps = [
-			...prep.value.steps,
-			{ description: "", _key: crypto.randomUUID() },
-		];
+		const newKey = crypto.randomUUID();
+		focusNextStepKey.value = newKey;
+		const newSteps = [...prep.value.steps, { description: "", _key: newKey }];
 		saveSteps(newSteps);
 	};
 
@@ -964,32 +975,12 @@ function PreparationSection({
 
 						{/* Ingredients */}
 						<div>
-							<div class="flex items-center justify-between mb-2">
-								<span
-									class="text-xs font-semibold uppercase tracking-wider"
-									style={{ color: "var(--color-muted)" }}
-								>
-									Ingredients
-								</span>
-								<Button
-									variant="ghost"
-									size="sm"
-									type="button"
-									aria-label="Add ingredient"
-									onClick={() => {
-										showAddIngredient.value = true;
-									}}
-								>
-									<Plus size={14} aria-hidden="true" />
-								</Button>
-							</div>
-
-							{prep.value.ingredients.length === 0 &&
-								!showAddIngredient.value && (
-									<p class="text-sm" style={{ color: "var(--color-muted)" }}>
-										No ingredients yet.
-									</p>
-								)}
+							<span
+								class="text-xs font-semibold uppercase tracking-wider mb-2 block"
+								style={{ color: "var(--color-muted)" }}
+							>
+								Ingredients
+							</span>
 
 							<div class="flex flex-col">
 								{prep.value.ingredients.map((ing) => (
@@ -1003,7 +994,7 @@ function PreparationSection({
 								))}
 							</div>
 
-							{showAddIngredient.value && (
+							{showAddIngredient.value ? (
 								<div class="mt-2">
 									<AddIngredientForm
 										prepId={prep.value.id}
@@ -1013,34 +1004,29 @@ function PreparationSection({
 										}}
 									/>
 								</div>
+							) : (
+								<Button
+									variant="ghost"
+									type="button"
+									class="w-full justify-start text-sm font-normal px-1"
+									style={{ color: "var(--color-muted)" }}
+									onClick={() => {
+										showAddIngredient.value = true;
+									}}
+								>
+									Add ingredient…
+								</Button>
 							)}
 						</div>
 
 						{/* Steps */}
 						<div>
-							<div class="flex items-center justify-between mb-2">
-								<span
-									class="text-xs font-semibold uppercase tracking-wider"
-									style={{ color: "var(--color-muted)" }}
-								>
-									Steps
-								</span>
-								<Button
-									variant="ghost"
-									size="sm"
-									type="button"
-									onClick={handleAddStep}
-									disabled={savingSteps.value}
-								>
-									<Plus size={14} aria-hidden="true" />
-								</Button>
-							</div>
-
-							{prep.value.steps.length === 0 && (
-								<p class="text-sm" style={{ color: "var(--color-muted)" }}>
-									No steps yet.
-								</p>
-							)}
+							<span
+								class="text-xs font-semibold uppercase tracking-wider mb-2 block"
+								style={{ color: "var(--color-muted)" }}
+							>
+								Steps
+							</span>
 
 							<div class="flex flex-col">
 								{prep.value.steps.map((step, i) => (
@@ -1050,8 +1036,32 @@ function PreparationSection({
 										description={step.description}
 										onChange={handleStepChange}
 										onDelete={handleStepDelete}
+										autoFocus={step._key === focusNextStepKey.value}
 									/>
 								))}
+							</div>
+
+							<div class="flex items-start gap-2 py-1">
+								<span
+									class="shrink-0 text-xs font-medium tabular-nums mt-2.5"
+									style={{
+										color: "var(--color-muted)",
+										width: "1.25rem",
+										opacity: 0.5,
+									}}
+								>
+									{prep.value.steps.length + 1}.
+								</span>
+								<Button
+									variant="ghost"
+									type="button"
+									class="flex-1 justify-start text-sm font-normal px-1"
+									style={{ color: "var(--color-muted)" }}
+									onClick={handleAddStep}
+									disabled={savingSteps.value}
+								>
+									Add a step…
+								</Button>
 							</div>
 						</div>
 					</div>

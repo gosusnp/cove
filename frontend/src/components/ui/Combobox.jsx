@@ -15,6 +15,7 @@ export function Combobox({
 	disabled = false,
 	freeform = false,
 	freeformLabel,
+	autoFocus = false,
 	class: className,
 }) {
 	const inputId = useId();
@@ -23,6 +24,10 @@ export function Combobox({
 	const highlightedIndex = useSignal(-1);
 	const containerRef = useRef(null);
 	const inputRef = useRef(null);
+
+	useEffect(() => {
+		if (autoFocus) inputRef.current?.focus();
+	}, []);
 
 	const opts = options ?? [];
 	const selectedOption =

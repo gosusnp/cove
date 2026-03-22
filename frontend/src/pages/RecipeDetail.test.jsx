@@ -247,7 +247,7 @@ async function openAddIngredientForm() {
 	await waitFor(() =>
 		expect(screen.getByText("Bolognese Sauce")).toBeInTheDocument(),
 	);
-	fireEvent.click(screen.getByRole("button", { name: "Add ingredient" }));
+	fireEvent.click(screen.getByRole("button", { name: "Add ingredient\u2026" }));
 	await waitFor(() =>
 		expect(screen.getByTestId("mock-combobox-freeform")).toBeInTheDocument(),
 	);
@@ -1055,7 +1055,9 @@ describe("RecipeDetail — AddIngredientForm", () => {
 		await waitFor(() =>
 			expect(screen.getByText("Bolognese Sauce")).toBeInTheDocument(),
 		);
-		fireEvent.click(screen.getByRole("button", { name: "Add ingredient" }));
+		fireEvent.click(
+			screen.getByRole("button", { name: "Add ingredient\u2026" }),
+		);
 		await waitFor(() =>
 			expect(screen.getByTestId("mock-combobox-freeform")).toBeInTheDocument(),
 		);
