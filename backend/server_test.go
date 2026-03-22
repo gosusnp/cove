@@ -10,7 +10,6 @@ import (
 
 	"github.com/gosusnp/cove/backend/internal/crypto"
 	"github.com/gosusnp/cove/backend/internal/db"
-	covemcp "github.com/gosusnp/cove/backend/internal/mcp"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
 	"github.com/gosusnp/cove/backend/internal/testutil"
@@ -35,11 +34,15 @@ func newTestAPIHandler(t *testing.T) http.Handler {
 	ingSvc := service.NewIngredientService(database, store.NewIngredientStore())
 	recipeSvc := service.NewRecipeService(database, store.NewRecipeStore())
 	prepSvc := service.NewPreparationService(database, store.NewPreparationStore())
-	svcs := covemcp.Services{
-		Exercises: exSvc,
-		Programs:  pSvc,
-	}
-	return NewAPIHandler(userStore, userSvc, svcs, wsSvc, ingSvc, recipeSvc, prepSvc, false)
+	return NewAPIHandler(Services{
+		Users:           userSvc,
+		Exercises:       exSvc,
+		Programs:        pSvc,
+		WorkoutSessions: wsSvc,
+		Ingredients:     ingSvc,
+		Recipes:         recipeSvc,
+		Preparations:    prepSvc,
+	}, false)
 }
 
 // TestAPIRoutesSmokeTest verifies every API route is wired correctly by sending

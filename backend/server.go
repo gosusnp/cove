@@ -6,27 +6,35 @@ package main
 import (
 	"net/http"
 
-	covemcp "github.com/gosusnp/cove/backend/internal/mcp"
+	"github.com/gosusnp/cove/backend/internal/handlers"
 	"github.com/gosusnp/cove/backend/internal/middleware"
 	"github.com/gosusnp/cove/backend/internal/service"
-	"github.com/gosusnp/cove/backend/internal/store"
-
-	"github.com/gosusnp/cove/backend/internal/handlers"
 )
+
+// Services bundles all application service dependencies for NewAPIHandler.
+type Services struct {
+	Users           *service.UserService
+	Exercises       *service.ExerciseService
+	Programs        *service.ProgramService
+	WorkoutSessions *service.WorkoutSessionService
+	Ingredients     *service.IngredientService
+	Recipes         *service.RecipeService
+	Preparations    *service.PreparationService
+}
 
 // NewAPIHandler assembles the API sub-mux and returns a handler that serves
 // all /api/... routes, with OAuth and Cache-Control: no-store middleware applied.
-func NewAPIHandler(userStore *store.UserStore, userSvc *service.UserService, svcs covemcp.Services, wsSvc *service.WorkoutSessionService, ingSvc *service.IngredientService, recipeSvc *service.RecipeService, prepSvc *service.PreparationService, secureCookies bool) http.Handler {
+func NewAPIHandler(svcs Services, secureCookies bool) http.Handler {
 	apiMux := http.NewServeMux()
 	handlers.NewActivityHandler().RegisterRoutes(apiMux)
 	handlers.NewExerciseHandler(svcs.Exercises).RegisterRoutes(apiMux)
 	handlers.NewProgramHandler(svcs.Programs).RegisterRoutes(apiMux)
 	handlers.NewProgramSetHandler(svcs.Programs).RegisterRoutes(apiMux)
 	handlers.NewProgramExerciseHandler(svcs.Programs).RegisterRoutes(apiMux)
-	handlers.NewUserHandler(userSvc, secureCookies).RegisterRoutes(apiMux)
-	handlers.NewWorkoutSessionHandler(wsSvc).RegisterRoutes(apiMux)
-	handlers.NewIngredientHandler(ingSvc).RegisterRoutes(apiMux)
-	handlers.NewRecipeHandler(recipeSvc).RegisterRoutes(apiMux)
-	handlers.NewPreparationHandler(prepSvc).RegisterRoutes(apiMux)
-	return http.StripPrefix("/api", middleware.NoStore(middleware.OAuth(userSvc, apiMux)))
+	handlers.NewUserHandler(svcs.Users, secureCookies).RegisterRoutes(apiMux)
+	handlers.NewWorkoutSessionHandler(svcs.WorkoutSessions).RegisterRoutes(apiMux)
+	handlers.NewIngredientHandler(svcs.Ingredients).RegisterRoutes(apiMux)
+	handlers.NewRecipeHandler(svcs.Recipes).RegisterRoutes(apiMux)
+	handlers.NewPreparationHandler(svcs.Preparations).RegisterRoutes(apiMux)
+	return http.StripPrefix("/api", middleware.NoStore(middleware.OAuth(svcs.Users, apiMux)))
 }
