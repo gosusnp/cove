@@ -308,9 +308,7 @@ describe("RecipeDetail — content", () => {
 		renderDetail(2);
 		await waitFor(() =>
 			expect(
-				screen.getByText(
-					"No components yet. Add a preparation to get started.",
-				),
+				screen.getByText("No preparations yet. Add one to get started."),
 			).toBeInTheDocument(),
 		);
 	});

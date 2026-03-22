@@ -1375,14 +1375,14 @@ export function RecipeDetail({ recipeId, onRecipeUpdated }) {
 				</p>
 			</div>
 
-			{/* Components */}
+			{/* Preparations */}
 			<div class="flex flex-col gap-3">
 				<div class="flex items-center justify-between">
 					<span
 						class="text-xs font-semibold uppercase tracking-wider"
 						style={{ color: "var(--color-muted)" }}
 					>
-						Components
+						Preparations
 					</span>
 					{!showAddForm.value && (
 						<Button
@@ -1401,7 +1401,7 @@ export function RecipeDetail({ recipeId, onRecipeUpdated }) {
 
 				{components.value.length === 0 && !showAddForm.value && (
 					<p class="text-sm" style={{ color: "var(--color-muted)" }}>
-						No components yet. Add a preparation to get started.
+						No preparations yet. Add one to get started.
 					</p>
 				)}
 
