@@ -189,15 +189,15 @@ func (s *PreparationStore) AddIngredient(ctx context.Context, q Querier, orgID d
 	}, nil
 }
 
-// UpdateIngredient modifies a preparation ingredient, filtering by org_id for defense-in-depth.
-func (s *PreparationStore) UpdateIngredient(ctx context.Context, q Querier, orgID domain.OrgID, id domain.PreparationIngredientID, p domain.PreparationIngredientParams) (*domain.PreparationIngredient, error) {
+// UpdateIngredient modifies a preparation ingredient, filtering by preparation_id and org_id for defense-in-depth.
+func (s *PreparationStore) UpdateIngredient(ctx context.Context, q Querier, orgID domain.OrgID, preparationID domain.PreparationID, id domain.PreparationIngredientID, p domain.PreparationIngredientParams) (*domain.PreparationIngredient, error) {
 	var updated domain.PreparationIngredient
 	err := q.QueryRowContext(ctx, `
 		UPDATE cove.preparation_ingredients
 		SET name = $1, amount = $2, unit = $3, prep = $4
-		WHERE id = $5 AND org_id = $6
+		WHERE id = $5 AND preparation_id = $6 AND org_id = $7
 		RETURNING id, preparation_id, ingredient_id, name, amount, unit, prep
-	`, p.Name, p.Amount, p.Unit, p.Prep, id, orgID).Scan(
+	`, p.Name, p.Amount, p.Unit, p.Prep, id, preparationID, orgID).Scan(
 		&updated.ID, &updated.PreparationID, &updated.IngredientID,
 		&updated.Name, &updated.Amount, &updated.Unit, &updated.Prep,
 	)
@@ -210,11 +210,11 @@ func (s *PreparationStore) UpdateIngredient(ctx context.Context, q Querier, orgI
 	return &updated, nil
 }
 
-// DeleteIngredient removes a preparation ingredient, filtering by org_id for defense-in-depth.
-func (s *PreparationStore) DeleteIngredient(ctx context.Context, q Querier, orgID domain.OrgID, id domain.PreparationIngredientID) error {
+// DeleteIngredient removes a preparation ingredient, filtering by preparation_id and org_id for defense-in-depth.
+func (s *PreparationStore) DeleteIngredient(ctx context.Context, q Querier, orgID domain.OrgID, preparationID domain.PreparationID, id domain.PreparationIngredientID) error {
 	res, err := q.ExecContext(ctx, `
-		DELETE FROM cove.preparation_ingredients WHERE id = $1 AND org_id = $2
-	`, id, orgID)
+		DELETE FROM cove.preparation_ingredients WHERE id = $1 AND preparation_id = $2 AND org_id = $3
+	`, id, preparationID, orgID)
 	if err != nil {
 		return fmt.Errorf("delete preparation ingredient: %w", err)
 	}

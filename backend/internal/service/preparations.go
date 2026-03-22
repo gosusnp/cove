@@ -156,8 +156,8 @@ func (s *PreparationService) AddIngredient(ctx context.Context, preparationID do
 	return ingredient, err
 }
 
-// UpdateIngredient modifies a preparation ingredient.
-func (s *PreparationService) UpdateIngredient(ctx context.Context, id domain.PreparationIngredientID, p domain.PreparationIngredientParams) (*domain.PreparationIngredient, error) {
+// UpdateIngredient modifies a preparation ingredient, scoped to the given preparation.
+func (s *PreparationService) UpdateIngredient(ctx context.Context, preparationID domain.PreparationID, id domain.PreparationIngredientID, p domain.PreparationIngredientParams) (*domain.PreparationIngredient, error) {
 	identity, ok := domain.IdentityFromContext(ctx)
 	if !ok {
 		return nil, ErrUnauthorized
@@ -174,7 +174,7 @@ func (s *PreparationService) UpdateIngredient(ctx context.Context, id domain.Pre
 	var ingredient *domain.PreparationIngredient
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var err error
-		ingredient, err = s.store.UpdateIngredient(ctx, q, identity.OrgID, id, p)
+		ingredient, err = s.store.UpdateIngredient(ctx, q, identity.OrgID, preparationID, id, p)
 		return err
 	})
 	if errors.Is(err, store.ErrNotFound) {
@@ -183,14 +183,14 @@ func (s *PreparationService) UpdateIngredient(ctx context.Context, id domain.Pre
 	return ingredient, err
 }
 
-// DeleteIngredient removes an ingredient from a preparation.
-func (s *PreparationService) DeleteIngredient(ctx context.Context, id domain.PreparationIngredientID) error {
+// DeleteIngredient removes an ingredient from a preparation, scoped to the given preparation.
+func (s *PreparationService) DeleteIngredient(ctx context.Context, preparationID domain.PreparationID, id domain.PreparationIngredientID) error {
 	identity, ok := domain.IdentityFromContext(ctx)
 	if !ok {
 		return ErrUnauthorized
 	}
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
-		return s.store.DeleteIngredient(ctx, q, identity.OrgID, id)
+		return s.store.DeleteIngredient(ctx, q, identity.OrgID, preparationID, id)
 	})
 	if errors.Is(err, store.ErrNotFound) {
 		return ErrNotFound

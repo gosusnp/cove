@@ -1,0 +1,674 @@
+// Copyright (c) 2026 Jimmy Ma
+// SPDX-License-Identifier: Elastic-2.0
+
+import { fireEvent, screen, waitFor } from "@testing-library/preact";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { withProviders } from "../test-utils.jsx";
+import { RecipeDetail } from "./RecipeDetail.jsx";
+
+// ─── Mocks ──────────────────────────────────────────────────────────────────
+
+vi.mock("../components/ui/Accordion.jsx", () => ({
+	Accordion: ({ children }) => <div>{children}</div>,
+	AccordionItem: ({ children }) => <div>{children}</div>,
+	AccordionTrigger: ({ children }) => <div>{children}</div>,
+	AccordionContent: ({ children }) => <div>{children}</div>,
+}));
+
+vi.mock("../components/ui/ConfirmDialog.jsx", () => ({
+	ConfirmDialog: ({ openSignal, title, onConfirm }) =>
+		openSignal.value ? (
+			<div data-testid="mock-confirm-dialog">
+				<p>{title}</p>
+				<button
+					type="button"
+					onClick={async () => {
+						await onConfirm();
+						openSignal.value = false;
+					}}
+				>
+					Confirm
+				</button>
+				<button
+					type="button"
+					onClick={() => {
+						openSignal.value = false;
+					}}
+				>
+					Cancel
+				</button>
+			</div>
+		) : null,
+}));
+
+vi.mock("../components/ui/Combobox.jsx", () => ({
+	Combobox: ({ label, value, onChange, options, placeholder, freeform }) => (
+		<div>
+			{label && <label htmlFor="mock-combobox">{label}</label>}
+			<input
+				id="mock-combobox"
+				data-testid={freeform ? "mock-combobox-freeform" : "mock-combobox"}
+				value={value ?? ""}
+				placeholder={placeholder}
+				onInput={(e) => onChange(e.target.value)}
+				list="mock-combobox-options"
+			/>
+			<datalist id="mock-combobox-options">
+				{options.map((o) => (
+					<option key={o.value} value={o.value}>
+						{o.label}
+					</option>
+				))}
+			</datalist>
+		</div>
+	),
+}));
+
+vi.mock("../components/ui/EditableMarkdown.jsx", () => ({
+	EditableMarkdown: ({ value, placeholder, onSave }) => (
+		<div data-testid="mock-editable-markdown">
+			<span>{value || placeholder}</span>
+			<button type="button" onClick={() => onSave("Updated description")}>
+				Save description
+			</button>
+		</div>
+	),
+}));
+
+// ─── Fixtures ─────────────────────────────────────────────────────────────────
+
+const MOCK_USER = { email: "user@example.com", name: "Test User" };
+
+const MOCK_PREP = {
+	id: 10,
+	name: "Bolognese Sauce",
+	description: "A rich meat sauce",
+	yield_amount: 0,
+	yield_unit: "",
+	steps: [],
+	ingredients: [],
+	is_public: false,
+};
+
+const MOCK_RECIPE_WITH_PREP = {
+	id: 1,
+	name: "Pasta Bolognese",
+	servings: 4,
+	description: null,
+	yield_amount: null,
+	yield_unit: null,
+	is_public: false,
+	preparations: [
+		{
+			id: 1,
+			recipe_id: 1,
+			preparation_id: 10,
+			position: 1,
+			amount: 1,
+			unit: "serving",
+		},
+	],
+};
+
+const MOCK_RECIPE_EMPTY = {
+	id: 2,
+	name: "Empty Recipe",
+	servings: 2,
+	description: null,
+	yield_amount: null,
+	yield_unit: null,
+	is_public: false,
+	preparations: [],
+};
+
+const renderDetail = (recipeId = 1, onRecipeUpdated = vi.fn()) =>
+	withProviders(
+		<RecipeDetail recipeId={recipeId} onRecipeUpdated={onRecipeUpdated} />,
+		{ user: MOCK_USER },
+	);
+
+function mockFetchForRecipe(recipe = MOCK_RECIPE_EMPTY) {
+	vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+		if (url === `/api/recipes/${recipe.id}` && !opts?.method) {
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve(recipe),
+			});
+		}
+		if (url.startsWith("/api/preparations/") && !opts?.method) {
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve(MOCK_PREP),
+			});
+		}
+		// /api/preparations list (for AddComponentForm)
+		if (url === "/api/preparations" && !opts?.method) {
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve([MOCK_PREP]),
+			});
+		}
+		return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+	});
+}
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
+
+describe("RecipeDetail — loading & errors", () => {
+	it("shows Loading… while fetching", () => {
+		vi.spyOn(global, "fetch").mockReturnValue(new Promise(() => {}));
+		renderDetail();
+		expect(screen.getByText("Loading…")).toBeInTheDocument();
+	});
+
+	it("shows error when fetch fails", async () => {
+		vi.spyOn(global, "fetch").mockResolvedValue({
+			ok: false,
+			json: () => Promise.resolve({}),
+		});
+		renderDetail();
+		await waitFor(() =>
+			expect(screen.getByText("Failed to load recipe")).toBeInTheDocument(),
+		);
+	});
+});
+
+describe("RecipeDetail — content", () => {
+	it("shows recipe name after fetch", async () => {
+		mockFetchForRecipe(MOCK_RECIPE_EMPTY);
+		renderDetail(2);
+		await waitFor(() =>
+			expect(screen.getByText("Empty Recipe")).toBeInTheDocument(),
+		);
+	});
+
+	it("shows servings count", async () => {
+		mockFetchForRecipe(MOCK_RECIPE_EMPTY);
+		renderDetail(2);
+		await waitFor(() =>
+			expect(screen.getByText("2 servings")).toBeInTheDocument(),
+		);
+	});
+
+	it("shows singular serving when servings is 1", async () => {
+		mockFetchForRecipe({ ...MOCK_RECIPE_EMPTY, servings: 1 });
+		renderDetail(2);
+		await waitFor(() =>
+			expect(screen.getByText("1 serving")).toBeInTheDocument(),
+		);
+	});
+
+	it("shows empty components state when recipe has no preparations", async () => {
+		mockFetchForRecipe(MOCK_RECIPE_EMPTY);
+		renderDetail(2);
+		await waitFor(() =>
+			expect(
+				screen.getByText(
+					"No components yet. Add a preparation to get started.",
+				),
+			).toBeInTheDocument(),
+		);
+	});
+
+	it("renders preparation sections when recipe has linked preparations", async () => {
+		mockFetchForRecipe(MOCK_RECIPE_WITH_PREP);
+		renderDetail(1);
+		await waitFor(() =>
+			expect(screen.getByText("Bolognese Sauce")).toBeInTheDocument(),
+		);
+	});
+
+	it("shows amount in recipe for each component", async () => {
+		mockFetchForRecipe(MOCK_RECIPE_WITH_PREP);
+		renderDetail(1);
+		await waitFor(() =>
+			expect(screen.getByText("1 serving")).toBeInTheDocument(),
+		);
+	});
+});
+
+describe("RecipeDetail — edit recipe name", () => {
+	it("clicking recipe name activates edit mode", async () => {
+		mockFetchForRecipe(MOCK_RECIPE_EMPTY);
+		renderDetail(2);
+		await waitFor(() =>
+			expect(screen.getByText("Empty Recipe")).toBeInTheDocument(),
+		);
+		fireEvent.click(screen.getByText("Empty Recipe"));
+		expect(screen.getByDisplayValue("Empty Recipe")).toBeInTheDocument();
+	});
+
+	it("saves updated recipe name on Enter", async () => {
+		const fetchSpy = vi
+			.spyOn(global, "fetch")
+			.mockImplementation((url, opts) => {
+				if (url === "/api/recipes/2" && opts?.method === "PUT") {
+					return Promise.resolve({
+						ok: true,
+						json: () =>
+							Promise.resolve({ ...MOCK_RECIPE_EMPTY, name: "New Name" }),
+					});
+				}
+				if (url === "/api/recipes/2") {
+					return Promise.resolve({
+						ok: true,
+						json: () => Promise.resolve(MOCK_RECIPE_EMPTY),
+					});
+				}
+				return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+			});
+
+		renderDetail(2);
+		await waitFor(() =>
+			expect(screen.getByText("Empty Recipe")).toBeInTheDocument(),
+		);
+
+		fireEvent.click(screen.getByText("Empty Recipe"));
+		const input = screen.getByDisplayValue("Empty Recipe");
+		fireEvent.input(input, { target: { value: "New Name" } });
+		fireEvent.keyDown(input, { key: "Enter" });
+
+		await waitFor(() =>
+			expect(fetchSpy).toHaveBeenCalledWith(
+				"/api/recipes/2",
+				expect.objectContaining({ method: "PUT" }),
+			),
+		);
+	});
+
+	it("cancels name edit on Escape", async () => {
+		mockFetchForRecipe(MOCK_RECIPE_EMPTY);
+		renderDetail(2);
+		await waitFor(() =>
+			expect(screen.getByText("Empty Recipe")).toBeInTheDocument(),
+		);
+
+		fireEvent.click(screen.getByText("Empty Recipe"));
+		const input = screen.getByDisplayValue("Empty Recipe");
+		fireEvent.input(input, { target: { value: "Changed" } });
+		fireEvent.keyDown(input, { key: "Escape" });
+
+		// Input should be gone, original name restored
+		expect(screen.queryByDisplayValue("Changed")).not.toBeInTheDocument();
+		expect(screen.getByText("Empty Recipe")).toBeInTheDocument();
+	});
+});
+
+describe("RecipeDetail — add component form", () => {
+	it("shows AddComponentForm when Add button is clicked", async () => {
+		mockFetchForRecipe(MOCK_RECIPE_EMPTY);
+		renderDetail(2);
+		await waitFor(() =>
+			expect(screen.getByText("Empty Recipe")).toBeInTheDocument(),
+		);
+
+		fireEvent.click(screen.getByText("Add"));
+		expect(screen.getByText("Add Component")).toBeInTheDocument();
+	});
+
+	it("hides the Add button while form is open", async () => {
+		mockFetchForRecipe(MOCK_RECIPE_EMPTY);
+		renderDetail(2);
+		await waitFor(() =>
+			expect(screen.getByText("Empty Recipe")).toBeInTheDocument(),
+		);
+
+		// Before clicking: no form title
+		expect(screen.queryByText("Add Component")).not.toBeInTheDocument();
+		fireEvent.click(screen.getByText("Add"));
+		// After clicking: form is shown and the trigger button is hidden
+		expect(screen.getByText("Add Component")).toBeInTheDocument();
+		// The icon+text "Add" button (the trigger) is gone; only the form's submit remains
+		const addButtons = screen.queryAllByText("Add");
+		// All remaining "Add" text nodes belong to the form submit button, not the trigger
+		expect(addButtons.every((btn) => btn.type === "submit")).toBe(true);
+	});
+
+	it("cancels add component form", async () => {
+		mockFetchForRecipe(MOCK_RECIPE_EMPTY);
+		renderDetail(2);
+		await waitFor(() =>
+			expect(screen.getByText("Empty Recipe")).toBeInTheDocument(),
+		);
+
+		fireEvent.click(screen.getByText("Add"));
+		expect(screen.getByText("Add Component")).toBeInTheDocument();
+		fireEvent.click(screen.getByText("Cancel"));
+		expect(screen.queryByText("Add Component")).not.toBeInTheDocument();
+	});
+
+	it("shows error when submitting without a value", async () => {
+		mockFetchForRecipe(MOCK_RECIPE_EMPTY);
+		renderDetail(2);
+		await waitFor(() =>
+			expect(screen.getByText("Empty Recipe")).toBeInTheDocument(),
+		);
+
+		fireEvent.click(screen.getByText("Add"));
+		await waitFor(() =>
+			expect(screen.getByTestId("mock-combobox-freeform")).toBeInTheDocument(),
+		);
+		fireEvent.submit(
+			screen.getByTestId("mock-combobox-freeform").closest("form"),
+		);
+		await waitFor(() =>
+			expect(
+				screen.getByText("Select or name a preparation."),
+			).toBeInTheDocument(),
+		);
+	});
+
+	it("links existing preparation when an existing option is selected", async () => {
+		const fetchSpy = vi
+			.spyOn(global, "fetch")
+			.mockImplementation((url, opts) => {
+				if (url === "/api/recipes/2" && !opts?.method) {
+					return Promise.resolve({
+						ok: true,
+						json: () => Promise.resolve(MOCK_RECIPE_EMPTY),
+					});
+				}
+				if (url === "/api/preparations" && !opts?.method) {
+					return Promise.resolve({
+						ok: true,
+						json: () => Promise.resolve([MOCK_PREP]),
+					});
+				}
+				if (url === "/api/recipes/2/preparations" && opts?.method === "POST") {
+					return Promise.resolve({
+						ok: true,
+						json: () =>
+							Promise.resolve({
+								id: 1,
+								recipe_id: 2,
+								preparation_id: 10,
+								position: 1,
+								amount: 1,
+								unit: "serving",
+							}),
+					});
+				}
+				if (url === `/api/preparations/${MOCK_PREP.id}` && !opts?.method) {
+					return Promise.resolve({
+						ok: true,
+						json: () => Promise.resolve(MOCK_PREP),
+					});
+				}
+				return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+			});
+
+		renderDetail(2);
+		await waitFor(() =>
+			expect(screen.getByText("Empty Recipe")).toBeInTheDocument(),
+		);
+
+		fireEvent.click(screen.getByText("Add"));
+		await waitFor(() =>
+			expect(screen.getByTestId("mock-combobox-freeform")).toBeInTheDocument(),
+		);
+
+		fireEvent.input(screen.getByTestId("mock-combobox-freeform"), {
+			target: { value: "existing:10" },
+		});
+		fireEvent.submit(
+			screen.getByTestId("mock-combobox-freeform").closest("form"),
+		);
+
+		await waitFor(() =>
+			expect(fetchSpy).toHaveBeenCalledWith(
+				"/api/recipes/2/preparations",
+				expect.objectContaining({ method: "POST" }),
+			),
+		);
+		// Should NOT have called POST /api/preparations (create new)
+		expect(fetchSpy).not.toHaveBeenCalledWith(
+			"/api/preparations",
+			expect.objectContaining({ method: "POST" }),
+		);
+	});
+
+	it("creates a new preparation when a non-numeric name is typed", async () => {
+		const fetchSpy = vi
+			.spyOn(global, "fetch")
+			.mockImplementation((url, opts) => {
+				if (url === "/api/recipes/2" && !opts?.method) {
+					return Promise.resolve({
+						ok: true,
+						json: () => Promise.resolve(MOCK_RECIPE_EMPTY),
+					});
+				}
+				if (url === "/api/preparations" && opts?.method === "POST") {
+					return Promise.resolve({
+						ok: true,
+						json: () => Promise.resolve({ ...MOCK_PREP, id: 99 }),
+					});
+				}
+				if (url === "/api/preparations" && !opts?.method) {
+					return Promise.resolve({
+						ok: true,
+						json: () => Promise.resolve([]),
+					});
+				}
+				if (url === "/api/recipes/2/preparations" && opts?.method === "POST") {
+					return Promise.resolve({
+						ok: true,
+						json: () =>
+							Promise.resolve({
+								id: 5,
+								recipe_id: 2,
+								preparation_id: 99,
+								position: 1,
+								amount: 1,
+								unit: "serving",
+							}),
+					});
+				}
+				if (url === "/api/preparations/99" && !opts?.method) {
+					return Promise.resolve({
+						ok: true,
+						json: () => Promise.resolve({ ...MOCK_PREP, id: 99 }),
+					});
+				}
+				return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+			});
+
+		renderDetail(2);
+		await waitFor(() =>
+			expect(screen.getByText("Empty Recipe")).toBeInTheDocument(),
+		);
+
+		fireEvent.click(screen.getByText("Add"));
+		await waitFor(() =>
+			expect(screen.getByTestId("mock-combobox-freeform")).toBeInTheDocument(),
+		);
+
+		fireEvent.input(screen.getByTestId("mock-combobox-freeform"), {
+			target: { value: "Brand New Sauce" },
+		});
+		fireEvent.submit(
+			screen.getByTestId("mock-combobox-freeform").closest("form"),
+		);
+
+		await waitFor(() =>
+			expect(fetchSpy).toHaveBeenCalledWith(
+				"/api/preparations",
+				expect.objectContaining({
+					method: "POST",
+					body: expect.stringContaining("Brand New Sauce"),
+				}),
+			),
+		);
+		await waitFor(() =>
+			expect(fetchSpy).toHaveBeenCalledWith(
+				"/api/recipes/2/preparations",
+				expect.objectContaining({ method: "POST" }),
+			),
+		);
+	});
+});
+
+const MOCK_PREP_WITH_INGREDIENT = {
+	...MOCK_PREP,
+	ingredients: [
+		{
+			id: 5,
+			preparation_id: 10,
+			ingredient_id: null,
+			name: "Ground beef",
+			amount: 500,
+			unit: "g",
+			prep: null,
+		},
+	],
+};
+
+describe("RecipeDetail — remove component", () => {
+	it("shows remove confirm dialog when trash button is clicked", async () => {
+		mockFetchForRecipe(MOCK_RECIPE_WITH_PREP);
+		renderDetail(1);
+		await waitFor(() =>
+			expect(screen.getByText("Bolognese Sauce")).toBeInTheDocument(),
+		);
+
+		// The Trash2 button is the only button with a lucide-trash-2 svg inside
+		const trashButton = screen
+			.getAllByRole("button")
+			.find((btn) => btn.querySelector(".lucide-trash-2") !== null);
+		expect(trashButton).toBeDefined();
+		fireEvent.click(trashButton);
+		await waitFor(() =>
+			expect(screen.getByText("Remove component")).toBeInTheDocument(),
+		);
+	});
+
+	it("removes component from list after confirming", async () => {
+		vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+			if (url === "/api/recipes/1" && !opts?.method) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_RECIPE_WITH_PREP),
+				});
+			}
+			if (url === `/api/preparations/${MOCK_PREP.id}` && !opts?.method) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_PREP),
+				});
+			}
+			return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+		});
+
+		renderDetail(1);
+		await waitFor(() =>
+			expect(screen.getByText("Bolognese Sauce")).toBeInTheDocument(),
+		);
+
+		const trashButton = screen
+			.getAllByRole("button")
+			.find((btn) => btn.querySelector(".lucide-trash-2") !== null);
+		expect(trashButton).toBeDefined();
+		fireEvent.click(trashButton);
+
+		await waitFor(() =>
+			expect(screen.getByText("Remove component")).toBeInTheDocument(),
+		);
+		fireEvent.click(screen.getByText("Confirm"));
+
+		await waitFor(() =>
+			expect(screen.queryByText("Bolognese Sauce")).not.toBeInTheDocument(),
+		);
+	});
+
+	it("shows error and keeps component when DELETE fails", async () => {
+		vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+			if (url === "/api/recipes/1" && !opts?.method) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_RECIPE_WITH_PREP),
+				});
+			}
+			if (url === `/api/preparations/${MOCK_PREP.id}` && !opts?.method) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_PREP),
+				});
+			}
+			if (opts?.method === "DELETE") {
+				return Promise.resolve({
+					ok: false,
+					json: () => Promise.resolve({ error: "not found" }),
+				});
+			}
+			return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+		});
+
+		renderDetail(1);
+		await waitFor(() =>
+			expect(screen.getByText("Bolognese Sauce")).toBeInTheDocument(),
+		);
+
+		const trashButton = screen
+			.getAllByRole("button")
+			.find((btn) => btn.querySelector(".lucide-trash-2") !== null);
+		fireEvent.click(trashButton);
+		await waitFor(() =>
+			expect(screen.getByText("Remove component")).toBeInTheDocument(),
+		);
+		fireEvent.click(screen.getByText("Confirm"));
+
+		await waitFor(() =>
+			expect(screen.getByText("not found")).toBeInTheDocument(),
+		);
+		// Component must still be in the list
+		expect(screen.getByText("Bolognese Sauce")).toBeInTheDocument();
+	});
+});
+
+describe("RecipeDetail — delete ingredient", () => {
+	it("shows error and keeps ingredient when DELETE fails", async () => {
+		vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+			if (url === "/api/recipes/1" && !opts?.method) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_RECIPE_WITH_PREP),
+				});
+			}
+			if (url === `/api/preparations/${MOCK_PREP.id}` && !opts?.method) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_PREP_WITH_INGREDIENT),
+				});
+			}
+			if (opts?.method === "DELETE") {
+				return Promise.resolve({
+					ok: false,
+					json: () => Promise.resolve({ error: "delete failed" }),
+				});
+			}
+			return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+		});
+
+		renderDetail(1);
+		await waitFor(() =>
+			expect(screen.getByText("Ground beef")).toBeInTheDocument(),
+		);
+
+		// The X button next to the ingredient — find the button within the ingredient row
+		// There are multiple X buttons; we need the one adjacent to "Ground beef"
+		const ingredientText = screen.getByText(/Ground beef/);
+		const ingredientRow = ingredientText.closest("div");
+		const xButtons = ingredientRow.querySelectorAll("button");
+		// Last button in the row is the delete (X) button
+		fireEvent.click(xButtons[xButtons.length - 1]);
+
+		await waitFor(() =>
+			expect(screen.getByText("delete failed")).toBeInTheDocument(),
+		);
+		// Ingredient must still be in the list
+		expect(screen.getByText("Ground beef")).toBeInTheDocument();
+	});
+});

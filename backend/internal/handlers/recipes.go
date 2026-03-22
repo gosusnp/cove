@@ -26,6 +26,9 @@ func (h *RecipeHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /recipes/{id}", h.get)
 	mux.HandleFunc("PUT /recipes/{id}", h.update)
 	mux.HandleFunc("DELETE /recipes/{id}", h.delete)
+	mux.HandleFunc("POST /recipes/{id}/preparations", h.addPreparation)
+	mux.HandleFunc("PUT /recipes/{id}/preparations/{linkId}", h.updatePreparation)
+	mux.HandleFunc("DELETE /recipes/{id}/preparations/{linkId}", h.deletePreparation)
 }
 
 type recipeRequest struct {
@@ -114,6 +117,89 @@ func (h *RecipeHandler) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.svc.Delete(r.Context(), id); err != nil {
+		h.handleError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type addRecipePreparationRequest struct {
+	PreparationID domain.PreparationID `json:"preparation_id"`
+	Position      int                  `json:"position"`
+	Amount        float64              `json:"amount"`
+	Unit          string               `json:"unit"`
+}
+
+type updateRecipePreparationRequest struct {
+	Position int     `json:"position"`
+	Amount   float64 `json:"amount"`
+	Unit     string  `json:"unit"`
+}
+
+func (h *RecipeHandler) addPreparation(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID[domain.RecipeID](r, "id")
+	if err != nil {
+		jsonError(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	var req addRecipePreparationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	rp, err := h.svc.AddPreparation(r.Context(), id, domain.RecipePreparationParams{
+		PreparationID: req.PreparationID,
+		Position:      req.Position,
+		Amount:        req.Amount,
+		Unit:          req.Unit,
+	})
+	if err != nil {
+		h.handleError(w, r, err)
+		return
+	}
+	jsonResponse(w, rp, http.StatusCreated)
+}
+
+func (h *RecipeHandler) updatePreparation(w http.ResponseWriter, r *http.Request) {
+	_, err := pathID[domain.RecipeID](r, "id")
+	if err != nil {
+		jsonError(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	linkID, err := pathID[domain.RecipePreparationID](r, "linkId")
+	if err != nil {
+		jsonError(w, "invalid link id", http.StatusBadRequest)
+		return
+	}
+	var req updateRecipePreparationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	rp, err := h.svc.UpdatePreparation(r.Context(), linkID, domain.RecipePreparationParams{
+		Position: req.Position,
+		Amount:   req.Amount,
+		Unit:     req.Unit,
+	})
+	if err != nil {
+		h.handleError(w, r, err)
+		return
+	}
+	jsonOK(w, rp)
+}
+
+func (h *RecipeHandler) deletePreparation(w http.ResponseWriter, r *http.Request) {
+	_, err := pathID[domain.RecipeID](r, "id")
+	if err != nil {
+		jsonError(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	linkID, err := pathID[domain.RecipePreparationID](r, "linkId")
+	if err != nil {
+		jsonError(w, "invalid link id", http.StatusBadRequest)
+		return
+	}
+	if err := h.svc.DeletePreparation(r.Context(), linkID); err != nil {
 		h.handleError(w, r, err)
 		return
 	}

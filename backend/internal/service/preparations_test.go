@@ -399,7 +399,7 @@ func TestPreparationService_UpdateIngredient(t *testing.T) {
 			Unit:         "g",
 		})
 
-		updated, err := svc.UpdateIngredient(ctx, added.ID, domain.PreparationIngredientParams{
+		updated, err := svc.UpdateIngredient(ctx, p.ID, added.ID, domain.PreparationIngredientParams{
 			IngredientID: ing.ID,
 			Name:         "bread flour",
 			Amount:       200,
@@ -416,11 +416,39 @@ func TestPreparationService_UpdateIngredient(t *testing.T) {
 		}
 	})
 
+	t.Run("ingredient not in preparation returns ErrNotFound", func(t *testing.T) {
+		svc, ingSvc, ctx := newTestPreparationService(t)
+		p1, _ := svc.Create(ctx, basePrep())
+		p2 := basePrep()
+		p2.Name = "Other Prep"
+		p2r, _ := svc.Create(ctx, p2)
+		ing := seedIngredient(t, ingSvc, ctx)
+		// Add ingredient to p2 only
+		added, _ := svc.AddIngredient(ctx, p2r.ID, domain.PreparationIngredientParams{
+			IngredientID: ing.ID,
+			Name:         "flour",
+			Amount:       100,
+			Unit:         "g",
+		})
+
+		// Try to update it via p1 — should fail
+		_, err := svc.UpdateIngredient(ctx, p1.ID, added.ID, domain.PreparationIngredientParams{
+			IngredientID: ing.ID,
+			Name:         "flour",
+			Amount:       200,
+			Unit:         "g",
+		})
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound (wrong preparation)", err)
+		}
+	})
+
 	t.Run("not found returns ErrNotFound", func(t *testing.T) {
 		svc, ingSvc, ctx := newTestPreparationService(t)
+		p, _ := svc.Create(ctx, basePrep())
 		ing := seedIngredient(t, ingSvc, ctx)
 
-		_, err := svc.UpdateIngredient(ctx, domain.PreparationIngredientID(999), domain.PreparationIngredientParams{
+		_, err := svc.UpdateIngredient(ctx, p.ID, domain.PreparationIngredientID(999), domain.PreparationIngredientParams{
 			IngredientID: ing.ID,
 			Name:         "flour",
 			Amount:       100,
@@ -444,7 +472,7 @@ func TestPreparationService_DeleteIngredient(t *testing.T) {
 			Unit:         "g",
 		})
 
-		if err := svc.DeleteIngredient(ctx, added.ID); err != nil {
+		if err := svc.DeleteIngredient(ctx, p.ID, added.ID); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		got, _ := svc.Get(ctx, p.ID)
@@ -453,9 +481,37 @@ func TestPreparationService_DeleteIngredient(t *testing.T) {
 		}
 	})
 
+	t.Run("ingredient not in preparation returns ErrNotFound", func(t *testing.T) {
+		svc, ingSvc, ctx := newTestPreparationService(t)
+		p1, _ := svc.Create(ctx, basePrep())
+		p2 := basePrep()
+		p2.Name = "Other Prep"
+		p2r, _ := svc.Create(ctx, p2)
+		ing := seedIngredient(t, ingSvc, ctx)
+		// Add ingredient to p2 only
+		added, _ := svc.AddIngredient(ctx, p2r.ID, domain.PreparationIngredientParams{
+			IngredientID: ing.ID,
+			Name:         "flour",
+			Amount:       100,
+			Unit:         "g",
+		})
+
+		// Try to delete it via p1 — should fail, ingredient still exists in p2
+		err := svc.DeleteIngredient(ctx, p1.ID, added.ID)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound (wrong preparation)", err)
+		}
+		// Verify the ingredient is still in p2
+		got, _ := svc.Get(ctx, p2r.ID)
+		if len(got.Ingredients) != 1 {
+			t.Errorf("got %d ingredients in p2, want 1 (should not have been deleted)", len(got.Ingredients))
+		}
+	})
+
 	t.Run("not found returns ErrNotFound", func(t *testing.T) {
 		svc, _, ctx := newTestPreparationService(t)
-		err := svc.DeleteIngredient(ctx, domain.PreparationIngredientID(999))
+		p, _ := svc.Create(ctx, basePrep())
+		err := svc.DeleteIngredient(ctx, p.ID, domain.PreparationIngredientID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}

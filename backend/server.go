@@ -16,7 +16,7 @@ import (
 
 // NewAPIHandler assembles the API sub-mux and returns a handler that serves
 // all /api/... routes, with OAuth and Cache-Control: no-store middleware applied.
-func NewAPIHandler(userStore *store.UserStore, userSvc *service.UserService, svcs covemcp.Services, wsSvc *service.WorkoutSessionService, ingSvc *service.IngredientService, recipeSvc *service.RecipeService, secureCookies bool) http.Handler {
+func NewAPIHandler(userStore *store.UserStore, userSvc *service.UserService, svcs covemcp.Services, wsSvc *service.WorkoutSessionService, ingSvc *service.IngredientService, recipeSvc *service.RecipeService, prepSvc *service.PreparationService, secureCookies bool) http.Handler {
 	apiMux := http.NewServeMux()
 	handlers.NewActivityHandler().RegisterRoutes(apiMux)
 	handlers.NewExerciseHandler(svcs.Exercises).RegisterRoutes(apiMux)
@@ -27,5 +27,6 @@ func NewAPIHandler(userStore *store.UserStore, userSvc *service.UserService, svc
 	handlers.NewWorkoutSessionHandler(wsSvc).RegisterRoutes(apiMux)
 	handlers.NewIngredientHandler(ingSvc).RegisterRoutes(apiMux)
 	handlers.NewRecipeHandler(recipeSvc).RegisterRoutes(apiMux)
+	handlers.NewPreparationHandler(prepSvc).RegisterRoutes(apiMux)
 	return http.StripPrefix("/api", middleware.NoStore(middleware.OAuth(userSvc, apiMux)))
 }

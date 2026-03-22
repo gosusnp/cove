@@ -29,7 +29,13 @@ describe("Button", () => {
 	});
 
 	it("renders all variants without error", () => {
-		for (const variant of ["primary", "outline", "ghost", "destructive"]) {
+		for (const variant of [
+			"primary",
+			"outline",
+			"ghost",
+			"destructive",
+			"unstyled",
+		]) {
 			render(<Button variant={variant}>{variant}</Button>);
 			expect(screen.getByRole("button", { name: variant })).toBeInTheDocument();
 		}

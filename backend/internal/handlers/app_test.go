@@ -32,6 +32,7 @@ type TestApp struct {
 	// Services
 	Exercises       *service.ExerciseService
 	Ingredients     *service.IngredientService
+	Preparations    *service.PreparationService
 	Programs        *service.ProgramService
 	Users           *service.UserService
 	WorkoutSessions *service.WorkoutSessionService
@@ -54,6 +55,7 @@ func NewTestApp(t *testing.T) *TestApp {
 	// Stores
 	exStore := store.NewExerciseStore()
 	ingStore := store.NewIngredientStore()
+	prepStore := store.NewPreparationStore()
 	uStore := store.NewUserStore()
 	oStore := store.NewOrgStore()
 	wsStore := store.NewWorkoutSessionStore()
@@ -61,6 +63,7 @@ func NewTestApp(t *testing.T) *TestApp {
 	// Services
 	exSvc := service.NewExerciseService(database, exStore)
 	ingSvc := service.NewIngredientService(database, ingStore)
+	prepSvc := service.NewPreparationService(database, prepStore)
 	pSvc := service.NewProgramService(database, exStore)
 	uSvc := service.NewUserService(database, uStore, oStore)
 	wsSvc := service.NewWorkoutSessionService(database, wsStore, crypto.NewTestEncryptor())
@@ -80,6 +83,7 @@ func NewTestApp(t *testing.T) *TestApp {
 	NewActivityHandler().RegisterRoutes(apiMux)
 	NewExerciseHandler(exSvc).RegisterRoutes(apiMux)
 	NewIngredientHandler(ingSvc).RegisterRoutes(apiMux)
+	NewPreparationHandler(prepSvc).RegisterRoutes(apiMux)
 	NewProgramHandler(pSvc).RegisterRoutes(apiMux)
 	NewProgramSetHandler(pSvc).RegisterRoutes(apiMux)
 	NewProgramExerciseHandler(pSvc).RegisterRoutes(apiMux)
@@ -98,6 +102,7 @@ func NewTestApp(t *testing.T) *TestApp {
 		RawMux:          rawHandler,
 		Exercises:       exSvc,
 		Ingredients:     ingSvc,
+		Preparations:    prepSvc,
 		Programs:        pSvc,
 		Users:           uSvc,
 		WorkoutSessions: wsSvc,
@@ -273,6 +278,30 @@ func (a *TestApp) SeedIngredientForUser(ctx context.Context, p domain.Ingredient
 	ing, err := a.Ingredients.Create(authCtx, p)
 	if err != nil {
 		a.T.Fatalf("seed ingredient for user: %v", err)
+	}
+	return ing
+}
+
+// SeedPreparationForUser creates a preparation owned by the given user/org.
+func (a *TestApp) SeedPreparationForUser(ctx context.Context, p domain.PreparationParams, userID domain.UserID, orgID domain.OrgID) *domain.Preparation {
+	a.T.Helper()
+	id := &domain.Identity{UserID: userID, OrgID: orgID}
+	authCtx := domain.NewContext(ctx, id)
+	prep, err := a.Preparations.Create(authCtx, p)
+	if err != nil {
+		a.T.Fatalf("seed preparation for user: %v", err)
+	}
+	return prep
+}
+
+// SeedPreparationIngredientForUser adds an ingredient to a preparation.
+func (a *TestApp) SeedPreparationIngredientForUser(ctx context.Context, prepID domain.PreparationID, p domain.PreparationIngredientParams, userID domain.UserID, orgID domain.OrgID) *domain.PreparationIngredient {
+	a.T.Helper()
+	id := &domain.Identity{UserID: userID, OrgID: orgID}
+	authCtx := domain.NewContext(ctx, id)
+	ing, err := a.Preparations.AddIngredient(authCtx, prepID, p)
+	if err != nil {
+		a.T.Fatalf("seed preparation ingredient: %v", err)
 	}
 	return ing
 }
