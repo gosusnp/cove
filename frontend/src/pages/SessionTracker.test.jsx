@@ -290,7 +290,9 @@ describe("SessionTracker", () => {
 		});
 
 		it("shows weight in the subtitle", async () => {
-			mockFetchWithProgram([{ name: "Back Squat", reps: 5, weight_kg: 80 }]);
+			mockFetchWithProgram([
+				{ name: "Back Squat", reps: 5, weight: 80, weight_unit: "kg" },
+			]);
 			renderTracker();
 			await selectProgramAndStart();
 			await waitFor(() =>
@@ -314,7 +316,8 @@ describe("SessionTracker", () => {
 				{
 					name: "Single-leg press",
 					reps: 8,
-					weight_kg: 40,
+					weight: 40,
+					weight_unit: "kg",
 					laterality: "bilateral",
 				},
 			]);
@@ -322,6 +325,21 @@ describe("SessionTracker", () => {
 			await selectProgramAndStart();
 			await waitFor(() =>
 				expect(screen.getByText("40 kg · bilateral")).toBeInTheDocument(),
+			);
+		});
+
+		it("converts weight to the user's preferred unit", async () => {
+			mockFetchWithProgram([
+				{ name: "Back Squat", reps: 5, weight: 100, weight_unit: "kg" },
+			]);
+			withProviders(<SessionTracker />, {
+				user: { email: "user@example.com", fitness_unit_system: "imperial" },
+				path: "/workout",
+			});
+			await selectProgramAndStart();
+			await waitFor(() =>
+				// 100 kg → 220.46 lb
+				expect(screen.getByText("220.46 lb")).toBeInTheDocument(),
 			);
 		});
 	});

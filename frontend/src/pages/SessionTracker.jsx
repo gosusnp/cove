@@ -17,6 +17,10 @@ import { TextField } from "../components/ui/TextField.jsx";
 import { SessionSummaryDialog } from "./SessionSummaryDialog.jsx";
 import { apiFetch } from "../lib/api.js";
 import { ActivityPicker } from "../components/shared/ActivityPicker.jsx";
+import {
+	convertFitnessWeight,
+	useUnitPreferences,
+} from "../hooks/useUnitPreferences.js";
 
 // Formats elapsed seconds as HH:MM:SS.
 function formatElapsed(totalSeconds) {
@@ -60,9 +64,21 @@ function formatLabel(ex) {
 // Format the subtitle line for a program exercise (weight and laterality).
 // Returns an empty string when neither is set; the subtitle slot is always
 // rendered to keep item height consistent and maximise the swipe target.
-function formatSubtitle(ex) {
+//
+// This is a consumption context: weight is converted to the viewer's preferred
+// unit regardless of the stored unit. Edit contexts (e.g. ProgramDetail) render
+// the stored unit directly without conversion.
+function formatSubtitle(ex, fitnessWeightUnit) {
 	const parts = [];
-	if (ex.weight_kg) parts.push(`${ex.weight_kg} kg`);
+	if (ex.weight) {
+		const fromUnit = ex.weight_unit ?? "kg";
+		const converted = convertFitnessWeight(
+			ex.weight,
+			fromUnit,
+			fitnessWeightUnit,
+		);
+		parts.push(`${converted} ${fitnessWeightUnit}`);
+	}
 	if (ex.laterality) parts.push(ex.laterality);
 	return parts.join(" · ");
 }
@@ -70,6 +86,7 @@ function formatSubtitle(ex) {
 export function SessionTracker() {
 	const { user } = useAuth();
 	const { route } = useLocation();
+	const { fitnessWeightUnit } = useUnitPreferences();
 
 	// Programs for optional selector.
 	const programs = useSignal([]);
@@ -384,7 +401,10 @@ export function SessionTracker() {
 									({ label, exercises }, i) => (
 										<CheckListSection key={i} label={label}>
 											{exercises.map((ex, j) => (
-												<CheckListItem key={j} subtitle={formatSubtitle(ex)}>
+												<CheckListItem
+													key={j}
+													subtitle={formatSubtitle(ex, fitnessWeightUnit)}
+												>
 													{formatLabel(ex)}
 												</CheckListItem>
 											))}

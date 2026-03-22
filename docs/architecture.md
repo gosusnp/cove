@@ -682,6 +682,37 @@ The owning entity's `user_id` bytes are passed as GCM additional authenticated d
 
 ---
 
+## Units & Measurement
+
+### Core principle: units are part of the data
+
+The `(value, unit)` pair stored on a record represents the author's intent and is never mutated by the API layer. The backend always returns the raw stored unit — no conversion happens in handlers or services on read.
+
+### Authoring vs. consumption
+
+| Context | Behaviour | Examples |
+|---|---|---|
+| **Authoring / edit** | Render the stored unit as-is | ProgramDetail exercise editor, recipe ingredient form |
+| **Consumption / display** | Convert to the viewer's preferred unit at render time | SessionTracker, recipe viewer |
+
+This distinction matters because the author and the viewer may be different people or in different environments with different unit preferences. Preserving the stored unit also prevents rounding errors from accumulating across repeated read-convert-save cycles.
+
+### Backend responsibilities
+
+- `domain.ConvertMass` / `domain.ConvertVolume` — canonical conversion primitives.
+- `UnitSystem.DefaultFitnessWeightUnit()` / `DefaultCookingMassUnit()` / `DefaultCookingVolumeUnit()` — canonical mapping from a unit system to the meaningful display unit for each domain (e.g. metric fitness → `kg`, never `g`).
+- `domain.Quantize` + `FitnessWeightSteps` / `CookingVolumeSteps` — used on **write** to snap authored values to practical increments; not applied on read or display.
+
+### Frontend responsibilities
+
+- `useUnitPreferences()` — resolves the viewer's preferred units from their profile.
+- `convertFitnessWeight(value, fromUnit, toUnit)` in `useUnitPreferences.js` — thin display-only utility that mirrors the backend conversion factors; used exclusively in consumption views.
+- **DO** call `convertFitnessWeight` only in consumption contexts (e.g. `SessionTracker`).
+- **DON'T** call it in edit contexts (e.g. `ProgramDetail`) — render the stored unit directly.
+- **DON'T** duplicate the meaningful-unit mapping; `useUnitPreferences()` mirrors `DefaultFitnessWeightUnit()` and is the single frontend source of truth.
+
+---
+
 ## MCP Integration
 
 The MCP server is an alternative interface to the same service layer used by HTTP handlers.

@@ -5,6 +5,25 @@ import { useAuth } from "../Auth.jsx";
 
 // System → default unit mappings (mirrors backend domain/units.go).
 const FITNESS_WEIGHT_UNIT = { metric: "kg", imperial: "lb" };
+
+// Grams per unit (mirrors backend domain/units.go massToGrams).
+const MASS_TO_GRAMS = { kg: 1000, lb: 453.592 };
+
+/**
+ * Convert a fitness weight value between kg and lb.
+ * Returns the converted value rounded to at most 2 decimal places.
+ *
+ * @param {number} value
+ * @param {string} fromUnit — "kg" or "lb"
+ * @param {string} toUnit   — "kg" or "lb"
+ * @returns {number}
+ */
+export function convertFitnessWeight(value, fromUnit, toUnit) {
+	if (fromUnit === toUnit) return value;
+	const grams = value * (MASS_TO_GRAMS[fromUnit] ?? 1);
+	const converted = grams / (MASS_TO_GRAMS[toUnit] ?? 1);
+	return parseFloat(converted.toFixed(2));
+}
 const COOKING_MASS_UNIT = { metric: "g", imperial: "oz", us_customary: "oz" };
 const COOKING_VOLUME_UNIT = {
 	metric: "ml",
