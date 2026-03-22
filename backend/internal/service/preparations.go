@@ -141,9 +141,6 @@ func (s *PreparationService) AddIngredient(ctx context.Context, preparationID do
 	if p.Amount <= 0 {
 		return nil, &ValidationError{Msg: "amount must be greater than zero"}
 	}
-	if strings.TrimSpace(p.Unit) == "" {
-		return nil, &ValidationError{Msg: "unit is required"}
-	}
 	var ingredient *domain.PreparationIngredient
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var err error
@@ -167,9 +164,6 @@ func (s *PreparationService) UpdateIngredient(ctx context.Context, preparationID
 	}
 	if p.Amount <= 0 {
 		return nil, &ValidationError{Msg: "amount must be greater than zero"}
-	}
-	if strings.TrimSpace(p.Unit) == "" {
-		return nil, &ValidationError{Msg: "unit is required"}
 	}
 	var ingredient *domain.PreparationIngredient
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {

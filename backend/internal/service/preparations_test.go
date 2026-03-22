@@ -385,6 +385,25 @@ func TestPreparationService_AddIngredient(t *testing.T) {
 			t.Fatalf("got %v, want ValidationError", err)
 		}
 	})
+
+	t.Run("empty unit succeeds", func(t *testing.T) {
+		svc, ingSvc, ctx := newTestPreparationService(t)
+		p, _ := svc.Create(ctx, basePrep())
+		ing := seedIngredient(t, ingSvc, ctx)
+
+		got, err := svc.AddIngredient(ctx, p.ID, domain.PreparationIngredientParams{
+			IngredientID: ing.ID,
+			Name:         "egg",
+			Amount:       1,
+			Unit:         "",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.Unit != "" {
+			t.Errorf("got unit %q, want empty", got.Unit)
+		}
+	})
 }
 
 func TestPreparationService_UpdateIngredient(t *testing.T) {
@@ -456,6 +475,31 @@ func TestPreparationService_UpdateIngredient(t *testing.T) {
 		})
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("empty unit succeeds", func(t *testing.T) {
+		svc, ingSvc, ctx := newTestPreparationService(t)
+		p, _ := svc.Create(ctx, basePrep())
+		ing := seedIngredient(t, ingSvc, ctx)
+		added, _ := svc.AddIngredient(ctx, p.ID, domain.PreparationIngredientParams{
+			IngredientID: ing.ID,
+			Name:         "egg",
+			Amount:       1,
+			Unit:         "piece",
+		})
+
+		updated, err := svc.UpdateIngredient(ctx, p.ID, added.ID, domain.PreparationIngredientParams{
+			IngredientID: ing.ID,
+			Name:         "egg",
+			Amount:       1,
+			Unit:         "",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if updated.Unit != "" {
+			t.Errorf("got unit %q, want empty", updated.Unit)
 		}
 	})
 }

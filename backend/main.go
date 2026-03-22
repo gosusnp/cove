@@ -17,6 +17,7 @@ import (
 
 	"github.com/gosusnp/cove/backend/internal/crypto"
 	"github.com/gosusnp/cove/backend/internal/db"
+	"github.com/gosusnp/cove/backend/internal/fdc"
 	"github.com/gosusnp/cove/backend/internal/handlers"
 	covemcp "github.com/gosusnp/cove/backend/internal/mcp"
 	"github.com/gosusnp/cove/backend/internal/middleware"
@@ -126,6 +127,8 @@ func main() {
 		Exercises: exSvc,
 		Programs:  pSvc,
 	}
+	fdcClient := fdc.NewClient(getSecret("FDC_API_KEY"))
+
 	apiSvcs := Services{
 		Users:           userSvc,
 		Exercises:       exSvc,
@@ -134,6 +137,7 @@ func main() {
 		Ingredients:     ingSvc,
 		Recipes:         recipeSvc,
 		Preparations:    prepSvc,
+		FDCClient:       fdcClient,
 	}
 
 	secureCookies := os.Getenv("COVE_DEV") == ""

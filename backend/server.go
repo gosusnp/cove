@@ -6,6 +6,7 @@ package main
 import (
 	"net/http"
 
+	"github.com/gosusnp/cove/backend/internal/fdc"
 	"github.com/gosusnp/cove/backend/internal/handlers"
 	"github.com/gosusnp/cove/backend/internal/middleware"
 	"github.com/gosusnp/cove/backend/internal/service"
@@ -20,6 +21,7 @@ type Services struct {
 	Ingredients     *service.IngredientService
 	Recipes         *service.RecipeService
 	Preparations    *service.PreparationService
+	FDCClient       *fdc.Client
 }
 
 // NewAPIHandler assembles the API sub-mux and returns a handler that serves
@@ -34,6 +36,7 @@ func NewAPIHandler(svcs Services, secureCookies bool) http.Handler {
 	handlers.NewUserHandler(svcs.Users, secureCookies).RegisterRoutes(apiMux)
 	handlers.NewWorkoutSessionHandler(svcs.WorkoutSessions).RegisterRoutes(apiMux)
 	handlers.NewIngredientHandler(svcs.Ingredients).RegisterRoutes(apiMux)
+	handlers.NewFDCHandler(svcs.FDCClient).RegisterRoutes(apiMux)
 	handlers.NewRecipeHandler(svcs.Recipes).RegisterRoutes(apiMux)
 	handlers.NewPreparationHandler(svcs.Preparations).RegisterRoutes(apiMux)
 	return http.StripPrefix("/api", middleware.NoStore(middleware.OAuth(svcs.Users, apiMux)))

@@ -42,7 +42,7 @@ function IngredientRow({ ingredient, prepId, onUpdated, onDeleted }) {
 						ingredient_id: ingredient.ingredient_id,
 						name: name.value.trim() || ingredient.name,
 						amount: parseFloat(amount.value) || ingredient.amount,
-						unit: unit.value.trim() || ingredient.unit,
+						unit: unit.value.trim(),
 						prep: prep.value.trim() || undefined,
 					}),
 				},
@@ -111,7 +111,8 @@ function IngredientRow({ ingredient, prepId, onUpdated, onDeleted }) {
 					</div>
 				</div>
 				<TextField
-					label="Prep note (optional)"
+					label="Prep"
+					placeholder="diced, melted, room temp…"
 					value={prep.value}
 					onInput={(e) => {
 						prep.value = e.target.value;
@@ -151,7 +152,8 @@ function IngredientRow({ ingredient, prepId, onUpdated, onDeleted }) {
 			<div class="flex items-center gap-2 py-1.5 px-1 group rounded">
 				<span class="flex-1 text-sm" style={{ color: "var(--color-text)" }}>
 					<span class="font-medium">
-						{ingredient.amount} {ingredient.unit}
+						{ingredient.amount}
+						{ingredient.unit ? ` ${ingredient.unit}` : ""}
 					</span>{" "}
 					{ingredient.name}
 					{ingredient.prep && (
@@ -196,17 +198,127 @@ function IngredientRow({ ingredient, prepId, onUpdated, onDeleted }) {
 	);
 }
 
+// ─── FDCSearch ────────────────────────────────────────────────────────────────
+
+function FDCSearch({ initialQuery = "", onSelect }) {
+	const query = useSignal(initialQuery);
+	const results = useSignal(null);
+	const loading = useSignal(false);
+	const error = useSignal("");
+
+	const search = async () => {
+		if (!query.value.trim()) return;
+		loading.value = true;
+		error.value = "";
+		try {
+			const r = await apiFetch(
+				`/api/fdc/search?q=${encodeURIComponent(query.value.trim())}`,
+			);
+			if (!r.ok) throw new Error("Search failed");
+			const data = await r.json();
+			results.value = data.foods ?? [];
+		} catch (err) {
+			error.value = err.message;
+		} finally {
+			loading.value = false;
+		}
+	};
+
+	useEffect(() => {
+		if (initialQuery.trim()) search();
+	}, []);
+
+	return (
+		<div class="flex flex-col gap-2">
+			<div class="flex gap-2 items-end">
+				<div class="flex-1">
+					<TextField
+						id="fdc-query"
+						label="Search FDC"
+						value={query.value}
+						onInput={(e) => {
+							query.value = e.target.value;
+						}}
+						onKeyDown={(e) => {
+							if (e.key === "Enter") {
+								e.preventDefault();
+								search();
+							}
+						}}
+					/>
+				</div>
+				<Button
+					size="sm"
+					type="button"
+					onClick={search}
+					disabled={loading.value}
+				>
+					{loading.value ? "…" : "Search"}
+				</Button>
+			</div>
+			{error.value && (
+				<p class="text-xs" style={{ color: "var(--color-error)" }}>
+					{error.value}
+				</p>
+			)}
+			{results.value !== null && results.value.length === 0 && (
+				<p class="text-xs" style={{ color: "var(--color-muted)" }}>
+					No results found.
+				</p>
+			)}
+			{results.value !== null && results.value.length > 0 && (
+				<div
+					class="flex flex-col overflow-y-auto rounded border max-h-48"
+					style={{ borderColor: "var(--color-border)" }}
+				>
+					{results.value.map((food) => (
+						<button
+							key={food.fdc_id}
+							type="button"
+							class="flex items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-[var(--color-bg)] transition-colors"
+							onClick={() => onSelect(food)}
+						>
+							<span class="flex-1" style={{ color: "var(--color-text)" }}>
+								{food.name}
+							</span>
+							<span
+								class="shrink-0 rounded px-1 py-0.5 text-xs"
+								style={
+									food.data_type === "Foundation"
+										? { background: "var(--color-accent)", color: "#fff" }
+										: {
+												background: "var(--color-surface)",
+												color: "var(--color-muted)",
+											}
+								}
+							>
+								{food.data_type === "Foundation" ? "Foundation" : "SR Legacy"}
+							</span>
+						</button>
+					))}
+				</div>
+			)}
+		</div>
+	);
+}
+
 // ─── AddIngredientForm ────────────────────────────────────────────────────────
 
+// mode: "select"  — combobox: pick existing or trigger FDC creation
+//       "fdc"     — FDC search panel; ingredient not yet created
+//       "confirm" — FDC entry chosen; fill amount/unit/prep and save
 function AddIngredientForm({ prepId, onAdded, onCancel }) {
 	const ingredients = useSignal([]);
 	const selectedId = useSignal("");
+	const fdcQuery = useSignal("");
+	const selectedFDC = useSignal(null);
 	const name = useSignal("");
 	const amount = useSignal("1");
 	const unit = useSignal("");
 	const prepNote = useSignal("");
 	const saving = useSignal(false);
 	const error = useSignal("");
+	const mode = useSignal("select");
 
 	useEffect(() => {
 		apiFetch("/api/ingredients")
@@ -216,30 +328,64 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 			});
 	}, []);
 
-	const handleIngredientChange = (id) => {
-		selectedId.value = id;
-		const found = ingredients.value.find((i) => String(i.id) === String(id));
-		if (found) name.value = found.name;
+	const handleIngredientChange = (val) => {
+		if (val.startsWith("existing:")) {
+			const id = val.slice("existing:".length);
+			selectedId.value = id;
+			const found = ingredients.value.find((i) => String(i.id) === id);
+			if (found) name.value = found.name;
+		} else {
+			// Freeform "Create '...' from FDC" was selected
+			fdcQuery.value = val;
+			mode.value = "fdc";
+		}
+	};
+
+	const handleFDCSelect = (food) => {
+		selectedFDC.value = food;
+		name.value = food.name;
+		mode.value = "confirm";
 	};
 
 	const handleSave = async (e) => {
 		e.preventDefault();
-		if (!selectedId.value) {
-			error.value = "Select an ingredient.";
-			return;
-		}
-		if (!unit.value.trim()) {
-			error.value = "Unit is required.";
+		if (mode.value === "select" && !selectedId.value) {
+			error.value = "Select an ingredient first";
 			return;
 		}
 		saving.value = true;
 		error.value = "";
 		try {
+			let ingredientId = Number(selectedId.value);
+
+			if (mode.value === "confirm") {
+				const f = selectedFDC.value;
+				const r = await apiFetch("/api/ingredients", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						name: name.value.trim(),
+						fdc_id: f.fdc_id,
+						calories_per_100g: f.calories_per_100g,
+						protein_per_100g: f.protein_per_100g,
+						fat_per_100g: f.fat_per_100g,
+						carbs_per_100g: f.carbs_per_100g,
+						is_public: true,
+					}),
+				});
+				if (!r.ok) {
+					const d = await r.json();
+					throw new Error(d.error || "Failed to create ingredient");
+				}
+				const created = await r.json();
+				ingredientId = created.id;
+			}
+
 			const r = await apiFetch(`/api/preparations/${prepId}/ingredients`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					ingredient_id: Number(selectedId.value),
+					ingredient_id: ingredientId,
 					name: name.value.trim(),
 					amount: parseFloat(amount.value) || 1,
 					unit: unit.value.trim(),
@@ -250,8 +396,7 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 				const d = await r.json();
 				throw new Error(d.error || "Failed to add ingredient");
 			}
-			const created = await r.json();
-			onAdded(created);
+			onAdded(await r.json());
 		} catch (err) {
 			error.value = err.message;
 		} finally {
@@ -260,9 +405,12 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 	};
 
 	const options = ingredients.value.map((i) => ({
-		value: String(i.id),
+		value: `existing:${i.id}`,
 		label: i.name,
 	}));
+
+	const showPrepFields =
+		mode.value === "confirm" || (mode.value === "select" && !!selectedId.value);
 
 	return (
 		<form
@@ -270,60 +418,127 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 			class="flex flex-col gap-2 py-2 px-3 rounded-lg"
 			style={{ background: "var(--color-bg)" }}
 		>
-			<Combobox
-				label="Ingredient"
-				value={selectedId.value}
-				onChange={handleIngredientChange}
-				options={options}
-				placeholder="Search ingredients…"
-			/>
-			<TextField
-				label="Name (display)"
-				value={name.value}
-				onInput={(e) => {
-					name.value = e.target.value;
-				}}
-			/>
-			<div class="flex gap-2">
-				<div class="flex-1">
+			{mode.value === "select" && (
+				<Combobox
+					label="Ingredient"
+					value={selectedId.value ? `existing:${selectedId.value}` : ""}
+					onChange={handleIngredientChange}
+					options={options}
+					placeholder="Search ingredients…"
+					freeform
+					freeformLabel={(q) => `Create "${q}" from FDC`}
+				/>
+			)}
+
+			{mode.value === "fdc" && (
+				<FDCSearch initialQuery={fdcQuery.value} onSelect={handleFDCSelect} />
+			)}
+
+			{mode.value === "confirm" && (
+				<div class="flex flex-col gap-0.5">
+					<p class="text-xs font-medium" style={{ color: "var(--color-text)" }}>
+						{selectedFDC.value?.name}
+					</p>
+					<p class="text-xs" style={{ color: "var(--color-muted)" }}>
+						{selectedFDC.value?.calories_per_100g} kcal ·{" "}
+						{selectedFDC.value?.protein_per_100g}g protein ·{" "}
+						{selectedFDC.value?.fat_per_100g}g fat ·{" "}
+						{selectedFDC.value?.carbs_per_100g}g carbs (per 100g)
+					</p>
+				</div>
+			)}
+
+			{showPrepFields && (
+				<>
+					{mode.value === "confirm" && (
+						<TextField
+							id="ing-name"
+							label="Name (display)"
+							value={name.value}
+							onInput={(e) => {
+								name.value = e.target.value;
+							}}
+						/>
+					)}
+					<div class="flex gap-2">
+						<div class="flex-1">
+							<TextField
+								id="ing-amount"
+								label="Amount"
+								type="number"
+								value={amount.value}
+								onInput={(e) => {
+									amount.value = e.target.value;
+								}}
+							/>
+						</div>
+						<div class="flex-1">
+							<TextField
+								id="ing-unit"
+								label="Unit (optional)"
+								value={unit.value}
+								onInput={(e) => {
+									unit.value = e.target.value;
+								}}
+							/>
+						</div>
+					</div>
 					<TextField
-						label="Amount"
-						type="number"
-						value={amount.value}
+						id="ing-prep"
+						label="Prep"
+						placeholder="diced, melted, room temp…"
+						value={prepNote.value}
 						onInput={(e) => {
-							amount.value = e.target.value;
+							prepNote.value = e.target.value;
 						}}
 					/>
-				</div>
-				<div class="flex-1">
-					<TextField
-						label="Unit"
-						value={unit.value}
-						onInput={(e) => {
-							unit.value = e.target.value;
-						}}
-					/>
-				</div>
-			</div>
-			<TextField
-				label="Prep note (optional)"
-				value={prepNote.value}
-				onInput={(e) => {
-					prepNote.value = e.target.value;
-				}}
-			/>
+				</>
+			)}
+
 			{error.value && (
 				<p class="text-xs" style={{ color: "var(--color-error)" }}>
 					{error.value}
 				</p>
 			)}
+
 			<div class="flex gap-2 justify-end">
 				<Button variant="ghost" size="sm" type="button" onClick={onCancel}>
 					Cancel
 				</Button>
-				<Button size="sm" type="submit" disabled={saving.value}>
-					{saving.value ? "Adding…" : "Add"}
-				</Button>
+				{mode.value === "fdc" && (
+					<Button
+						variant="ghost"
+						size="sm"
+						type="button"
+						onClick={() => {
+							mode.value = "select";
+						}}
+					>
+						← Back
+					</Button>
+				)}
+				{mode.value === "confirm" && (
+					<Button
+						variant="ghost"
+						size="sm"
+						type="button"
+						onClick={() => {
+							mode.value = "fdc";
+						}}
+					>
+						← Change
+					</Button>
+				)}
+				{showPrepFields && (
+					<Button
+						data-testid="add-ingredient-submit"
+						size="sm"
+						type="submit"
+						disabled={saving.value}
+					>
+						{saving.value ? "Adding…" : "Add"}
+					</Button>
+				)}
 			</div>
 		</form>
 	);
@@ -760,6 +975,7 @@ function PreparationSection({
 									variant="ghost"
 									size="sm"
 									type="button"
+									aria-label="Add ingredient"
 									onClick={() => {
 										showAddIngredient.value = true;
 									}}

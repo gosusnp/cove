@@ -79,6 +79,32 @@ vi.mock("../components/ui/EditableMarkdown.jsx", () => ({
 
 const MOCK_USER = { email: "user@example.com", name: "Test User" };
 
+const MOCK_INGREDIENTS = [
+	{ id: 42, name: "Ground beef" },
+	{ id: 43, name: "Tomato paste" },
+];
+
+const MOCK_FDC_RESULTS = [
+	{
+		fdc_id: 101,
+		name: "Chicken Breast",
+		data_type: "Foundation",
+		calories_per_100g: 120,
+		protein_per_100g: 23,
+		fat_per_100g: 2.6,
+		carbs_per_100g: 0,
+	},
+	{
+		fdc_id: 102,
+		name: "Chicken Leg",
+		data_type: "SR Legacy",
+		calories_per_100g: 184,
+		protein_per_100g: 18,
+		fat_per_100g: 12,
+		carbs_per_100g: 0,
+	},
+];
+
 const MOCK_PREP = {
 	id: 10,
 	name: "Bolognese Sauce",
@@ -150,6 +176,81 @@ function mockFetchForRecipe(recipe = MOCK_RECIPE_EMPTY) {
 		}
 		return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
 	});
+}
+
+function mockFetchForIngredients({
+	fdcResults = null,
+	createIngredientResponse = { id: 99, name: "Chicken Breast" },
+} = {}) {
+	vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+		if (url === `/api/recipes/1` && !opts?.method) {
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve(MOCK_RECIPE_WITH_PREP),
+			});
+		}
+		if (url === `/api/preparations/10` && !opts?.method) {
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve(MOCK_PREP),
+			});
+		}
+		if (url === "/api/preparations" && !opts?.method) {
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve([MOCK_PREP]),
+			});
+		}
+		if (url === "/api/ingredients" && !opts?.method) {
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve(MOCK_INGREDIENTS),
+			});
+		}
+		if (url.startsWith("/api/fdc/search") && !opts?.method) {
+			const foods = fdcResults ?? MOCK_FDC_RESULTS;
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve({ foods }),
+			});
+		}
+		if (url === "/api/ingredients" && opts?.method === "POST") {
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve(createIngredientResponse),
+			});
+		}
+		if (
+			url.startsWith("/api/preparations/") &&
+			url.endsWith("/ingredients") &&
+			opts?.method === "POST"
+		) {
+			return Promise.resolve({
+				ok: true,
+				json: () =>
+					Promise.resolve({
+						id: 1,
+						ingredient_id: 42,
+						name: "Ground beef",
+						amount: 2,
+						unit: "cups",
+						prep: null,
+					}),
+			});
+		}
+		return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+	});
+}
+
+async function openAddIngredientForm() {
+	renderDetail(1);
+	await waitFor(() =>
+		expect(screen.getByText("Bolognese Sauce")).toBeInTheDocument(),
+	);
+	fireEvent.click(screen.getByRole("button", { name: "Add ingredient" }));
+	await waitFor(() =>
+		expect(screen.getByTestId("mock-combobox-freeform")).toBeInTheDocument(),
+	);
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -670,5 +771,306 @@ describe("RecipeDetail — delete ingredient", () => {
 		);
 		// Ingredient must still be in the list
 		expect(screen.getByText("Ground beef")).toBeInTheDocument();
+	});
+});
+
+describe("RecipeDetail — AddIngredientForm", () => {
+	it("submitting without selecting an ingredient shows validation error", async () => {
+		mockFetchForIngredients();
+		await openAddIngredientForm();
+
+		// The Add button is not shown until an ingredient is selected, so
+		// trigger submit via form directly to simulate the edge case.
+		const form = screen.getByTestId("mock-combobox-freeform").closest("form");
+		fireEvent.submit(form);
+
+		await waitFor(() =>
+			expect(
+				screen.getByText("Select an ingredient first"),
+			).toBeInTheDocument(),
+		);
+	});
+
+	it("shows combobox (freeform) when Add ingredient is clicked", async () => {
+		mockFetchForIngredients();
+		await openAddIngredientForm();
+		expect(screen.getByTestId("mock-combobox-freeform")).toBeInTheDocument();
+	});
+
+	it("selecting an existing ingredient shows prep fields without Name display", async () => {
+		mockFetchForIngredients();
+		await openAddIngredientForm();
+
+		const combobox = screen.getByTestId("mock-combobox-freeform");
+		fireEvent.input(combobox, { target: { value: "existing:42" } });
+
+		// Amount and unit fields should appear
+		await waitFor(() =>
+			expect(screen.getByLabelText("Amount")).toBeInTheDocument(),
+		);
+		expect(screen.queryByLabelText("Name (display)")).not.toBeInTheDocument();
+		// Prep field should appear
+		expect(screen.getByLabelText("Prep")).toBeInTheDocument();
+	});
+
+	it("typing a non-existing name enters FDC mode with auto-search", async () => {
+		mockFetchForIngredients();
+		await openAddIngredientForm();
+
+		const combobox = screen.getByTestId("mock-combobox-freeform");
+		fireEvent.input(combobox, { target: { value: "chicken breast" } });
+
+		// Should enter FDC mode — shows "Search FDC" label and results
+		await waitFor(() =>
+			expect(screen.getByText("Chicken Breast")).toBeInTheDocument(),
+		);
+		expect(screen.getByText("Chicken Leg")).toBeInTheDocument();
+	});
+
+	it("Back button in FDC mode returns to select mode", async () => {
+		mockFetchForIngredients();
+		await openAddIngredientForm();
+
+		fireEvent.input(screen.getByTestId("mock-combobox-freeform"), {
+			target: { value: "chicken" },
+		});
+		await waitFor(() =>
+			expect(screen.getByText("Chicken Breast")).toBeInTheDocument(),
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "← Back" }));
+
+		await waitFor(() =>
+			expect(screen.getByTestId("mock-combobox-freeform")).toBeInTheDocument(),
+		);
+		expect(screen.queryByText("Chicken Breast")).not.toBeInTheDocument();
+	});
+
+	it("selecting an FDC result enters confirm mode and shows macros", async () => {
+		mockFetchForIngredients();
+		await openAddIngredientForm();
+
+		fireEvent.input(screen.getByTestId("mock-combobox-freeform"), {
+			target: { value: "chicken" },
+		});
+		await waitFor(() =>
+			expect(screen.getByText("Chicken Breast")).toBeInTheDocument(),
+		);
+
+		fireEvent.click(screen.getByText("Chicken Breast"));
+
+		// Confirm mode: shows macros and Name (display) field
+		await waitFor(() =>
+			expect(screen.getByLabelText("Name (display)")).toBeInTheDocument(),
+		);
+		// Calorie info should be visible
+		expect(screen.getByText(/120/)).toBeInTheDocument();
+	});
+
+	it("Change button in confirm mode returns to FDC mode", async () => {
+		mockFetchForIngredients();
+		await openAddIngredientForm();
+
+		fireEvent.input(screen.getByTestId("mock-combobox-freeform"), {
+			target: { value: "chicken" },
+		});
+		await waitFor(() =>
+			expect(screen.getByText("Chicken Breast")).toBeInTheDocument(),
+		);
+		fireEvent.click(screen.getByText("Chicken Breast"));
+		await waitFor(() =>
+			expect(screen.getByLabelText("Name (display)")).toBeInTheDocument(),
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "← Change" }));
+
+		await waitFor(() =>
+			expect(screen.getByLabelText("Search FDC")).toBeInTheDocument(),
+		);
+		expect(screen.queryByLabelText("Name (display)")).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "← Change" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("Cancel button hides the form", async () => {
+		mockFetchForIngredients();
+		await openAddIngredientForm();
+
+		fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+		await waitFor(() =>
+			expect(
+				screen.queryByTestId("mock-combobox-freeform"),
+			).not.toBeInTheDocument(),
+		);
+	});
+
+	it("saving with an existing ingredient calls prep/ingredients endpoint", async () => {
+		mockFetchForIngredients();
+		await openAddIngredientForm();
+
+		fireEvent.input(screen.getByTestId("mock-combobox-freeform"), {
+			target: { value: "existing:42" },
+		});
+		await waitFor(() =>
+			expect(screen.getByLabelText("Amount")).toBeInTheDocument(),
+		);
+
+		fireEvent.input(screen.getByLabelText("Amount"), {
+			target: { value: "2" },
+		});
+		fireEvent.input(screen.getByLabelText("Unit (optional)"), {
+			target: { value: "cups" },
+		});
+
+		fireEvent.click(screen.getByTestId("add-ingredient-submit"));
+
+		await waitFor(() => {
+			const calls = global.fetch.mock.calls;
+			const prepCall = calls.find(
+				([url, opts]) =>
+					url === "/api/preparations/10/ingredients" && opts?.method === "POST",
+			);
+			expect(prepCall).toBeDefined();
+			const body = JSON.parse(prepCall[1].body);
+			expect(body.ingredient_id).toBe(42);
+			expect(body.amount).toBe(2);
+			expect(body.unit).toBe("cups");
+		});
+	});
+
+	it("saving in confirm mode creates ingredient first then adds to prep", async () => {
+		mockFetchForIngredients({
+			createIngredientResponse: { id: 99, name: "Chicken Breast" },
+		});
+		await openAddIngredientForm();
+
+		fireEvent.input(screen.getByTestId("mock-combobox-freeform"), {
+			target: { value: "chicken" },
+		});
+		await waitFor(() =>
+			expect(screen.getByText("Chicken Breast")).toBeInTheDocument(),
+		);
+		fireEvent.click(screen.getByText("Chicken Breast"));
+		await waitFor(() =>
+			expect(screen.getByLabelText("Name (display)")).toBeInTheDocument(),
+		);
+
+		fireEvent.input(screen.getByLabelText("Amount"), {
+			target: { value: "300" },
+		});
+
+		fireEvent.click(screen.getByTestId("add-ingredient-submit"));
+
+		await waitFor(() => {
+			const calls = global.fetch.mock.calls;
+			// POST /api/ingredients first
+			const createCall = calls.find(
+				([url, opts]) => url === "/api/ingredients" && opts?.method === "POST",
+			);
+			expect(createCall).toBeDefined();
+			const createBody = JSON.parse(createCall[1].body);
+			expect(createBody.fdc_id).toBe(101);
+			expect(createBody.is_public).toBe(true);
+
+			// Then POST to prep/ingredients with the new id
+			const prepCall = calls.find(
+				([url, opts]) =>
+					url === "/api/preparations/10/ingredients" && opts?.method === "POST",
+			);
+			expect(prepCall).toBeDefined();
+			const prepBody = JSON.parse(prepCall[1].body);
+			expect(prepBody.ingredient_id).toBe(99);
+			expect(prepBody.amount).toBe(300);
+		});
+	});
+
+	it("unit is optional — saves with empty unit", async () => {
+		mockFetchForIngredients();
+		await openAddIngredientForm();
+
+		fireEvent.input(screen.getByTestId("mock-combobox-freeform"), {
+			target: { value: "existing:42" },
+		});
+		await waitFor(() =>
+			expect(screen.getByLabelText("Amount")).toBeInTheDocument(),
+		);
+
+		// Do not fill in unit — leave empty
+		fireEvent.click(screen.getByTestId("add-ingredient-submit"));
+
+		await waitFor(() => {
+			const calls = global.fetch.mock.calls;
+			const prepCall = calls.find(
+				([url, opts]) =>
+					url === "/api/preparations/10/ingredients" && opts?.method === "POST",
+			);
+			expect(prepCall).toBeDefined();
+			const body = JSON.parse(prepCall[1].body);
+			expect(body.unit).toBe("");
+		});
+	});
+
+	it("shows error message when save fails", async () => {
+		vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+			if (url === `/api/recipes/1` && !opts?.method) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_RECIPE_WITH_PREP),
+				});
+			}
+			if (url === `/api/preparations/10` && !opts?.method) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_PREP),
+				});
+			}
+			if (url === "/api/preparations" && !opts?.method) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve([MOCK_PREP]),
+				});
+			}
+			if (url === "/api/ingredients" && !opts?.method) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_INGREDIENTS),
+				});
+			}
+			if (
+				url.startsWith("/api/preparations/") &&
+				url.endsWith("/ingredients") &&
+				opts?.method === "POST"
+			) {
+				return Promise.resolve({
+					ok: false,
+					json: () => Promise.resolve({ error: "ingredient already added" }),
+				});
+			}
+			return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+		});
+
+		renderDetail(1);
+		await waitFor(() =>
+			expect(screen.getByText("Bolognese Sauce")).toBeInTheDocument(),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Add ingredient" }));
+		await waitFor(() =>
+			expect(screen.getByTestId("mock-combobox-freeform")).toBeInTheDocument(),
+		);
+
+		fireEvent.input(screen.getByTestId("mock-combobox-freeform"), {
+			target: { value: "existing:42" },
+		});
+		await waitFor(() =>
+			expect(screen.getByLabelText("Amount")).toBeInTheDocument(),
+		);
+
+		fireEvent.click(screen.getByTestId("add-ingredient-submit"));
+
+		await waitFor(() =>
+			expect(screen.getByText("ingredient already added")).toBeInTheDocument(),
+		);
 	});
 });

@@ -14,6 +14,7 @@ export function Combobox({
 	placeholder = "Search...",
 	disabled = false,
 	freeform = false,
+	freeformLabel,
 	class: className,
 }) {
 	const inputId = useId();
@@ -236,7 +237,11 @@ export function Combobox({
 								</span>
 								{opt.isFreeform ? (
 									<span style={{ fontStyle: "italic" }}>
-										Use &ldquo;{opt.label}&rdquo;
+										{freeformLabel ? (
+											freeformLabel(opt.label)
+										) : (
+											<>Use &ldquo;{opt.label}&rdquo;</>
+										)}
 									</span>
 								) : (
 									opt.label
