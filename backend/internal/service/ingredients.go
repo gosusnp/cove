@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/fdc"
@@ -91,6 +92,58 @@ func (s *IngredientService) Update(ctx context.Context, id domain.IngredientID, 
 
 	var ing *domain.Ingredient
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		var err error
+		ing, err = s.store.Update(ctx, q, identity.OrgID, id, p)
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return ing, err
+}
+
+func (s *IngredientService) RefreshFromFDC(ctx context.Context, id domain.IngredientID) (*domain.Ingredient, error) {
+	identity, ok := domain.IdentityFromContext(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
+	}
+
+	var ing *domain.Ingredient
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		var err error
+		ing, err = s.store.Get(ctx, q, identity.OrgID, id)
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if ing.FdcID == nil {
+		return nil, &ValidationError{Msg: "ingredient has no FDC ID"}
+	}
+	if s.fdc == nil {
+		return nil, fmt.Errorf("FDC client not configured")
+	}
+
+	food, err := s.fdc.GetFood(ctx, *ing.FdcID)
+	if err != nil {
+		return nil, &ExternalServiceError{Msg: "FDC is currently unavailable, please try again"}
+	}
+
+	p := domain.IngredientParams{
+		Name:            ing.Name,
+		FdcID:           ing.FdcID,
+		CaloriesPer100g: food.CaloriesPer100g,
+		ProteinPer100g:  food.ProteinPer100g,
+		FatPer100g:      food.FatPer100g,
+		CarbsPer100g:    food.CarbsPer100g,
+		DensityGPerMl:   food.DensityGPerMl,
+		IsPublic:        ing.IsPublic,
+	}
+
+	err = withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var err error
 		ing, err = s.store.Update(ctx, q, identity.OrgID, id, p)
 		return err

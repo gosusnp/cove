@@ -16,6 +16,7 @@ import (
 
 	"github.com/gosusnp/cove/backend/internal/crypto"
 	"github.com/gosusnp/cove/backend/internal/domain"
+	"github.com/gosusnp/cove/backend/internal/fdc"
 	"github.com/gosusnp/cove/backend/internal/middleware"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
@@ -49,6 +50,17 @@ type TestApp struct {
 // NewTestApp creates a fully wired application with a fresh, migrated database.
 func NewTestApp(t *testing.T) *TestApp {
 	t.Helper()
+	return newTestApp(t, nil)
+}
+
+// NewTestAppWithFDC creates a fully wired application with the given FDC client.
+func NewTestAppWithFDC(t *testing.T, fdcClient *fdc.Client) *TestApp {
+	t.Helper()
+	return newTestApp(t, fdcClient)
+}
+
+func newTestApp(t *testing.T, fdcClient *fdc.Client) *TestApp {
+	t.Helper()
 
 	database := testutil.NewDB(t)
 
@@ -62,7 +74,7 @@ func NewTestApp(t *testing.T) *TestApp {
 
 	// Services
 	exSvc := service.NewExerciseService(database, exStore)
-	ingSvc := service.NewIngredientService(database, ingStore, nil)
+	ingSvc := service.NewIngredientService(database, ingStore, fdcClient)
 	prepSvc := service.NewPreparationService(database, prepStore)
 	pSvc := service.NewProgramService(database, exStore)
 	uSvc := service.NewUserService(database, uStore, oStore)

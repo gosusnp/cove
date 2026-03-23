@@ -56,9 +56,19 @@ type FoodResult struct {
 
 // fdcFoodDetail is the shape returned by GET /food/{fdcId}.
 type fdcFoodDetail struct {
-	FDCID        int              `json:"fdcId"`
-	Description  string           `json:"description"`
-	FoodPortions []fdcFoodPortion `json:"foodPortions"`
+	FDCID         int                     `json:"fdcId"`
+	Description   string                  `json:"description"`
+	FoodNutrients []fdcDetailFoodNutrient `json:"foodNutrients"`
+	FoodPortions  []fdcFoodPortion        `json:"foodPortions"`
+}
+
+// fdcDetailFoodNutrient is the nutrient entry shape in the food detail endpoint.
+// The nutrient ID is nested under a "nutrient" object, unlike the search endpoint.
+type fdcDetailFoodNutrient struct {
+	Nutrient struct {
+		ID int `json:"id"`
+	} `json:"nutrient"`
+	Amount float64 `json:"amount"`
 }
 
 // fdcFoodPortion is one serving-size entry within a food detail response.
@@ -176,10 +186,24 @@ func (c *Client) GetFood(ctx context.Context, fdcID int) (*FoodResult, error) {
 	}
 
 	return &FoodResult{
-		FDCID:         body.FDCID,
-		Name:          body.Description,
-		DensityGPerMl: computeDensity(body.FoodPortions),
+		FDCID:           body.FDCID,
+		Name:            body.Description,
+		CaloriesPer100g: body.detailNutrient(nutrientEnergy),
+		ProteinPer100g:  body.detailNutrient(nutrientProtein),
+		FatPer100g:      body.detailNutrient(nutrientFat),
+		CarbsPer100g:    body.detailNutrient(nutrientCarbs),
+		DensityGPerMl:   computeDensity(body.FoodPortions),
 	}, nil
+}
+
+// detailNutrient returns the amount for the given nutrient ID from a food detail response, or 0 if not found.
+func (f *fdcFoodDetail) detailNutrient(id int) float64 {
+	for _, n := range f.FoodNutrients {
+		if n.Nutrient.ID == id {
+			return n.Amount
+		}
+	}
+	return 0
 }
 
 // volumeUnitMl maps known FDC measure unit names (lowercase) to ml equivalents.

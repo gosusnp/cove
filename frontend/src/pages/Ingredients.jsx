@@ -90,6 +90,17 @@ export function Ingredients() {
 		route(`/cook/ingredients/${id}`);
 	};
 
+	const handleDeleted = () => {
+		ingredients.value = ingredients.value.filter((i) => i.id !== selectedId);
+		route("/cook/ingredients");
+	};
+
+	const handleUpdated = (updated) => {
+		ingredients.value = ingredients.value.map((i) =>
+			i.id === updated.id ? { ...i, name: updated.name } : i,
+		);
+	};
+
 	return (
 		<ListDetail
 			hasDetail={!!selectedId}
@@ -104,7 +115,13 @@ export function Ingredients() {
 				/>
 			}
 			detail={
-				selectedId ? <IngredientDetail ingredientId={selectedId} /> : null
+				selectedId ? (
+					<IngredientDetail
+						ingredientId={selectedId}
+						onUpdated={handleUpdated}
+						onDeleted={handleDeleted}
+					/>
+				) : null
 			}
 		/>
 	);

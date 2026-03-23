@@ -26,6 +26,7 @@ func (h *IngredientHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ingredients/{id}", h.get)
 	mux.HandleFunc("PUT /ingredients/{id}", h.update)
 	mux.HandleFunc("DELETE /ingredients/{id}", h.delete)
+	mux.HandleFunc("POST /ingredients/{id}/fdc-sync", h.fdcSync)
 }
 
 type ingredientRequest struct {
@@ -127,10 +128,29 @@ func (h *IngredientHandler) delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *IngredientHandler) fdcSync(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID[domain.IngredientID](r, "id")
+	if err != nil {
+		jsonError(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	ingredient, err := h.svc.RefreshFromFDC(r.Context(), id)
+	if err != nil {
+		h.handleError(w, r, err)
+		return
+	}
+	jsonOK(w, ingredient)
+}
+
 func (h *IngredientHandler) handleError(w http.ResponseWriter, r *http.Request, err error) {
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
 		jsonError(w, ve.Error(), http.StatusBadRequest)
+		return
+	}
+	var ee *service.ExternalServiceError
+	if errors.As(err, &ee) {
+		jsonError(w, ee.Error(), http.StatusUnprocessableEntity)
 		return
 	}
 	if errors.Is(err, service.ErrNotFound) {

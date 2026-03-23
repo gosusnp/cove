@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
+	"github.com/gosusnp/cove/backend/internal/fdc"
 )
 
 // defaultIngredientParams returns a valid IngredientParams for use in tests.
@@ -421,6 +422,101 @@ func TestIngredientHandler_Delete(t *testing.T) {
 		ing := app.SeedIngredientForUser(context.Background(), defaultIngredientParams(), u1, o1)
 
 		r := app.AuthRequest(http.MethodDelete, fmt.Sprintf("/api/ingredients/%d", ing.ID), nil, u2)
+		w := app.Do(r)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+}
+
+func TestIngredientHandler_FDCSync(t *testing.T) {
+	t.Run("success: updates nutrition from FDC", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			resp := map[string]any{
+				"fdcId":       42,
+				"description": "Chicken Breast",
+				"foodNutrients": []map[string]any{
+					{"nutrient": map[string]any{"id": 1008}, "amount": 165},
+					{"nutrient": map[string]any{"id": 1003}, "amount": 31},
+					{"nutrient": map[string]any{"id": 1004}, "amount": 3.6},
+					{"nutrient": map[string]any{"id": 1005}, "amount": 0},
+				},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(resp)
+		}))
+		defer srv.Close()
+
+		fdcID := 42
+		p := defaultIngredientParams()
+		p.FdcID = &fdcID
+		p.CaloriesPer100g = 0 // will be overwritten by sync
+
+		app := NewTestAppWithFDC(t, fdc.NewClientWithBaseURL("testkey", srv.URL))
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ing := app.SeedIngredientForUser(context.Background(), p, u1, o1)
+
+		r := app.AuthRequest(http.MethodPost, fmt.Sprintf("/api/ingredients/%d/fdc-sync", ing.ID), nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("got status %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		}
+		var got domain.Ingredient
+		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if got.CaloriesPer100g != 165 {
+			t.Errorf("got calories %v, want 165", got.CaloriesPer100g)
+		}
+	})
+
+	t.Run("no fdc_id returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ing := app.SeedIngredientForUser(context.Background(), defaultIngredientParams(), u1, o1)
+
+		r := app.AuthRequest(http.MethodPost, fmt.Sprintf("/api/ingredients/%d/fdc-sync", ing.ID), nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("not found returns 404", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+
+		r := app.AuthRequest(http.MethodPost, "/api/ingredients/999/fdc-sync", nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("unauthorized returns 401", func(t *testing.T) {
+		app := NewTestApp(t)
+		r := httptest.NewRequest(http.MethodPost, "/api/ingredients/1/fdc-sync", nil)
+		w := app.Do(r)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusUnauthorized)
+		}
+	})
+
+	t.Run("cross-org: U2 cannot sync U1's ingredient", func(t *testing.T) {
+		fdcID := 1
+		p := defaultIngredientParams()
+		p.FdcID = &fdcID
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		u2, _ := app.SeedUserWithOrg("u2@test.com", "sub2")
+		ing := app.SeedIngredientForUser(context.Background(), p, u1, o1)
+
+		r := app.AuthRequest(http.MethodPost, fmt.Sprintf("/api/ingredients/%d/fdc-sync", ing.ID), nil, u2)
 		w := app.Do(r)
 
 		if w.Code != http.StatusNotFound {
