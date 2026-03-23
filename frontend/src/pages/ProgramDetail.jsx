@@ -18,7 +18,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useSignal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
-import { GripVertical, Pencil, Plus, Trash2 } from "lucide-preact";
+import { GripVertical, History, Pencil, Plus, Trash2 } from "lucide-preact";
 import { useAuth } from "../Auth.jsx";
 import {
 	Accordion,
@@ -46,7 +46,7 @@ import {
 } from "../components/ui/Tooltip.jsx";
 import { useDialog } from "../hooks/useDialog.js";
 import { useSortableGroups } from "../hooks/useSortableGroups.js";
-import { cn } from "../lib/utils.js";
+import { cn, timeAgo } from "../lib/utils.js";
 import { apiFetch } from "../lib/api.js";
 import { ActivityPicker } from "../components/shared/ActivityPicker.jsx";
 import {
@@ -479,6 +479,84 @@ function ProgramDetailInner({
 		onProgramDeleted?.();
 	};
 
+	// ── History ───────────────────────────────────────────────────────────────
+	const historyDialog = useDialog();
+	const historyVersions = useSignal([]);
+	const historyLoading = useSignal(false);
+	const historyError = useSignal("");
+	const selectedVersionId = useSignal(null);
+	const selectedVersion = useSignal(null);
+	const selectedVersionLoading = useSignal(false);
+	const versionDetailError = useSignal("");
+
+	const fetchHistory = async () => {
+		historyLoading.value = true;
+		historyError.value = "";
+		try {
+			const r = await apiFetch(`/api/programs/${initialProgram.id}/versions`);
+			if (!r.ok) throw new Error("Failed to load history");
+			historyVersions.value = await r.json();
+		} catch (err) {
+			historyError.value = err.message;
+		} finally {
+			historyLoading.value = false;
+		}
+	};
+
+	const fetchVersionDetail = async (versionID) => {
+		if (selectedVersionId.value === versionID) {
+			selectedVersionId.value = null;
+			selectedVersion.value = null;
+			versionDetailError.value = "";
+			return;
+		}
+		selectedVersionId.value = versionID;
+		selectedVersion.value = null;
+		selectedVersionLoading.value = true;
+		versionDetailError.value = "";
+		try {
+			const r = await apiFetch(
+				`/api/programs/${initialProgram.id}/versions/${versionID}`,
+			);
+			if (!r.ok) throw new Error("Failed to load version details");
+			selectedVersion.value = await r.json();
+		} catch (err) {
+			versionDetailError.value = err.message;
+		} finally {
+			selectedVersionLoading.value = false;
+		}
+	};
+
+	const rollbackDialog = useDialog();
+	const rollingBack = useSignal(false);
+	const rollbackVersionId = useSignal(null);
+	const rollbackError = useSignal("");
+
+	const openRollback = (vID) => {
+		rollbackVersionId.value = vID;
+		rollbackError.value = "";
+		rollbackDialog.show();
+	};
+
+	const handleRollback = async () => {
+		rollingBack.value = true;
+		rollbackError.value = "";
+		try {
+			const r = await apiFetch(
+				`/api/programs/${initialProgram.id}/versions/${rollbackVersionId.value}/rollback`,
+				{ method: "POST" },
+			);
+			if (!r.ok) throw new Error("Rollback failed");
+			await onRefresh();
+			historyDialog.hide();
+			rollbackDialog.hide();
+		} catch (err) {
+			rollbackError.value = err.message;
+		} finally {
+			rollingBack.value = false;
+		}
+	};
+
 	// ── Exercises list for the combobox ───────────────────────────────────────
 	const exerciseOptions = useSignal([]);
 
@@ -861,6 +939,22 @@ function ProgramDetailInner({
 										aria-hidden="true"
 									/>
 								</button>
+								<Tooltip>
+									<TooltipTrigger>
+										<Button
+											variant="ghost"
+											size="icon"
+											aria-label="View history"
+											onClick={() => {
+												fetchHistory();
+												historyDialog.show();
+											}}
+										>
+											<History size={14} aria-hidden="true" />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent>History</TooltipContent>
+								</Tooltip>
 								<Tooltip>
 									<TooltipTrigger>
 										<Button
@@ -1271,6 +1365,145 @@ function ProgramDetailInner({
 				confirmLabel="Delete"
 				onConfirm={handleDeleteProgram}
 			/>
+
+			{/* ── History dialog ────────────────────────────────────────────── */}
+			<Dialog openSignal={historyDialog.open}>
+				<DialogContent class="max-w-2xl">
+					<DialogTitle>Program History</DialogTitle>
+					<div class="mt-4 flex flex-col gap-4 overflow-y-auto max-h-[60vh] p-1">
+						{historyLoading.value ? (
+							<p
+								class="text-sm text-center py-8"
+								style={{ color: "var(--color-muted)" }}
+							>
+								Loading history...
+							</p>
+						) : historyError.value ? (
+							<p
+								class="text-sm text-center py-8"
+								style={{ color: "var(--color-error)" }}
+							>
+								{historyError.value}
+							</p>
+						) : historyVersions.value.length === 0 ? (
+							<p
+								class="text-sm text-center py-8"
+								style={{ color: "var(--color-muted)" }}
+							>
+								No versions yet.
+							</p>
+						) : (
+							<div class="flex flex-col border border-(--color-border) rounded-lg overflow-hidden divide-y divide-(--color-border)">
+								{historyVersions.value.map((v) => (
+									<div key={v.id} class="flex flex-col">
+										<div class="flex items-center justify-between p-3 hover:bg-(--color-bg)">
+											<div class="flex flex-col">
+												<span class="text-sm font-medium">
+													{timeAgo(v.created_at)}
+												</span>
+												<span
+													class="text-xs"
+													style={{ color: "var(--color-muted)" }}
+												>
+													{new Date(v.created_at).toLocaleString()}
+												</span>
+											</div>
+											<div class="flex gap-2">
+												<Button
+													variant="ghost"
+													size="sm"
+													onClick={() => fetchVersionDetail(v.id)}
+												>
+													{selectedVersionId.value === v.id ? "Hide" : "View"}
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() => openRollback(v.id)}
+												>
+													Restore
+												</Button>
+											</div>
+										</div>
+										{selectedVersionId.value === v.id && (
+											<div class="p-3 bg-(--color-bg) border-t border-(--color-border)">
+												{versionDetailError.value ? (
+													<p
+														class="text-xs"
+														style={{ color: "var(--color-error)" }}
+													>
+														{versionDetailError.value}
+													</p>
+												) : selectedVersionLoading.value ? (
+													<p
+														class="text-xs"
+														style={{ color: "var(--color-muted)" }}
+													>
+														Loading…
+													</p>
+												) : selectedVersion.value ? (
+													<div class="flex flex-col gap-2">
+														<p class="text-sm font-semibold">
+															{selectedVersion.value.snapshot.name}
+														</p>
+														{selectedVersion.value.snapshot.description && (
+															<p class="text-xs text-(--color-muted)">
+																{selectedVersion.value.snapshot.description}
+															</p>
+														)}
+														<p class="text-xs font-medium">
+															Sets: {selectedVersion.value.snapshot.sets.length}
+														</p>
+													</div>
+												) : null}
+											</div>
+										)}
+									</div>
+								))}
+							</div>
+						)}
+					</div>
+					<div class="mt-6 flex justify-end">
+						<DialogClose>
+							<Button variant="outline" size="sm">
+								Close
+							</Button>
+						</DialogClose>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			{/* ── Rollback confirm ───────────────────────────────────────────── */}
+			<Dialog openSignal={rollbackDialog.open}>
+				<DialogContent>
+					<DialogTitle>Restore Version</DialogTitle>
+					<p class="mt-2 text-sm" style={{ color: "var(--color-muted)" }}>
+						This will overwrite the current program with this historical
+						version. A new version of the current state will be archived before
+						restoring.
+					</p>
+					{rollbackError.value && (
+						<p class="mt-3 text-sm" style={{ color: "var(--color-error)" }}>
+							{rollbackError.value}
+						</p>
+					)}
+					<div class="mt-6 flex justify-end gap-2">
+						<DialogClose>
+							<Button variant="outline" size="sm" disabled={rollingBack.value}>
+								Cancel
+							</Button>
+						</DialogClose>
+						<Button
+							variant="primary"
+							size="sm"
+							disabled={rollingBack.value}
+							onClick={handleRollback}
+						>
+							{rollingBack.value ? "Restoring…" : "Restore"}
+						</Button>
+					</div>
+				</DialogContent>
+			</Dialog>
 		</>
 	);
 }

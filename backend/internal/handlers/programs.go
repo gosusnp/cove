@@ -27,6 +27,10 @@ func (h *ProgramHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /programs/{id}", h.update)
 	mux.HandleFunc("DELETE /programs/{id}", h.delete)
 	mux.HandleFunc("PUT /programs/{id}/structure", h.reorderStructure)
+	mux.HandleFunc("GET /programs/{id}/versions", h.listVersions)
+	mux.HandleFunc("GET /programs/{id}/versions/{vid}", h.getVersion)
+	// POST …/rollback is an intentional action sub-resource; no CRUD equivalent captures the intent.
+	mux.HandleFunc("POST /programs/{id}/versions/{vid}/rollback", h.rollbackVersion)
 }
 
 type programRequest struct {

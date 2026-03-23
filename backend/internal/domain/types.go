@@ -111,6 +111,7 @@ func (ws *WorkoutSession) SensitiveDataBytes() []byte {
 // -----------------------------------------------------------------------------
 
 type ProgramID IntID[struct{ program struct{} }]
+type ProgramVersionID IntID[struct{ programVersion struct{} }]
 
 // ProgramLite is a trimmed version of a program.
 type ProgramLite struct {
@@ -133,6 +134,34 @@ type Program struct {
 	CreatedAt   time.Time    `json:"created_at"`
 	UpdatedBy   *UserID      `json:"updated_by,omitempty"`
 	UpdatedAt   time.Time    `json:"updated_at"`
+	Sets        []ProgramSet `json:"sets"`
+}
+
+// ProgramVersionMeta is the trimmed projection returned by list endpoints (no snapshot).
+type ProgramVersionMeta struct {
+	ID        ProgramVersionID `json:"id"`
+	ProgramID ProgramID        `json:"program_id"`
+	OrgID     OrgID            `json:"org_id"`
+	CreatedBy UserID           `json:"created_by"`
+	CreatedAt time.Time        `json:"created_at"`
+}
+
+// ProgramVersion represents a historical snapshot of a program.
+type ProgramVersion struct {
+	ID        ProgramVersionID `json:"id"`
+	ProgramID ProgramID        `json:"program_id"`
+	OrgID     OrgID            `json:"org_id"`
+	Snapshot  ProgramSnapshot  `json:"snapshot"`
+	CreatedBy UserID           `json:"created_by"`
+	CreatedAt time.Time        `json:"created_at"`
+}
+
+// ProgramSnapshot captures the user-facing state of a program.
+type ProgramSnapshot struct {
+	Name        string       `json:"name"`
+	Description *string      `json:"description,omitempty"`
+	Activity    *string      `json:"activity,omitempty"`
+	IsPublic    bool         `json:"is_public"`
 	Sets        []ProgramSet `json:"sets"`
 }
 
