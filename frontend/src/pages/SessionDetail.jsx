@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { useSignal } from "@preact/signals";
-import { useEffect } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
 import { Trash2 } from "lucide-preact";
 import { useAuth } from "../Auth.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
+import { TextField } from "../components/ui/TextField.jsx";
 import { EditableMarkdown } from "../components/ui/EditableMarkdown.jsx";
 import { PageTitle } from "../components/ui/PageTitle.jsx";
 import { Row, Section } from "../components/ui/Section.jsx";
@@ -28,7 +29,7 @@ function formatDate(iso) {
 }
 
 function formatDuration(seconds) {
-	if (!seconds) return null;
+	if (seconds == null) return null;
 	const h = Math.floor(seconds / 3600);
 	const m = Math.floor((seconds % 3600) / 60);
 	const s = seconds % 60;
@@ -37,12 +38,64 @@ function formatDuration(seconds) {
 	return `${s}s`;
 }
 
+// Parse a duration string to seconds.
+// Accepts "1h 30m", "45m", "1h 30m 15s", "1:30" (h:mm), "1:30:00" (h:mm:ss),
+// or a plain integer treated as minutes.
+function parseDuration(str) {
+	if (!str?.trim()) return null;
+	const s = str.trim();
+
+	// H:MM or H:MM:SS
+	const parts = s.split(":");
+	if (parts.length >= 2 && parts.every((p) => /^\d+$/.test(p.trim()))) {
+		const [h, m, sec = "0"] = parts;
+		return parseInt(h, 10) * 3600 + parseInt(m, 10) * 60 + parseInt(sec, 10);
+	}
+
+	// Xh Ym Zs
+	let total = 0;
+	let matched = false;
+	const hm = s.match(/(\d+)\s*h/i);
+	const mm = s.match(/(\d+)\s*m(?!s)/i);
+	const sm = s.match(/(\d+)\s*s/i);
+	if (hm) {
+		total += parseInt(hm[1], 10) * 3600;
+		matched = true;
+	}
+	if (mm) {
+		total += parseInt(mm[1], 10) * 60;
+		matched = true;
+	}
+	if (sm) {
+		total += parseInt(sm[1], 10);
+		matched = true;
+	}
+	if (matched) return total > 0 ? total : null;
+
+	// Plain number: treat as minutes
+	if (/^\d+$/.test(s)) return parseInt(s, 10) * 60 || null;
+
+	return null;
+}
+
 export function SessionDetail({ sessionId, onDelete }) {
 	const { user } = useAuth();
 	const session = useSignal(null);
 	const loading = useSignal(true);
 	const error = useSignal("");
 	const deleteDialog = useDialog();
+
+	// Duration inline edit state.
+	const durationEditing = useSignal(false);
+	const durationInput = useSignal("");
+	const durationRef = useRef(null);
+	const durationSaveError = useSignal("");
+
+	// Program name inline edit state.
+	const programNameEditing = useSignal(false);
+	const programNameInput = useSignal("");
+	const programNameRef = useRef(null);
+	const programNameSaveError = useSignal("");
 
 	useEffect(() => {
 		if (!user || !sessionId) return;
@@ -87,17 +140,6 @@ export function SessionDetail({ sessionId, onDelete }) {
 	const s = session.value;
 	if (!s) return null;
 
-	const overviewRows = [
-		s.program_name && { label: "Planned program", value: s.program_name },
-		s.started_at && { label: "Started", value: formatDate(s.started_at) },
-		s.completed_at && { label: "Completed", value: formatDate(s.completed_at) },
-		s.duration_s && { label: "Duration", value: formatDuration(s.duration_s) },
-		s.perceived_effort != null && {
-			label: "Perceived effort",
-			value: `${s.perceived_effort} / 10`,
-		},
-	].filter(Boolean);
-
 	const pageTitle = s.program_name ?? s.activity ?? "Session";
 
 	async function handleDelete() {
@@ -128,6 +170,82 @@ export function SessionDetail({ sessionId, onDelete }) {
 		session.value = await r.json();
 	}
 
+	function startEditDuration() {
+		durationInput.value = formatDuration(s.duration_s) ?? "";
+		durationEditing.value = true;
+		setTimeout(() => {
+			durationRef.current?.focus();
+			durationRef.current?.select();
+		}, 0);
+	}
+
+	async function saveDuration() {
+		const newSeconds = parseDuration(durationInput.value);
+		const origSeconds = parseDuration(formatDuration(s.duration_s));
+		durationEditing.value = false;
+		if (newSeconds === origSeconds) return;
+		const r = await apiFetch(`/api/sessions/${sessionId}`, {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ duration_s: newSeconds }),
+		});
+		if (r.ok) {
+			session.value = await r.json();
+		} else {
+			durationSaveError.value = "Save failed";
+			setTimeout(() => {
+				durationSaveError.value = "";
+			}, 3000);
+		}
+	}
+
+	function startEditProgramName() {
+		programNameInput.value = s.program_name ?? "";
+		programNameEditing.value = true;
+		setTimeout(() => {
+			programNameRef.current?.focus();
+			programNameRef.current?.select();
+		}, 0);
+	}
+
+	async function saveProgramName() {
+		const newName = programNameInput.value.trim() || null;
+		programNameEditing.value = false;
+		if (newName === (s.program_name ?? null)) return;
+		const r = await apiFetch(`/api/sessions/${sessionId}`, {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ program_name: newName }),
+		});
+		if (r.ok) {
+			session.value = await r.json();
+		} else {
+			programNameSaveError.value = "Save failed";
+			setTimeout(() => {
+				programNameSaveError.value = "";
+			}, 3000);
+		}
+	}
+
+	async function saveProgramStructure(structure) {
+		const r = await apiFetch(`/api/sessions/${sessionId}`, {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ program_structure: structure || null }),
+		});
+		if (!r.ok) throw new Error("Failed to save program structure");
+		session.value = await r.json();
+	}
+
+	const staticRows = [
+		s.started_at && { label: "Started", value: formatDate(s.started_at) },
+		s.completed_at && { label: "Completed", value: formatDate(s.completed_at) },
+		s.perceived_effort != null && {
+			label: "Perceived effort",
+			value: `${s.perceived_effort} / 10`,
+		},
+	].filter(Boolean);
+
 	return (
 		<div class="max-w-2xl mx-auto px-4 py-6 flex flex-col gap-6">
 			<div class="flex items-center justify-between gap-2">
@@ -148,7 +266,7 @@ export function SessionDetail({ sessionId, onDelete }) {
 			</div>
 
 			<Section title="Overview">
-				<Row label="Activity" last={overviewRows.length === 0}>
+				<Row label="Activity">
 					<ActivityPicker
 						value={s.activity ?? ""}
 						onChange={saveActivity}
@@ -156,11 +274,80 @@ export function SessionDetail({ sessionId, onDelete }) {
 						class="w-48"
 					/>
 				</Row>
-				{overviewRows.map((row, i) => (
+				<Row label="Planned program">
+					<div class="flex flex-col items-end gap-0.5">
+						{programNameSaveError.value && (
+							<span class="text-xs" style={{ color: "var(--color-error)" }}>
+								{programNameSaveError.value}
+							</span>
+						)}
+						{programNameEditing.value ? (
+							<TextField
+								inputRef={programNameRef}
+								value={programNameInput.value}
+								onInput={(e) => {
+									programNameInput.value = e.target.value;
+								}}
+								onBlur={saveProgramName}
+								onKeyDown={(e) => {
+									if (e.key === "Enter") e.currentTarget.blur();
+									else if (e.key === "Escape") programNameEditing.value = false;
+								}}
+								placeholder="Program name"
+								class="w-40 text-right"
+							/>
+						) : (
+							<Button
+								variant="unstyled"
+								aria-label="Edit planned program name"
+								onClick={startEditProgramName}
+								class="text-sm hover:underline"
+								style={{ color: "var(--color-muted)" }}
+							>
+								{s.program_name ?? "—"}
+							</Button>
+						)}
+					</div>
+				</Row>
+				<Row label="Duration" last={staticRows.length === 0}>
+					<div class="flex flex-col items-end gap-0.5">
+						{durationSaveError.value && (
+							<span class="text-xs" style={{ color: "var(--color-error)" }}>
+								{durationSaveError.value}
+							</span>
+						)}
+						{durationEditing.value ? (
+							<TextField
+								inputRef={durationRef}
+								value={durationInput.value}
+								onInput={(e) => {
+									durationInput.value = e.target.value;
+								}}
+								onBlur={saveDuration}
+								onKeyDown={(e) => {
+									if (e.key === "Enter") e.currentTarget.blur();
+									else if (e.key === "Escape") durationEditing.value = false;
+								}}
+								placeholder="e.g. 1h 30m"
+								class="w-40 text-right"
+							/>
+						) : (
+							<Button
+								variant="unstyled"
+								onClick={startEditDuration}
+								class="text-sm hover:underline"
+								style={{ color: "var(--color-muted)" }}
+							>
+								{formatDuration(s.duration_s) ?? "—"}
+							</Button>
+						)}
+					</div>
+				</Row>
+				{staticRows.map((row, i) => (
 					<Row
 						key={row.label}
 						label={row.label}
-						last={i === overviewRows.length - 1}
+						last={i === staticRows.length - 1}
 					>
 						{row.value}
 					</Row>
@@ -179,16 +366,18 @@ export function SessionDetail({ sessionId, onDelete }) {
 				</div>
 			</Section>
 
-			{s.program_structure && (
-				<Section title="Planned program">
-					<div
-						class="px-4 py-3 text-sm whitespace-pre-wrap"
-						style={{ color: "var(--color-text)" }}
-					>
-						{s.program_structure}
-					</div>
-				</Section>
-			)}
+			<Section title="Planned program">
+				<div class="px-4 py-3">
+					<EditableMarkdown
+						value={session.value.program_structure ?? null}
+						placeholder="Add program structure…"
+						variant="plain"
+						editLabel="Edit program structure"
+						onSave={saveProgramStructure}
+					/>
+				</div>
+			</Section>
+
 			<ConfirmDialog
 				openSignal={deleteDialog.open}
 				title="Delete Session"
