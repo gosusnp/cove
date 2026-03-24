@@ -35,10 +35,10 @@ describe("DateTimePicker", () => {
 	});
 
 	describe("inline variant", () => {
-		it("renders an input without border or background classes", () => {
+		it("renders an input without standard border classes", () => {
 			render(<DateTimePicker id="t" label="Start Date" inline />);
 			const input = screen.getByLabelText("Start Date");
-			expect(input.className).toContain("border-b-2");
+			expect(input.className).toContain("border-0");
 			expect(input.className).not.toContain("rounded-lg");
 		});
 

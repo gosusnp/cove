@@ -69,7 +69,7 @@ const MOCK_SESSION = {
 const MOCK_USER = { email: "user@example.com", name: "Test User" };
 
 function makeFetch(session = MOCK_SESSION) {
-	return vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+	return vi.spyOn(global, "fetch").mockImplementation((_url, opts) => {
 		if (opts?.method === "DELETE") {
 			return Promise.resolve({ ok: true });
 		}

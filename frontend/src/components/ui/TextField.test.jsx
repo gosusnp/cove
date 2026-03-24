@@ -42,11 +42,11 @@ describe("TextField", () => {
 	});
 
 	describe("inline variant", () => {
-		it("renders an input without border or background classes", () => {
+		it("renders an input without standard border classes", () => {
 			render(<TextField id="t" inline />);
 			const input = screen.getByRole("textbox");
 			expect(input).toBeInTheDocument();
-			expect(input.className).toContain("border-b-2");
+			expect(input.className).toContain("border-0");
 			expect(input.className).not.toContain("rounded-lg");
 		});
 

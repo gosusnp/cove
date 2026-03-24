@@ -5,11 +5,10 @@ import { cn } from "../../lib/utils";
 
 const fieldClass = (className, inline) =>
 	cn(
-		"w-full text-sm text-(--color-text) placeholder:text-(--color-muted)",
-		"transition-colors disabled:opacity-50 disabled:pointer-events-none",
+		"text-sm placeholder:text-(--color-muted) transition-colors disabled:opacity-50 disabled:pointer-events-none",
 		inline
-			? "bg-transparent border-0 border-b-2 border-(--color-accent) rounded-none px-0 focus:outline-none focus:ring-0 focus:ring-offset-0"
-			: "rounded-lg border px-3 bg-(--color-surface) border-(--color-border) focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-accent)",
+			? "bg-transparent border-0 rounded-md px-1 -mx-1 hover:bg-(--color-bg) focus:bg-(--color-bg) focus:outline-none focus:ring-0 focus:ring-offset-0"
+			: "w-full h-10 rounded-lg border px-3 bg-(--color-surface) border-(--color-border) text-(--color-text) focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-(--color-accent)",
 		className,
 	);
 
@@ -39,7 +38,12 @@ export function TextField({
 					ref={inputRef}
 					id={id}
 					class={fieldClass(
-						cn(!inline && "py-2.5", "resize-none", className),
+						cn(
+							!inline && "py-2.5",
+							inline && "h-auto min-h-0",
+							"resize-none",
+							className,
+						),
 						inline,
 					)}
 					{...props}
@@ -50,7 +54,6 @@ export function TextField({
 					id={id}
 					class={fieldClass(
 						cn(
-							!inline && "h-10",
 							!inline &&
 								"read-only:bg-(--color-bg) read-only:cursor-default read-only:focus:ring-0 read-only:focus:ring-offset-0",
 							className,
