@@ -62,6 +62,8 @@ const MOCK_SESSION = {
 	duration_s: 2700,
 	program_name: "Strength A",
 	program_structure: "## Squats\n3x5",
+	started_at: "2026-03-24T10:00:00Z",
+	completed_at: "2026-03-24T10:45:00Z",
 };
 
 const MOCK_USER = { email: "user@example.com", name: "Test User" };
@@ -303,6 +305,97 @@ describe("SessionDetail — program name editing", () => {
 			([, opts]) => opts?.method === "PATCH",
 		);
 		expect(patchCalls).toHaveLength(0);
+	});
+});
+
+describe("SessionDetail — started/completed editing", () => {
+	it("renders Started and Completed datetime pickers with correct values", async () => {
+		makeFetch();
+		renderDetail();
+		await waitFor(() => screen.getByLabelText("Started at"));
+		const startedInput = screen.getByLabelText("Started at");
+		const completedInput = screen.getByLabelText("Completed at");
+		// Values are in local time; just check the inputs are present and non-empty.
+		expect(startedInput.value).not.toBe("");
+		expect(completedInput.value).not.toBe("");
+	});
+
+	it("PATCHes started_at on blur when value changes", async () => {
+		const fetchSpy = makeFetch();
+		renderDetail();
+		await waitFor(() => screen.getByLabelText("Started at"));
+		const input = screen.getByLabelText("Started at");
+		fireEvent.blur(input, { target: { value: "2026-03-24T09:00" } });
+		await waitFor(() =>
+			expect(fetchSpy).toHaveBeenCalledWith(
+				"/api/sessions/42",
+				expect.objectContaining({
+					method: "PATCH",
+					body: expect.stringContaining('"started_at"'),
+				}),
+			),
+		);
+	});
+
+	it("does not PATCH started_at when value is unchanged on blur", async () => {
+		const fetchSpy = makeFetch();
+		renderDetail();
+		await waitFor(() => screen.getByLabelText("Started at"));
+		const input = screen.getByLabelText("Started at");
+		// jsdom reflects the controlled value prop onto input.value, so blurring
+		// without mutation means e.target.value === toDateTimeLocalValue(started_at).
+		fireEvent.blur(input);
+		await waitFor(() => screen.getByLabelText("Started at"));
+		const patchCalls = fetchSpy.mock.calls.filter(
+			([, opts]) => opts?.method === "PATCH",
+		);
+		expect(patchCalls).toHaveLength(0);
+	});
+
+	it("shows error message when started_at PATCH fails", async () => {
+		vi.spyOn(global, "fetch").mockImplementation((_url, opts) => {
+			if (opts?.method === "PATCH") {
+				return Promise.resolve({ ok: false });
+			}
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve(MOCK_SESSION),
+			});
+		});
+		renderDetail();
+		await waitFor(() => screen.getByLabelText("Started at"));
+		const input = screen.getByLabelText("Started at");
+		fireEvent.blur(input, { target: { value: "2026-03-24T09:00" } });
+		await waitFor(() =>
+			expect(screen.getByText("Save failed")).toBeInTheDocument(),
+		);
+	});
+
+	it("shows error message when completed_at PATCH fails", async () => {
+		vi.spyOn(global, "fetch").mockImplementation((_url, opts) => {
+			if (opts?.method === "PATCH") {
+				return Promise.resolve({ ok: false });
+			}
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve(MOCK_SESSION),
+			});
+		});
+		renderDetail();
+		await waitFor(() => screen.getByLabelText("Completed at"));
+		const input = screen.getByLabelText("Completed at");
+		fireEvent.blur(input, { target: { value: "2026-03-24T11:00" } });
+		await waitFor(() =>
+			expect(screen.getByText("Save failed")).toBeInTheDocument(),
+		);
+	});
+
+	it("renders empty pickers when started_at and completed_at are null", async () => {
+		makeFetch({ ...MOCK_SESSION, started_at: null, completed_at: null });
+		renderDetail();
+		await waitFor(() => screen.getByLabelText("Started at"));
+		expect(screen.getByLabelText("Started at").value).toBe("");
+		expect(screen.getByLabelText("Completed at").value).toBe("");
 	});
 });
 

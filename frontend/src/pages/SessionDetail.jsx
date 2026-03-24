@@ -7,6 +7,7 @@ import { Trash2 } from "lucide-preact";
 import { useAuth } from "../Auth.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
+import { DateTimePicker } from "../components/ui/DateTimePicker.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { EditableMarkdown } from "../components/ui/EditableMarkdown.jsx";
 import { PageTitle } from "../components/ui/PageTitle.jsx";
@@ -20,12 +21,11 @@ import { useDialog } from "../hooks/useDialog.js";
 import { apiFetch } from "../lib/api.js";
 import { ActivityPicker } from "../components/shared/ActivityPicker.jsx";
 
-function formatDate(iso) {
-	if (!iso) return null;
-	return new Date(iso).toLocaleString(undefined, {
-		dateStyle: "medium",
-		timeStyle: "short",
-	});
+function toDateTimeLocalValue(iso) {
+	if (!iso) return "";
+	const d = new Date(iso);
+	const pad = (n) => String(n).padStart(2, "0");
+	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function formatDuration(seconds) {
@@ -96,6 +96,10 @@ export function SessionDetail({ sessionId, onDelete }) {
 	const programNameInput = useSignal("");
 	const programNameRef = useRef(null);
 	const programNameSaveError = useSignal("");
+
+	// Started / completed save error state.
+	const startedAtSaveError = useSignal("");
+	const completedAtSaveError = useSignal("");
 
 	useEffect(() => {
 		if (!user || !sessionId) return;
@@ -237,14 +241,41 @@ export function SessionDetail({ sessionId, onDelete }) {
 		session.value = await r.json();
 	}
 
-	const staticRows = [
-		s.started_at && { label: "Started", value: formatDate(s.started_at) },
-		s.completed_at && { label: "Completed", value: formatDate(s.completed_at) },
-		s.perceived_effort != null && {
-			label: "Perceived effort",
-			value: `${s.perceived_effort} / 10`,
-		},
-	].filter(Boolean);
+	async function saveStartedAt(value) {
+		const newISO = value ? new Date(value).toISOString() : null;
+		const r = await apiFetch(`/api/sessions/${sessionId}`, {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ started_at: newISO }),
+		});
+		if (r.ok) {
+			session.value = await r.json();
+		} else {
+			startedAtSaveError.value = "Save failed";
+			setTimeout(() => {
+				startedAtSaveError.value = "";
+			}, 3000);
+		}
+	}
+
+	async function saveCompletedAt(value) {
+		const newISO = value ? new Date(value).toISOString() : null;
+		const r = await apiFetch(`/api/sessions/${sessionId}`, {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ completed_at: newISO }),
+		});
+		if (r.ok) {
+			session.value = await r.json();
+		} else {
+			completedAtSaveError.value = "Save failed";
+			setTimeout(() => {
+				completedAtSaveError.value = "";
+			}, 3000);
+		}
+	}
+
+	const hasPerceivedEffort = s.perceived_effort != null;
 
 	return (
 		<div class="max-w-2xl mx-auto px-4 py-6 flex flex-col gap-6">
@@ -309,7 +340,7 @@ export function SessionDetail({ sessionId, onDelete }) {
 						)}
 					</div>
 				</Row>
-				<Row label="Duration" last={staticRows.length === 0}>
+				<Row label="Duration">
 					<div class="flex flex-col items-end gap-0.5">
 						{durationSaveError.value && (
 							<span class="text-xs" style={{ color: "var(--color-error)" }}>
@@ -343,15 +374,49 @@ export function SessionDetail({ sessionId, onDelete }) {
 						)}
 					</div>
 				</Row>
-				{staticRows.map((row, i) => (
-					<Row
-						key={row.label}
-						label={row.label}
-						last={i === staticRows.length - 1}
-					>
-						{row.value}
+				<Row label="Started">
+					<div class="flex flex-col items-end gap-0.5">
+						{startedAtSaveError.value && (
+							<span class="text-xs" style={{ color: "var(--color-error)" }}>
+								{startedAtSaveError.value}
+							</span>
+						)}
+						<DateTimePicker
+							inline
+							aria-label="Started at"
+							value={toDateTimeLocalValue(s.started_at)}
+							onBlur={(e) => {
+								if (e.target.value !== toDateTimeLocalValue(s.started_at)) {
+									saveStartedAt(e.target.value);
+								}
+							}}
+						/>
+					</div>
+				</Row>
+				<Row label="Completed" last={!hasPerceivedEffort}>
+					<div class="flex flex-col items-end gap-0.5">
+						{completedAtSaveError.value && (
+							<span class="text-xs" style={{ color: "var(--color-error)" }}>
+								{completedAtSaveError.value}
+							</span>
+						)}
+						<DateTimePicker
+							inline
+							aria-label="Completed at"
+							value={toDateTimeLocalValue(s.completed_at)}
+							onBlur={(e) => {
+								if (e.target.value !== toDateTimeLocalValue(s.completed_at)) {
+									saveCompletedAt(e.target.value);
+								}
+							}}
+						/>
+					</div>
+				</Row>
+				{hasPerceivedEffort && (
+					<Row label="Perceived effort" last>
+						{s.perceived_effort} / 10
 					</Row>
-				))}
+				)}
 			</Section>
 
 			<Section title="Notes">
