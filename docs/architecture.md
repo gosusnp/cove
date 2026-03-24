@@ -10,6 +10,7 @@ Structural rules for how the Cove backend is organized and how layers interact.
 android/          — Capacitor Android project (mobile builds)
 backend/          — Go module (github.com/gosusnp/cove/backend)
   cmd/mcp/        — standalone MCP server entry point
+  cmd/llm/        — standalone CLI for iterating on LLM prompt workflows without the HTTP server
   internal/
     db/           — database connection and migrations/
     handlers/     — HTTP layer; helpers.go provides jsonOK, jsonError, jsonResponse, pathID
@@ -19,6 +20,8 @@ backend/          — Go module (github.com/gosusnp/cove/backend)
     middleware/   — APIKey and OAuth auth, request logging
     mcp/          — MCP tool registration grouped by resource
     crypto/       — Encryptor interface, AES-256-GCM impl, EncryptedField[T] hardened type, SensitiveString
+    llm/          — LLM Client interface and OpenAI-compatible implementation
+    llm/prompts/  — shared prompt builders and embedded templates, grouped by domain (fitness, cooking)
     fdc/          — USDA FoodData Central API client (ingredient search and import)
     markdown/     — program-to-markdown rendering (used by MCP)
     httputil/     — shared HTTP helpers

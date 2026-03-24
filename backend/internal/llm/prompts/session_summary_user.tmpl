@@ -1,0 +1,33 @@
+Summarize this workout session.
+
+Output format:
+**Overview** (1-2 sentences: activity, how it felt if RPE provided)
+**Load** (bullets: volume or duration summary by movement pattern, deviations from plan)
+**Signals** (bullets: fatigue, form issues, progression flags, injury notes — omit entire section if nothing notable)
+
+# Session Description
+
+- Activity: {{ .Activity }}
+{{- with sensitive .Sensitive.ProgramName }}
+- Program name: {{ . }}
+{{- end }}
+
+{{- with sensitive .Sensitive.ProgramStructure }}
+
+# Planned Structure
+
+{{ . }}
+{{- end }}
+
+# Session Data
+
+Date: {{ formatDate .StartedAt }}
+Duration: {{ .DurationS }} seconds
+{{- with .Sensitive.PerceivedEffort}}
+RPE: {{.}}
+{{- end }}
+
+{{- with sensitive .Sensitive.SessionNotes}}
+## User Notes
+{{.}}
+{{- end}}
