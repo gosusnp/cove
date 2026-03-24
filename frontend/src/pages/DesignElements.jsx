@@ -54,6 +54,7 @@ import {
 	NavigationMenuItem,
 	NavigationMenuLink,
 } from "../components/ui/NavigationMenu.jsx";
+import { DateTimePicker } from "../components/ui/DateTimePicker.jsx";
 import { PageTitle } from "../components/ui/PageTitle.jsx";
 import {
 	Section as CardSection,
@@ -569,7 +570,43 @@ export function DesignElements() {
 
 			<Divider />
 
-			{/* ── Tooltip ─────────────────────────────────────── */}
+			{/* ── DateTimePicker ──────────────────────────────── */}
+			<PageSection title="DateTimePicker">
+				<PreviewRow label="default">
+					<DateTimePicker id="dt-default" />
+				</PreviewRow>
+				<PreviewRow label="with label">
+					<DateTimePicker id="dt-label" label="Start date" />
+				</PreviewRow>
+				<PreviewRow label="disabled">
+					<DateTimePicker
+						id="dt-disabled"
+						label="Disabled"
+						value="2026-03-24T12:00"
+						disabled
+					/>
+				</PreviewRow>
+				<PreviewRow label="read-only">
+					<DateTimePicker
+						id="dt-readonly"
+						label="Started at (read-only)"
+						value="2026-03-24T09:30"
+						readOnly
+					/>
+				</PreviewRow>
+				<PreviewRow label="inline">
+					<div class="p-4 bg-(--color-surface) border border-(--color-border) rounded-lg">
+						<DateTimePicker
+							id="dt-inline"
+							label="Inline style"
+							value="2026-03-24T15:45"
+							inline
+						/>
+					</div>
+				</PreviewRow>
+			</PageSection>
+
+			<Divider />
 			<PageSection title="Tooltip">
 				<PreviewRow label="default">
 					<Tooltip>
