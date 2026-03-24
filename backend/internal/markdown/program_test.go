@@ -16,8 +16,8 @@ func ptr[T any](v T) *T { return &v }
 func TestProgram_NoSets(t *testing.T) {
 	p := &domain.Program{Name: "Rest Day"}
 	got := markdown.Program(p)
-	if !strings.HasPrefix(got, "# Rest Day\n") {
-		t.Errorf("expected heading, got: %q", got)
+	if got != "" {
+		t.Errorf("expected empty string for program with no sets, got: %q", got)
 	}
 }
 
@@ -25,10 +25,19 @@ func TestProgram_WithDescription(t *testing.T) {
 	p := &domain.Program{
 		Name:        "Push Day",
 		Description: ptr("Upper body push focus."),
+		Sets: []domain.ProgramSet{
+			{ID: 1, Name: ptr("Set 1"), Rounds: 3},
+		},
 	}
 	got := markdown.Program(p)
-	if !strings.Contains(got, "Upper body push focus.") {
-		t.Errorf("expected description in output, got: %q", got)
+	if strings.Contains(got, "Push Day") {
+		t.Errorf("expected program name to be excluded, got: %q", got)
+	}
+	if strings.Contains(got, "Upper body push focus.") {
+		t.Errorf("expected description to be excluded, got: %q", got)
+	}
+	if !strings.Contains(got, "## Set 1") {
+		t.Errorf("expected structure in output, got: %q", got)
 	}
 }
 

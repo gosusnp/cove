@@ -12,19 +12,15 @@ import (
 )
 
 // Program converts a domain.Program to a human-readable Markdown string
-// covering name, description, sets (name, rounds, rest) and exercises
+// covering sets (name, rounds, rest) and exercises
 // (name, laterality, reps, duration, weight).
 func Program(p *domain.Program) string {
 	var b strings.Builder
 
-	fmt.Fprintf(&b, "# %s\n", p.Name)
-
-	if p.Description != nil && *p.Description != "" {
-		fmt.Fprintf(&b, "\n%s\n", *p.Description)
-	}
-
-	for _, set := range p.Sets {
-		b.WriteString("\n")
+	for i, set := range p.Sets {
+		if i > 0 {
+			b.WriteString("\n")
+		}
 		b.WriteString(setHeading(set))
 		b.WriteString("\n")
 		for _, ex := range set.Exercises {

@@ -158,8 +158,8 @@ func TestProgramHandler_Get(t *testing.T) {
 		if !ok || structure == "" {
 			t.Errorf("expected non-empty structure field, got: %v", got["structure"])
 		}
-		if !strings.Contains(structure, "Strength") {
-			t.Errorf("structure should contain program name, got: %q", structure)
+		if strings.Contains(structure, "Strength") {
+			t.Errorf("structure should not contain program name, got: %q", structure)
 		}
 		if !strings.Contains(structure, "Squat") {
 			t.Errorf("structure should contain exercise name, got: %q", structure)
