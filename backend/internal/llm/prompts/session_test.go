@@ -51,7 +51,7 @@ func TestSessionSummary_systemPrompt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(req.Messages[0].Content, "training log summarizer") {
+	if !strings.Contains(req.Messages[0].Content, "strength and conditioning coach") {
 		t.Errorf("system prompt does not contain expected content: %q", req.Messages[0].Content)
 	}
 }
