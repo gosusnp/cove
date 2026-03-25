@@ -8,7 +8,9 @@ import { useAuth } from "../Auth.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { ListDetail } from "../components/ui/ListDetail.jsx";
 import { ListItem } from "../components/ui/ListItem.jsx";
+import { useDialog } from "../hooks/useDialog.js";
 import { SessionDetail } from "./SessionDetail.jsx";
+import { NewSessionDialog } from "./NewSessionDialog.jsx";
 import { apiFetch } from "../lib/api.js";
 
 function formatDate(iso) {
@@ -30,7 +32,7 @@ function SessionList({ sessions, selectedId, onSelect, onNew, error }) {
 					Sessions
 				</h2>
 				<Button variant="primary" size="sm" onClick={onNew}>
-					Start
+					Log
 				</Button>
 			</div>
 
@@ -74,6 +76,7 @@ export function Sessions() {
 	const sessions = useSignal([]);
 	const loading = useSignal(true);
 	const fetchError = useSignal("");
+	const newDialog = useDialog();
 
 	useEffect(() => {
 		if (!user) return;
@@ -100,7 +103,12 @@ export function Sessions() {
 	};
 
 	const handleNew = () => {
-		route("/workout");
+		newDialog.show();
+	};
+
+	const handleCreated = (session) => {
+		sessions.value = [session, ...sessions.value];
+		route(`/sessions/${session.id}`);
 	};
 
 	const handleDelete = (id) => {
@@ -109,23 +117,26 @@ export function Sessions() {
 	};
 
 	return (
-		<ListDetail
-			hasDetail={!!selectedId}
-			emptyState="Select a session to view details."
-			list={
-				<SessionList
-					sessions={sessions.value}
-					selectedId={selectedId}
-					onSelect={handleSelect}
-					onNew={handleNew}
-					error={fetchError.value}
-				/>
-			}
-			detail={
-				selectedId ? (
-					<SessionDetail sessionId={selectedId} onDelete={handleDelete} />
-				) : null
-			}
-		/>
+		<>
+			<ListDetail
+				hasDetail={!!selectedId}
+				emptyState="Select a session to view details."
+				list={
+					<SessionList
+						sessions={sessions.value}
+						selectedId={selectedId}
+						onSelect={handleSelect}
+						onNew={handleNew}
+						error={fetchError.value}
+					/>
+				}
+				detail={
+					selectedId ? (
+						<SessionDetail sessionId={selectedId} onDelete={handleDelete} />
+					) : null
+				}
+			/>
+			<NewSessionDialog openSignal={newDialog.open} onCreated={handleCreated} />
+		</>
 	);
 }
