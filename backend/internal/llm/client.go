@@ -15,7 +15,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
 )
 
 // Client is the provider-agnostic interface for calling an LLM.
@@ -58,10 +57,6 @@ type Config struct {
 	APIKey string
 	// Model is the default model name used when CompletionRequest.Model is empty.
 	Model string
-	// Timeout overrides the default HTTP client timeout. Useful when the
-	// backend may cold-start (e.g. KubeAI spinning up a model pod).
-	// Defaults to 5 minutes when zero.
-	Timeout time.Duration
 	// Debug writes the raw response body to stderr before parsing.
 	// Useful for inspecting provider-specific fields such as thinking blocks.
 	Debug bool
@@ -77,13 +72,9 @@ type openAICompatClient struct {
 // API. It works with any compatible provider: OpenAI, KubeAI, Anthropic's
 // compatibility endpoint, and others.
 func NewOpenAICompatClient(cfg Config) Client {
-	timeout := cfg.Timeout
-	if timeout == 0 {
-		timeout = 5 * time.Minute
-	}
 	return &openAICompatClient{
 		cfg:  cfg,
-		http: &http.Client{Timeout: timeout},
+		http: &http.Client{},
 	}
 }
 

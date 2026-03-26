@@ -66,11 +66,6 @@ func main() {
 
 	wsSvc := service.NewWorkoutSessionService(database, store.NewWorkoutSessionStore(), enc)
 
-	llmTimeout := optDuration("LLM_TIMEOUT")
-	if llmTimeout == 0 {
-		llmTimeout = 5 * time.Minute
-	}
-
 	var summarizeSvc *service.SummarizeService
 	if *preview {
 		summarizeSvc = service.NewSummarizeService(nil)
@@ -79,26 +74,29 @@ func main() {
 			BaseURL: mustEnv("LLM_BASE_URL"),
 			APIKey:  os.Getenv("LLM_API_KEY"),
 			Model:   mustEnv("LLM_MODEL"),
-			Timeout: llmTimeout,
 			Debug:   os.Getenv("LLM_DEBUG") != "",
 		}))
 	}
 
 	switch cmd {
 	case "session":
-		runSession(rawID, *preview, llmTimeout, database, wsSvc, summarizeSvc)
+		runSession(rawID, *preview, database, wsSvc, summarizeSvc)
 	default:
 		log.Fatalf("unknown command: %s", cmd)
 	}
 }
 
-func runSession(rawID string, preview bool, timeout time.Duration, database *sql.DB, wsSvc *service.WorkoutSessionService, summarizeSvc *service.SummarizeService) {
+func runSession(rawID string, preview bool, database *sql.DB, wsSvc *service.WorkoutSessionService, summarizeSvc *service.SummarizeService) {
 	n, err := strconv.ParseInt(rawID, 10, 64)
 	if err != nil {
 		log.Fatalf("invalid session id %q: %v", rawID, err)
 	}
 	id := domain.WorkoutSessionID(n)
 
+	timeout := optDuration("LLM_TIMEOUT")
+	if timeout == 0 {
+		timeout = 5 * time.Minute
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
