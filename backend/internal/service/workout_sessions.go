@@ -154,16 +154,10 @@ func (s *WorkoutSessionService) Update(ctx context.Context, id domain.WorkoutSes
 		return nil, err
 	}
 
-	var summaryGeneratedAt *time.Time
-	if p.SensitiveData.Summary != nil {
-		now := time.Now()
-		summaryGeneratedAt = &now
-	}
-
 	var ws *domain.WorkoutSession
 	err = withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var err error
-		ws, err = s.store.Update(ctx, q, identity.OrgID, id, p, sensitiveData, summaryGeneratedAt)
+		ws, err = s.store.Update(ctx, q, identity.OrgID, id, p, sensitiveData, p.SensitiveData.Summary != nil)
 		return err
 	})
 	if errors.Is(err, store.ErrNotFound) {
@@ -226,10 +220,8 @@ func (s *WorkoutSessionService) Patch(ctx context.Context, id domain.WorkoutSess
 			p.CompletedAt = patch.CompletedAt.Value
 		}
 
-		// summary_generated_at carries over unless summary is explicitly patched.
-		summaryGeneratedAt := current.SummaryGeneratedAt
-
 		// Merge sensitive fields: clone current values, then apply patches.
+		setSummaryNow := false
 		if err := current.UseSensitiveData(ctx, func(cur domain.SessionSensitiveData) error {
 			p.SensitiveData.PerceivedEffort = cur.PerceivedEffort
 			p.SensitiveData.SessionNotes = cloneSensitiveString(cur.SessionNotes)
@@ -251,12 +243,7 @@ func (s *WorkoutSessionService) Patch(ctx context.Context, id domain.WorkoutSess
 			}
 			if patch.Summary.Set {
 				p.SensitiveData.Summary = newSensitiveStringPtr(patch.Summary.Value)
-				if patch.Summary.Value != nil {
-					now := time.Now()
-					summaryGeneratedAt = &now
-				} else {
-					summaryGeneratedAt = nil
-				}
+				setSummaryNow = patch.Summary.Value != nil
 			}
 			return nil
 		}); err != nil {
@@ -268,7 +255,7 @@ func (s *WorkoutSessionService) Patch(ctx context.Context, id domain.WorkoutSess
 			return err
 		}
 
-		ws, err = s.store.Update(ctx, q, identity.OrgID, id, p, sensitiveData, summaryGeneratedAt)
+		ws, err = s.store.Update(ctx, q, identity.OrgID, id, p, sensitiveData, setSummaryNow)
 		return err
 	})
 	if errors.Is(err, store.ErrNotFound) {

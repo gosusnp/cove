@@ -130,21 +130,21 @@ func (s *WorkoutSessionStore) Create(ctx context.Context, q Querier, p WorkoutSe
 	return s.get(ctx, q, idInfo.OrgID, id)
 }
 
-func (s *WorkoutSessionStore) Update(ctx context.Context, q Querier, orgID domain.OrgID, id domain.WorkoutSessionID, p WorkoutSessionParams, sensitiveData []byte, summaryGeneratedAt *time.Time) (*domain.WorkoutSession, error) {
+func (s *WorkoutSessionStore) Update(ctx context.Context, q Querier, orgID domain.OrgID, id domain.WorkoutSessionID, p WorkoutSessionParams, sensitiveData []byte, setSummaryNow bool) (*domain.WorkoutSession, error) {
 	res, err := q.ExecContext(ctx, `
 		UPDATE cove.workout_sessions SET
 			program_id = $1,
 			activity = $2, duration_s = $3,
 			started_at = $4, completed_at = $5,
 			sensitive_data = $6,
-			summary_generated_at = $7
+			summary_generated_at = CASE WHEN $7 THEN NOW() ELSE summary_generated_at END
 		WHERE id = $8 AND org_id = $9
 	`,
 		p.ProgramID,
 		p.Activity, p.DurationS,
 		p.StartedAt, p.CompletedAt,
 		sensitiveData,
-		summaryGeneratedAt,
+		setSummaryNow,
 		id, orgID,
 	)
 	if err != nil {
