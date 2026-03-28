@@ -147,23 +147,45 @@ func (s *UserService) DeletePAT(ctx context.Context, userID domain.UserID, id do
 	return nil
 }
 
-// UpdatePreferences updates the unit system preferences for the user.
-// Either value may be nil to clear the preference.
-func (s *UserService) UpdatePreferences(
-	ctx context.Context,
-	userID domain.UserID,
-	fitnessUnitSystem *domain.UnitSystem,
-	cookingUnitSystem *domain.UnitSystem,
-) (*domain.User, error) {
-	if fitnessUnitSystem != nil {
-		if !fitnessUnitSystem.Valid() || *fitnessUnitSystem == domain.UnitSystemUSCustomary {
+// UserPreferencesPatch contains the fields that may be changed via a partial
+// update. Only fields where Optional.Set == true are applied; absent fields
+// retain their current values.
+type UserPreferencesPatch struct {
+	FitnessUnitSystem domain.Optional[*domain.UnitSystem] `json:"fitness_unit_system"`
+	CookingUnitSystem domain.Optional[*domain.UnitSystem] `json:"cooking_unit_system"`
+}
+
+// PatchPreferences applies a partial update to the user's unit system preferences.
+// Only fields where Optional.Set == true are changed; all others retain their current values.
+func (s *UserService) PatchPreferences(ctx context.Context, userID domain.UserID, patch UserPreferencesPatch) (*domain.User, error) {
+	current, err := s.users.GetByID(ctx, s.db, userID)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get user: %w", err)
+	}
+
+	newFitness := current.FitnessUnitSystem
+	newCooking := current.CookingUnitSystem
+
+	if patch.FitnessUnitSystem.Set {
+		newFitness = patch.FitnessUnitSystem.Value
+	}
+	if patch.CookingUnitSystem.Set {
+		newCooking = patch.CookingUnitSystem.Value
+	}
+
+	if newFitness != nil {
+		if !newFitness.Valid() || *newFitness == domain.UnitSystemUSCustomary {
 			return nil, &ValidationError{Msg: "fitness_unit_system must be 'metric' or 'imperial'"}
 		}
 	}
-	if cookingUnitSystem != nil && !cookingUnitSystem.Valid() {
+	if newCooking != nil && !newCooking.Valid() {
 		return nil, &ValidationError{Msg: "cooking_unit_system must be 'metric', 'imperial', or 'us_customary'"}
 	}
-	user, err := s.users.UpdatePreferences(ctx, s.db, userID, fitnessUnitSystem, cookingUnitSystem)
+
+	user, err := s.users.UpdatePreferences(ctx, s.db, userID, newFitness, newCooking)
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, ErrNotFound
 	}

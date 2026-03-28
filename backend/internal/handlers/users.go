@@ -98,56 +98,20 @@ func (h *UserHandler) updatePreferences(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Decode to a raw map so we can distinguish absent keys from explicit nulls.
-	var raw map[string]json.RawMessage
-	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+	var patch service.UserPreferencesPatch
+	if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// Load current user so absent keys retain their existing values.
-	current, err := h.svc.Get(r.Context(), userID)
-	if errors.Is(err, service.ErrNotFound) {
-		jsonError(w, "user not found", http.StatusNotFound)
-		return
-	}
-	if err != nil {
-		internalError(w, r, err)
-		return
-	}
-
-	newFitness := current.FitnessUnitSystem
-	newCooking := current.CookingUnitSystem
-
-	if v, ok := raw["fitness_unit_system"]; ok {
-		if string(v) == "null" {
-			newFitness = nil
-		} else {
-			var s domain.UnitSystem
-			if err := json.Unmarshal(v, &s); err != nil {
-				jsonError(w, "invalid fitness_unit_system", http.StatusBadRequest)
-				return
-			}
-			newFitness = &s
-		}
-	}
-	if v, ok := raw["cooking_unit_system"]; ok {
-		if string(v) == "null" {
-			newCooking = nil
-		} else {
-			var s domain.UnitSystem
-			if err := json.Unmarshal(v, &s); err != nil {
-				jsonError(w, "invalid cooking_unit_system", http.StatusBadRequest)
-				return
-			}
-			newCooking = &s
-		}
-	}
-
-	user, err := h.svc.UpdatePreferences(r.Context(), userID, newFitness, newCooking)
+	user, err := h.svc.PatchPreferences(r.Context(), userID, patch)
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
 		jsonError(w, ve.Msg, http.StatusBadRequest)
+		return
+	}
+	if errors.Is(err, service.ErrNotFound) {
+		jsonError(w, "user not found", http.StatusNotFound)
 		return
 	}
 	if err != nil {

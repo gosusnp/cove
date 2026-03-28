@@ -121,14 +121,17 @@ func TestUserService_GetUserByToken(t *testing.T) {
 	})
 }
 
-func TestUserService_UpdatePreferences(t *testing.T) {
+func TestUserService_PatchPreferences(t *testing.T) {
 	t.Run("sets fitness and cooking system", func(t *testing.T) {
 		ctx, svc := newTestUserService(t)
 		user, _, _ := svc.GetOrCreate(ctx, "pref@example.com", "sub-pref")
 
 		fs := domain.UnitSystemImperial
 		cs := domain.UnitSystemUSCustomary
-		got, err := svc.UpdatePreferences(ctx, user.ID, &fs, &cs)
+		got, err := svc.PatchPreferences(ctx, user.ID, UserPreferencesPatch{
+			FitnessUnitSystem: domain.Optional[*domain.UnitSystem]{Value: &fs, Set: true},
+			CookingUnitSystem: domain.Optional[*domain.UnitSystem]{Value: &cs, Set: true},
+		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -140,14 +143,40 @@ func TestUserService_UpdatePreferences(t *testing.T) {
 		}
 	})
 
-	t.Run("nil values clear preferences", func(t *testing.T) {
+	t.Run("absent fields retain current values", func(t *testing.T) {
+		ctx, svc := newTestUserService(t)
+		user, _, _ := svc.GetOrCreate(ctx, "pref-retain@example.com", "sub-pref-retain")
+
+		fs := domain.UnitSystemImperial
+		_, _ = svc.PatchPreferences(ctx, user.ID, UserPreferencesPatch{
+			FitnessUnitSystem: domain.Optional[*domain.UnitSystem]{Value: &fs, Set: true},
+		})
+
+		// Patch only cooking — fitness must remain imperial.
+		cs := domain.UnitSystemUSCustomary
+		got, err := svc.PatchPreferences(ctx, user.ID, UserPreferencesPatch{
+			CookingUnitSystem: domain.Optional[*domain.UnitSystem]{Value: &cs, Set: true},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.FitnessUnitSystem == nil || *got.FitnessUnitSystem != domain.UnitSystemImperial {
+			t.Errorf("got fitness_unit_system %v, want imperial", got.FitnessUnitSystem)
+		}
+	})
+
+	t.Run("explicit null clears preference", func(t *testing.T) {
 		ctx, svc := newTestUserService(t)
 		user, _, _ := svc.GetOrCreate(ctx, "pref-clear@example.com", "sub-pref-clear")
 
 		fs := domain.UnitSystemImperial
-		_, _ = svc.UpdatePreferences(ctx, user.ID, &fs, nil)
+		_, _ = svc.PatchPreferences(ctx, user.ID, UserPreferencesPatch{
+			FitnessUnitSystem: domain.Optional[*domain.UnitSystem]{Value: &fs, Set: true},
+		})
 
-		got, err := svc.UpdatePreferences(ctx, user.ID, nil, nil)
+		got, err := svc.PatchPreferences(ctx, user.ID, UserPreferencesPatch{
+			FitnessUnitSystem: domain.Optional[*domain.UnitSystem]{Value: nil, Set: true},
+		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -161,7 +190,9 @@ func TestUserService_UpdatePreferences(t *testing.T) {
 		user, _, _ := svc.GetOrCreate(ctx, "pref-bad-fit@example.com", "sub-pref-bad-fit")
 
 		fs := domain.UnitSystemUSCustomary
-		_, err := svc.UpdatePreferences(ctx, user.ID, &fs, nil)
+		_, err := svc.PatchPreferences(ctx, user.ID, UserPreferencesPatch{
+			FitnessUnitSystem: domain.Optional[*domain.UnitSystem]{Value: &fs, Set: true},
+		})
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("got %v, want ValidationError", err)
@@ -173,7 +204,9 @@ func TestUserService_UpdatePreferences(t *testing.T) {
 		user, _, _ := svc.GetOrCreate(ctx, "pref-bad-fit2@example.com", "sub-pref-bad-fit2")
 
 		fs := domain.UnitSystem("furlong")
-		_, err := svc.UpdatePreferences(ctx, user.ID, &fs, nil)
+		_, err := svc.PatchPreferences(ctx, user.ID, UserPreferencesPatch{
+			FitnessUnitSystem: domain.Optional[*domain.UnitSystem]{Value: &fs, Set: true},
+		})
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("got %v, want ValidationError", err)
@@ -185,7 +218,9 @@ func TestUserService_UpdatePreferences(t *testing.T) {
 		user, _, _ := svc.GetOrCreate(ctx, "pref-bad-cook@example.com", "sub-pref-bad-cook")
 
 		cs := domain.UnitSystem("stone")
-		_, err := svc.UpdatePreferences(ctx, user.ID, nil, &cs)
+		_, err := svc.PatchPreferences(ctx, user.ID, UserPreferencesPatch{
+			CookingUnitSystem: domain.Optional[*domain.UnitSystem]{Value: &cs, Set: true},
+		})
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("got %v, want ValidationError", err)
