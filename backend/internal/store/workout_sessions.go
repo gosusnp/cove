@@ -30,6 +30,7 @@ func scanWorkoutSession(sc scanner) (*domain.WorkoutSession, error) {
 		&ws.ProgramID,
 		&ws.Activity, &ws.DurationS,
 		&ws.StartedAt, &ws.CompletedAt,
+		&ws.SummaryGeneratedAt,
 		&ws.CreatedBy, &ws.CreatedAt, &ws.UpdatedBy, &ws.UpdatedAt,
 		ws.SensitiveDataScanner(),
 	)
@@ -47,6 +48,7 @@ const workoutSessionColumns = `
 	program_id,
 	activity, duration_s,
 	started_at, completed_at,
+	summary_generated_at,
 	created_by, created_at, updated_by, updated_at,
 	sensitive_data`
 
@@ -128,19 +130,21 @@ func (s *WorkoutSessionStore) Create(ctx context.Context, q Querier, p WorkoutSe
 	return s.get(ctx, q, idInfo.OrgID, id)
 }
 
-func (s *WorkoutSessionStore) Update(ctx context.Context, q Querier, orgID domain.OrgID, id domain.WorkoutSessionID, p WorkoutSessionParams, sensitiveData []byte) (*domain.WorkoutSession, error) {
+func (s *WorkoutSessionStore) Update(ctx context.Context, q Querier, orgID domain.OrgID, id domain.WorkoutSessionID, p WorkoutSessionParams, sensitiveData []byte, summaryGeneratedAt *time.Time) (*domain.WorkoutSession, error) {
 	res, err := q.ExecContext(ctx, `
 		UPDATE cove.workout_sessions SET
 			program_id = $1,
 			activity = $2, duration_s = $3,
 			started_at = $4, completed_at = $5,
-			sensitive_data = $6
-		WHERE id = $7 AND org_id = $8
+			sensitive_data = $6,
+			summary_generated_at = $7
+		WHERE id = $8 AND org_id = $9
 	`,
 		p.ProgramID,
 		p.Activity, p.DurationS,
 		p.StartedAt, p.CompletedAt,
 		sensitiveData,
+		summaryGeneratedAt,
 		id, orgID,
 	)
 	if err != nil {

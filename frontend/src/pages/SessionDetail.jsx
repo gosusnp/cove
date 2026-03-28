@@ -10,6 +10,7 @@ import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
 import { DateTimePicker } from "../components/ui/DateTimePicker.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { EditableMarkdown } from "../components/ui/EditableMarkdown.jsx";
+import { Markdown } from "../components/ui/Markdown.jsx";
 import { PageTitle } from "../components/ui/PageTitle.jsx";
 import { Row, Section } from "../components/ui/Section.jsx";
 import {
@@ -442,6 +443,20 @@ export function SessionDetail({ sessionId, onDelete }) {
 					/>
 				</div>
 			</Section>
+
+			{s.summary && (
+				<Section title="Summary">
+					<div class="px-4 py-3 flex flex-col gap-2">
+						{s.summary_generated_at &&
+							new Date(s.summary_generated_at) < new Date(s.updated_at) && (
+								<p class="text-xs" style={{ color: "var(--color-muted)" }}>
+									Summary may be out of date
+								</p>
+							)}
+						<Markdown>{s.summary}</Markdown>
+					</div>
+				</Section>
+			)}
 
 			<ConfirmDialog
 				openSignal={deleteDialog.open}

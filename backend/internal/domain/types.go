@@ -28,6 +28,7 @@ type SessionSensitiveData struct {
 	SessionNotes     *crypto.SensitiveString `json:"session_notes,omitempty"`
 	ProgramName      *crypto.SensitiveString `json:"program_name,omitempty"`
 	ProgramStructure *crypto.SensitiveString `json:"program_structure,omitempty"`
+	Summary          *crypto.SensitiveString `json:"summary,omitempty"`
 }
 
 // Format implements fmt.Formatter. All verbs emit "[REDACTED]" to prevent
@@ -48,24 +49,26 @@ func (s SessionSensitiveData) IsEmpty() bool {
 	return s.PerceivedEffort == nil &&
 		s.SessionNotes == nil &&
 		s.ProgramName == nil &&
-		s.ProgramStructure == nil
+		s.ProgramStructure == nil &&
+		s.Summary == nil
 }
 
 // WorkoutSession represents a single training session.
 // Sensitive data is accessed exclusively via UseSensitiveData.
 type WorkoutSession struct {
-	ID          WorkoutSessionID `json:"id"`
-	OrgID       OrgID            `json:"org_id"`
-	UserID      UserID           `json:"user_id"`
-	ProgramID   *ProgramID       `json:"program_id,omitempty"`
-	Activity    *string          `json:"activity,omitempty"`
-	DurationS   *int             `json:"duration_s,omitempty"`
-	StartedAt   *time.Time       `json:"started_at,omitempty"`
-	CompletedAt *time.Time       `json:"completed_at,omitempty"`
-	CreatedBy   UserID           `json:"created_by"`
-	CreatedAt   time.Time        `json:"created_at"`
-	UpdatedBy   *UserID          `json:"updated_by,omitempty"`
-	UpdatedAt   time.Time        `json:"updated_at"`
+	ID                 WorkoutSessionID `json:"id"`
+	OrgID              OrgID            `json:"org_id"`
+	UserID             UserID           `json:"user_id"`
+	ProgramID          *ProgramID       `json:"program_id,omitempty"`
+	Activity           *string          `json:"activity,omitempty"`
+	DurationS          *int             `json:"duration_s,omitempty"`
+	StartedAt          *time.Time       `json:"started_at,omitempty"`
+	CompletedAt        *time.Time       `json:"completed_at,omitempty"`
+	SummaryGeneratedAt *time.Time       `json:"summary_generated_at,omitempty"`
+	CreatedBy          UserID           `json:"created_by"`
+	CreatedAt          time.Time        `json:"created_at"`
+	UpdatedBy          *UserID          `json:"updated_by,omitempty"`
+	UpdatedAt          time.Time        `json:"updated_at"`
 
 	// sensitiveData contains a sync.Mutex; WorkoutSession must always be used
 	// as a pointer (*WorkoutSession) and must never be copied after first use.

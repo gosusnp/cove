@@ -40,6 +40,7 @@ type workoutSessionRequest struct {
 	DurationS        *int       `json:"duration_s,omitempty"`
 	PerceivedEffort  *int       `json:"perceived_effort,omitempty"`
 	SessionNotes     *string    `json:"session_notes,omitempty"`
+	Summary          *string    `json:"summary,omitempty"`
 	StartedAt        *time.Time `json:"started_at,omitempty"`
 	CompletedAt      *time.Time `json:"completed_at,omitempty"`
 }
@@ -49,14 +50,6 @@ func sensitiveStringPtr(s *string) *crypto.SensitiveString {
 		return nil
 	}
 	ss := crypto.NewSensitiveString(*s)
-	return &ss
-}
-
-func cloneSensitiveString(s *crypto.SensitiveString) *crypto.SensitiveString {
-	if s == nil {
-		return nil
-	}
-	ss := crypto.NewSensitiveString(s.String())
 	return &ss
 }
 
@@ -79,6 +72,7 @@ func (req *workoutSessionRequest) toParams() store.WorkoutSessionParams {
 			SessionNotes:     sensitiveStringPtr(req.SessionNotes),
 			ProgramName:      sensitiveStringPtr(req.ProgramName),
 			ProgramStructure: sensitiveStringPtr(req.ProgramStructure),
+			Summary:          sensitiveStringPtr(req.Summary),
 		},
 	}
 	if req.ProgramID != nil {
@@ -92,45 +86,49 @@ func (req *workoutSessionRequest) toParams() store.WorkoutSessionParams {
 // Sensitive fields are decrypted inline and flattened here; they go out of scope
 // immediately after the response is encoded.
 type workoutSessionResponse struct {
-	ID          domain.WorkoutSessionID `json:"id"`
-	OrgID       domain.OrgID            `json:"org_id"`
-	UserID      domain.UserID           `json:"user_id"`
-	ProgramID   *domain.ProgramID       `json:"program_id,omitempty"`
-	Activity    *string                 `json:"activity,omitempty"`
-	DurationS   *int                    `json:"duration_s,omitempty"`
-	StartedAt   *time.Time              `json:"started_at,omitempty"`
-	CompletedAt *time.Time              `json:"completed_at,omitempty"`
-	CreatedBy   domain.UserID           `json:"created_by"`
-	CreatedAt   time.Time               `json:"created_at"`
-	UpdatedBy   *domain.UserID          `json:"updated_by,omitempty"`
-	UpdatedAt   time.Time               `json:"updated_at"`
+	ID                 domain.WorkoutSessionID `json:"id"`
+	OrgID              domain.OrgID            `json:"org_id"`
+	UserID             domain.UserID           `json:"user_id"`
+	ProgramID          *domain.ProgramID       `json:"program_id,omitempty"`
+	Activity           *string                 `json:"activity,omitempty"`
+	DurationS          *int                    `json:"duration_s,omitempty"`
+	StartedAt          *time.Time              `json:"started_at,omitempty"`
+	CompletedAt        *time.Time              `json:"completed_at,omitempty"`
+	SummaryGeneratedAt *time.Time              `json:"summary_generated_at,omitempty"`
+	CreatedBy          domain.UserID           `json:"created_by"`
+	CreatedAt          time.Time               `json:"created_at"`
+	UpdatedBy          *domain.UserID          `json:"updated_by,omitempty"`
+	UpdatedAt          time.Time               `json:"updated_at"`
 	// Sensitive fields flattened:
 	PerceivedEffort  *int    `json:"perceived_effort,omitempty"`
 	SessionNotes     *string `json:"session_notes,omitempty"`
 	ProgramName      *string `json:"program_name,omitempty"`
 	ProgramStructure *string `json:"program_structure,omitempty"`
+	Summary          *string `json:"summary,omitempty"`
 }
 
 func toResponse(r *http.Request, ws *domain.WorkoutSession) (*workoutSessionResponse, error) {
 	resp := &workoutSessionResponse{
-		ID:          ws.ID,
-		OrgID:       ws.OrgID,
-		UserID:      ws.UserID,
-		ProgramID:   ws.ProgramID,
-		Activity:    ws.Activity,
-		DurationS:   ws.DurationS,
-		StartedAt:   ws.StartedAt,
-		CompletedAt: ws.CompletedAt,
-		CreatedBy:   ws.CreatedBy,
-		CreatedAt:   ws.CreatedAt,
-		UpdatedBy:   ws.UpdatedBy,
-		UpdatedAt:   ws.UpdatedAt,
+		ID:                 ws.ID,
+		OrgID:              ws.OrgID,
+		UserID:             ws.UserID,
+		ProgramID:          ws.ProgramID,
+		Activity:           ws.Activity,
+		DurationS:          ws.DurationS,
+		StartedAt:          ws.StartedAt,
+		CompletedAt:        ws.CompletedAt,
+		SummaryGeneratedAt: ws.SummaryGeneratedAt,
+		CreatedBy:          ws.CreatedBy,
+		CreatedAt:          ws.CreatedAt,
+		UpdatedBy:          ws.UpdatedBy,
+		UpdatedAt:          ws.UpdatedAt,
 	}
 	err := ws.UseSensitiveData(r.Context(), func(private domain.SessionSensitiveData) error {
 		resp.PerceivedEffort = private.PerceivedEffort
 		resp.SessionNotes = stringPtr(private.SessionNotes)
 		resp.ProgramName = stringPtr(private.ProgramName)
 		resp.ProgramStructure = stringPtr(private.ProgramStructure)
+		resp.Summary = stringPtr(private.Summary)
 		return nil
 	})
 	return resp, err
@@ -197,126 +195,12 @@ func (h *WorkoutSessionHandler) patch(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-
-	// Decode as a raw map so we can tell which fields were explicitly provided.
-	var patch map[string]json.RawMessage
+	var patch service.WorkoutSessionPatch
 	if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-
-	// Fetch current session to merge against.
-	current, err := h.svc.Get(r.Context(), id)
-	if errors.Is(err, service.ErrUnauthorized) {
-		jsonError(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	if errors.Is(err, service.ErrNotFound) {
-		jsonError(w, "session not found", http.StatusNotFound)
-		return
-	}
-	if err != nil {
-		internalError(w, r, err)
-		return
-	}
-
-	// Start from current non-sensitive values.
-	p := store.WorkoutSessionParams{
-		ProgramID:   current.ProgramID,
-		Activity:    current.Activity,
-		DurationS:   current.DurationS,
-		StartedAt:   current.StartedAt,
-		CompletedAt: current.CompletedAt,
-	}
-
-	// Apply non-sensitive patch fields.
-	if raw, ok := patch["program_id"]; ok {
-		var v *int64
-		if err := json.Unmarshal(raw, &v); err != nil {
-			jsonError(w, "invalid program_id", http.StatusBadRequest)
-			return
-		}
-		if v != nil {
-			pid := domain.ProgramID(*v)
-			p.ProgramID = &pid
-		} else {
-			p.ProgramID = nil
-		}
-	}
-	for _, f := range []struct {
-		key string
-		dst any
-	}{
-		{"activity", &p.Activity},
-		{"duration_s", &p.DurationS},
-		{"started_at", &p.StartedAt},
-		{"completed_at", &p.CompletedAt},
-	} {
-		if raw, ok := patch[f.key]; ok {
-			if err := json.Unmarshal(raw, f.dst); err != nil {
-				jsonError(w, "invalid "+f.key, http.StatusBadRequest)
-				return
-			}
-		}
-	}
-
-	// Pre-decode sensitive patch fields before entering UseSensitiveData so
-	// validation errors can still return 400.
-	var (
-		patchPerceivedEffort     *int
-		patchSessionNotes        *string
-		patchProgramName         *string
-		patchProgramStructure    *string
-		hasPatchPerceivedEffort  bool
-		hasPatchSessionNotes     bool
-		hasPatchProgramName      bool
-		hasPatchProgramStructure bool
-	)
-	sensitivePatches := []struct {
-		key string
-		has *bool
-		dst any
-	}{
-		{"perceived_effort", &hasPatchPerceivedEffort, &patchPerceivedEffort},
-		{"session_notes", &hasPatchSessionNotes, &patchSessionNotes},
-		{"program_name", &hasPatchProgramName, &patchProgramName},
-		{"program_structure", &hasPatchProgramStructure, &patchProgramStructure},
-	}
-	for _, f := range sensitivePatches {
-		if raw, ok := patch[f.key]; ok {
-			*f.has = true
-			if err := json.Unmarshal(raw, f.dst); err != nil {
-				jsonError(w, "invalid "+f.key, http.StatusBadRequest)
-				return
-			}
-		}
-	}
-
-	// Merge sensitive fields: carry over current values, then apply overrides.
-	if err := current.UseSensitiveData(r.Context(), func(cur domain.SessionSensitiveData) error {
-		p.SensitiveData.PerceivedEffort = cur.PerceivedEffort
-		p.SensitiveData.SessionNotes = cloneSensitiveString(cur.SessionNotes)
-		p.SensitiveData.ProgramName = cloneSensitiveString(cur.ProgramName)
-		p.SensitiveData.ProgramStructure = cloneSensitiveString(cur.ProgramStructure)
-		if hasPatchPerceivedEffort {
-			p.SensitiveData.PerceivedEffort = patchPerceivedEffort
-		}
-		if hasPatchSessionNotes {
-			p.SensitiveData.SessionNotes = sensitiveStringPtr(patchSessionNotes)
-		}
-		if hasPatchProgramName {
-			p.SensitiveData.ProgramName = sensitiveStringPtr(patchProgramName)
-		}
-		if hasPatchProgramStructure {
-			p.SensitiveData.ProgramStructure = sensitiveStringPtr(patchProgramStructure)
-		}
-		return nil
-	}); err != nil {
-		internalError(w, r, err)
-		return
-	}
-
-	ws, err := h.svc.Update(r.Context(), id, p)
+	ws, err := h.svc.Patch(r.Context(), id, patch)
 	if errors.Is(err, service.ErrUnauthorized) {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return

@@ -223,7 +223,7 @@ func TestWorkoutSessionStore_Update(t *testing.T) {
 			Activity:      strPtr("Swim"),
 			SensitiveData: domain.SessionSensitiveData{PerceivedEffort: &effort},
 		}
-		updated, err := s.Update(ctx, q, id.OrgID, created.ID, p1, secureBytes(t, ctx, p1))
+		updated, err := s.Update(ctx, q, id.OrgID, created.ID, p1, secureBytes(t, ctx, p1), nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -245,7 +245,7 @@ func TestWorkoutSessionStore_Update(t *testing.T) {
 		s, q, ctx := newTestWorkoutSessionStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
 		p := WorkoutSessionParams{}
-		_, err := s.Update(ctx, q, id.OrgID, domain.WorkoutSessionID(999), p, secureBytes(t, ctx, p))
+		_, err := s.Update(ctx, q, id.OrgID, domain.WorkoutSessionID(999), p, secureBytes(t, ctx, p), nil)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
