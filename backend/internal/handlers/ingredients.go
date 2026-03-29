@@ -43,7 +43,7 @@ type ingredientRequest struct {
 func (h *IngredientHandler) list(w http.ResponseWriter, r *http.Request) {
 	ingredients, err := h.svc.List(r.Context())
 	if err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "ingredient not found")
 		return
 	}
 	jsonOK(w, ingredients)
@@ -57,7 +57,7 @@ func (h *IngredientHandler) get(w http.ResponseWriter, r *http.Request) {
 	}
 	ingredient, err := h.svc.Get(r.Context(), id)
 	if err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "ingredient not found")
 		return
 	}
 	jsonOK(w, ingredient)
@@ -80,7 +80,7 @@ func (h *IngredientHandler) create(w http.ResponseWriter, r *http.Request) {
 		IsPublic:        req.IsPublic,
 	})
 	if err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "ingredient not found")
 		return
 	}
 	jsonResponse(w, ingredient, http.StatusCreated)
@@ -108,7 +108,7 @@ func (h *IngredientHandler) update(w http.ResponseWriter, r *http.Request) {
 		IsPublic:        req.IsPublic,
 	})
 	if err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "ingredient not found")
 		return
 	}
 	jsonOK(w, ingredient)
@@ -122,7 +122,7 @@ func (h *IngredientHandler) delete(w http.ResponseWriter, r *http.Request) {
 	}
 	err = h.svc.Delete(r.Context(), id)
 	if err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "ingredient not found")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -136,30 +136,13 @@ func (h *IngredientHandler) fdcSync(w http.ResponseWriter, r *http.Request) {
 	}
 	ingredient, err := h.svc.RefreshFromFDC(r.Context(), id)
 	if err != nil {
-		h.handleError(w, r, err)
+		var ee *service.ExternalServiceError
+		if errors.As(err, &ee) {
+			jsonError(w, ee.Error(), http.StatusUnprocessableEntity)
+			return
+		}
+		handleServiceError(w, r, err, "ingredient not found")
 		return
 	}
 	jsonOK(w, ingredient)
-}
-
-func (h *IngredientHandler) handleError(w http.ResponseWriter, r *http.Request, err error) {
-	var ve *service.ValidationError
-	if errors.As(err, &ve) {
-		jsonError(w, ve.Error(), http.StatusBadRequest)
-		return
-	}
-	var ee *service.ExternalServiceError
-	if errors.As(err, &ee) {
-		jsonError(w, ee.Error(), http.StatusUnprocessableEntity)
-		return
-	}
-	if errors.Is(err, service.ErrNotFound) {
-		jsonError(w, "ingredient not found", http.StatusNotFound)
-		return
-	}
-	if errors.Is(err, service.ErrUnauthorized) {
-		jsonError(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	internalError(w, r, err)
 }

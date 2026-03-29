@@ -5,7 +5,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
@@ -43,7 +42,7 @@ type recipeRequest struct {
 func (h *RecipeHandler) list(w http.ResponseWriter, r *http.Request) {
 	recipes, err := h.svc.List(r.Context())
 	if err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "recipe not found")
 		return
 	}
 	jsonOK(w, recipes)
@@ -57,7 +56,7 @@ func (h *RecipeHandler) get(w http.ResponseWriter, r *http.Request) {
 	}
 	recipe, err := h.svc.Get(r.Context(), id)
 	if err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "recipe not found")
 		return
 	}
 	jsonOK(w, recipe)
@@ -78,7 +77,7 @@ func (h *RecipeHandler) create(w http.ResponseWriter, r *http.Request) {
 		IsPublic:    req.IsPublic,
 	})
 	if err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "recipe not found")
 		return
 	}
 	jsonResponse(w, recipe, http.StatusCreated)
@@ -104,7 +103,7 @@ func (h *RecipeHandler) update(w http.ResponseWriter, r *http.Request) {
 		IsPublic:    req.IsPublic,
 	})
 	if err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "recipe not found")
 		return
 	}
 	jsonOK(w, recipe)
@@ -117,7 +116,7 @@ func (h *RecipeHandler) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.svc.Delete(r.Context(), id); err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "recipe not found")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -154,7 +153,7 @@ func (h *RecipeHandler) addPreparation(w http.ResponseWriter, r *http.Request) {
 		Unit:          req.Unit,
 	})
 	if err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "recipe not found")
 		return
 	}
 	jsonResponse(w, rp, http.StatusCreated)
@@ -182,7 +181,7 @@ func (h *RecipeHandler) updatePreparation(w http.ResponseWriter, r *http.Request
 		Unit:     req.Unit,
 	})
 	if err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "recipe not found")
 		return
 	}
 	jsonOK(w, rp)
@@ -200,25 +199,8 @@ func (h *RecipeHandler) deletePreparation(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err := h.svc.DeletePreparation(r.Context(), linkID); err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "recipe not found")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *RecipeHandler) handleError(w http.ResponseWriter, r *http.Request, err error) {
-	var ve *service.ValidationError
-	if errors.As(err, &ve) {
-		jsonError(w, ve.Error(), http.StatusBadRequest)
-		return
-	}
-	if errors.Is(err, service.ErrNotFound) {
-		jsonError(w, "recipe not found", http.StatusNotFound)
-		return
-	}
-	if errors.Is(err, service.ErrUnauthorized) {
-		jsonError(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	internalError(w, r, err)
 }

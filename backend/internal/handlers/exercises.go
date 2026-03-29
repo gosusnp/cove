@@ -40,7 +40,7 @@ type exerciseRequest struct {
 func (h *ExerciseHandler) list(w http.ResponseWriter, r *http.Request) {
 	exercises, err := h.svc.List(r.Context())
 	if err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "exercise not found")
 		return
 	}
 	jsonOK(w, exercises)
@@ -54,7 +54,7 @@ func (h *ExerciseHandler) get(w http.ResponseWriter, r *http.Request) {
 	}
 	exercise, err := h.svc.Get(r.Context(), id)
 	if err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "exercise not found")
 		return
 	}
 	jsonOK(w, exercise)
@@ -68,7 +68,7 @@ func (h *ExerciseHandler) create(w http.ResponseWriter, r *http.Request) {
 	}
 	exercise, err := h.svc.Create(r.Context(), req.Name, req.Progression, req.Description, req.IsPublic)
 	if err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "exercise not found")
 		return
 	}
 	jsonResponse(w, exercise, http.StatusCreated)
@@ -89,14 +89,14 @@ func (h *ExerciseHandler) update(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, service.ErrConflict) {
 		current, err := h.svc.Get(r.Context(), id)
 		if err != nil {
-			h.handleError(w, r, err)
+			handleServiceError(w, r, err, "exercise not found")
 			return
 		}
 		jsonResponse(w, current, http.StatusConflict)
 		return
 	}
 	if err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "exercise not found")
 		return
 	}
 	jsonOK(w, exercise)
@@ -110,25 +110,8 @@ func (h *ExerciseHandler) delete(w http.ResponseWriter, r *http.Request) {
 	}
 	err = h.svc.Delete(r.Context(), id)
 	if err != nil {
-		h.handleError(w, r, err)
+		handleServiceError(w, r, err, "exercise not found")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *ExerciseHandler) handleError(w http.ResponseWriter, r *http.Request, err error) {
-	var ve *service.ValidationError
-	if errors.As(err, &ve) {
-		jsonError(w, ve.Error(), http.StatusBadRequest)
-		return
-	}
-	if errors.Is(err, service.ErrNotFound) {
-		jsonError(w, "exercise not found", http.StatusNotFound)
-		return
-	}
-	if errors.Is(err, service.ErrUnauthorized) {
-		jsonError(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	internalError(w, r, err)
 }
