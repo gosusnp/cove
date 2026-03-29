@@ -6,6 +6,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
@@ -67,15 +68,16 @@ func registerExerciseTools(server *mcp.Server, exercises *service.ExerciseServic
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "update_exercise",
-		Description: "Update an exercise's name, progression, description or visibility",
+		Description: "Update an exercise's name, progression, description or visibility. updated_at is the version token for optimistic locking; omit for last-write-wins.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
-		ID          int64   `json:"id"`
-		Name        string  `json:"name"`
-		Progression *string `json:"progression,omitempty"`
-		Description *string `json:"description,omitempty"`
-		IsPublic    bool    `json:"is_public"`
+		ID          int64      `json:"id"`
+		UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+		Name        string     `json:"name"`
+		Progression *string    `json:"progression,omitempty"`
+		Description *string    `json:"description,omitempty"`
+		IsPublic    bool       `json:"is_public"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		exercise, err := exercises.Update(ctx, domain.ExerciseID(params.ID), params.Name, params.Progression, params.Description, params.IsPublic)
+		exercise, err := exercises.Update(ctx, domain.ExerciseID(params.ID), params.UpdatedAt, params.Name, params.Progression, params.Description, params.IsPublic)
 		if err != nil {
 			return nil, struct{}{}, err
 		}

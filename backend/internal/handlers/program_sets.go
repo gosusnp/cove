@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
@@ -29,9 +30,10 @@ func (h *ProgramSetHandler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 type programSetRequest struct {
-	Name                *string `json:"name,omitempty"`
-	Rounds              int     `json:"rounds"`
-	IntraSetRestSeconds *int    `json:"rest_s,omitempty"`
+	UpdatedAt           *time.Time `json:"updated_at,omitempty"`
+	Name                *string    `json:"name,omitempty"`
+	Rounds              int        `json:"rounds"`
+	IntraSetRestSeconds *int       `json:"rest_s,omitempty"`
 }
 
 func (h *ProgramSetHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -114,13 +116,18 @@ func (h *ProgramSetHandler) update(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	ps, err := h.svc.UpdateSet(r.Context(), programID, id, req.Name, req.Rounds, req.IntraSetRestSeconds)
-	if errors.Is(err, service.ErrNotFound) {
-		jsonError(w, "program set not found", http.StatusNotFound)
+	ps, err := h.svc.UpdateSet(r.Context(), programID, id, req.UpdatedAt, req.Name, req.Rounds, req.IntraSetRestSeconds)
+	if errors.Is(err, service.ErrConflict) {
+		current, err := h.svc.GetSet(r.Context(), programID, id)
+		if err != nil {
+			handleServiceError(w, r, err, "program set not found")
+			return
+		}
+		jsonResponse(w, current, http.StatusConflict)
 		return
 	}
 	if err != nil {
-		internalError(w, r, err)
+		handleServiceError(w, r, err, "program set not found")
 		return
 	}
 	jsonOK(w, ps)

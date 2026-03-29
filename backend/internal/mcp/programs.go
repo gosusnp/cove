@@ -6,6 +6,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/gosusnp/cove/backend/internal/domain"
@@ -155,15 +156,16 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "update_program",
-		Description: "Update a program's name, description, activity or visibility",
+		Description: "Update a program's name, description, activity or visibility. updated_at is the version token for optimistic locking; omit for last-write-wins.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
-		ID          int64   `json:"id"`
-		Name        string  `json:"name"`
-		Description *string `json:"description,omitempty"`
-		Activity    *string `json:"activity,omitempty"`
-		IsPublic    bool    `json:"is_public"`
+		ID          int64      `json:"id"`
+		UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+		Name        string     `json:"name"`
+		Description *string    `json:"description,omitempty"`
+		Activity    *string    `json:"activity,omitempty"`
+		IsPublic    bool       `json:"is_public"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		program, err := programs.Update(ctx, domain.ProgramID(params.ID), params.Name, params.Description, params.Activity, params.IsPublic)
+		program, err := programs.Update(ctx, domain.ProgramID(params.ID), params.UpdatedAt, params.Name, params.Description, params.Activity, params.IsPublic)
 		if err != nil {
 			return nil, struct{}{}, err
 		}

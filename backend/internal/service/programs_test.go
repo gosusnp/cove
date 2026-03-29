@@ -198,7 +198,7 @@ func TestProgramService_Update(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
 		p, _ := svc.Create(ctx, "Strength", nil, nil, true)
 
-		_, err := svc.Update(ctx, p.ID, "", nil, nil, true)
+		_, err := svc.Update(ctx, p.ID, nil, "", nil, nil, true)
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("got %v, want ValidationError", err)
@@ -208,8 +208,9 @@ func TestProgramService_Update(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
 		p, _ := svc.Create(ctx, "Strength", nil, nil, true)
+		full, _ := svc.Get(ctx, p.ID)
 
-		updated, err := svc.Update(ctx, p.ID, "New Name", nil, nil, true)
+		updated, err := svc.Update(ctx, p.ID, &full.UpdatedAt, "New Name", nil, nil, true)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -221,7 +222,7 @@ func TestProgramService_Update(t *testing.T) {
 	t.Run("not found returns ErrNotFound", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
 
-		_, err := svc.Update(ctx, domain.ProgramID(999), "Name", nil, nil, true)
+		_, err := svc.Update(ctx, domain.ProgramID(999), nil, "Name", nil, nil, true)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -270,8 +271,9 @@ func TestProgramService_Sets(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
 		p, _ := svc.Create(ctx, "Test", nil, nil, true)
 		ps, _ := svc.CreateSet(ctx, p.ID, nil, 3, nil)
+		full, _ := svc.Get(ctx, p.ID)
 
-		updated, err := svc.UpdateSet(ctx, p.ID, ps.ID, nil, -5, nil)
+		updated, err := svc.UpdateSet(ctx, p.ID, ps.ID, &full.UpdatedAt, nil, -5, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -378,8 +380,9 @@ func TestProgramService_Exercises(t *testing.T) {
 		}
 
 		// Update
+		fullForUpdate, _ := svc.Get(ctx, p.ID)
 		reps := 10
-		updated, err := svc.UpdateExercise(ctx, p.ID, ps.ID, pe.ID, e.ID, nil, &reps, nil, nil, nil)
+		updated, err := svc.UpdateExercise(ctx, p.ID, ps.ID, pe.ID, &fullForUpdate.UpdatedAt, e.ID, nil, &reps, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -475,8 +478,9 @@ func TestProgramService_NameResolution(t *testing.T) {
 		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
 		pe, _ := svc.CreateExercise(ctx, p.ID, ps.ID, e.ID, nil, nil, nil, nil, nil)
 
+		fullForSnapshot, _ := svc.Get(ctx, p.ID)
 		reps := 5
-		if _, err := svc.UpdateExercise(ctx, p.ID, ps.ID, pe.ID, e.ID, nil, &reps, nil, nil, nil); err != nil {
+		if _, err := svc.UpdateExercise(ctx, p.ID, ps.ID, pe.ID, &fullForSnapshot.UpdatedAt, e.ID, nil, &reps, nil, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 
@@ -518,16 +522,17 @@ func TestProgramService_Normalization(t *testing.T) {
 	t.Run("Update normalizes name", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)
 		p, _ := svc.Create(ctx, "Original", nil, nil, true)
+		fullOrig, _ := svc.Get(ctx, p.ID)
 
 		// Test case 1: Whitespace only name should fail validation
-		_, err := svc.Update(ctx, p.ID, "   ", nil, nil, true)
+		_, err := svc.Update(ctx, p.ID, nil, "   ", nil, nil, true)
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("Update: got error %v, want ValidationError for whitespace name", err)
 		}
 
 		// Test case 2: Name with whitespace should be trimmed
-		updated, err := svc.Update(ctx, p.ID, "  New Name  ", nil, nil, true)
+		updated, err := svc.Update(ctx, p.ID, &fullOrig.UpdatedAt, "  New Name  ", nil, nil, true)
 		if err != nil {
 			t.Fatalf("Update: unexpected error: %v", err)
 		}

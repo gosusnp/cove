@@ -248,8 +248,8 @@ func TestExerciseHandler_Update(t *testing.T) {
 		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
 		e := app.SeedExerciseForUser(context.Background(), "Old Name", nil, u1, o1)
 
-		body := `{"name":"New Name", "progression":"Updated"}`
-		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/exercises/%d", e.ID), strings.NewReader(body), u1)
+		body := mustJSON(t, map[string]any{"name": "New Name", "progression": "Updated", "updated_at": e.UpdatedAt})
+		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/exercises/%d", e.ID), body, u1)
 		w := app.Do(r)
 
 		if w.Code != http.StatusOK {
@@ -279,11 +279,35 @@ func TestExerciseHandler_Update(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		app := NewTestApp(t)
 		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
-		r := app.AuthRequest(http.MethodPut, "/api/exercises/999", strings.NewReader(`{"name":"test"}`), u1)
+		body := mustJSON(t, map[string]any{"name": "test", "updated_at": nil})
+		r := app.AuthRequest(http.MethodPut, "/api/exercises/999", body, u1)
 		w := app.Do(r)
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("conflict when updated_at is stale", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		e := app.SeedExerciseForUser(context.Background(), "Push-up", nil, u1, o1)
+
+		// First update to advance the timestamp.
+		body1 := mustJSON(t, map[string]any{"name": "Push-up v2", "updated_at": e.UpdatedAt})
+		r1 := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/exercises/%d", e.ID), body1, u1)
+		w1 := app.Do(r1)
+		if w1.Code != http.StatusOK {
+			t.Fatalf("setup: got status %d, want %d", w1.Code, http.StatusOK)
+		}
+
+		// Second update using the old timestamp should conflict.
+		body2 := mustJSON(t, map[string]any{"name": "Push-up v3", "updated_at": e.UpdatedAt})
+		r2 := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/exercises/%d", e.ID), body2, u1)
+		w2 := app.Do(r2)
+
+		if w2.Code != http.StatusConflict {
+			t.Errorf("stale: got status %d, want %d", w2.Code, http.StatusConflict)
 		}
 	})
 

@@ -27,8 +27,12 @@ func NewWorkoutSessionService(db *sql.DB, s *store.WorkoutSessionStore, enc cryp
 
 // WorkoutSessionPatch contains the fields that may be changed via a partial
 // update. Only fields where Optional.Set == true are applied; absent fields
-// retain their current values unchanged.
+// retain their current values unchanged. UpdatedAt is an optional version token
+// for optimistic locking; when provided, the update is rejected if the stored
+// updated_at does not match. When nil, the update is applied unconditionally
+// (last-write-wins).
 type WorkoutSessionPatch struct {
+	UpdatedAt        *time.Time                  `json:"updated_at,omitempty"`
 	ProgramID        domain.Optional[*int64]     `json:"program_id"`
 	Activity         domain.Optional[*string]    `json:"activity"`
 	DurationS        domain.Optional[*int]       `json:"duration_s"`
@@ -143,7 +147,7 @@ func (s *WorkoutSessionService) Create(ctx context.Context, p store.WorkoutSessi
 	return ws, nil
 }
 
-func (s *WorkoutSessionService) Update(ctx context.Context, id domain.WorkoutSessionID, p store.WorkoutSessionParams) (*domain.WorkoutSession, error) {
+func (s *WorkoutSessionService) Update(ctx context.Context, id domain.WorkoutSessionID, updatedAt *time.Time, p store.WorkoutSessionParams) (*domain.WorkoutSession, error) {
 	identity, ok := domain.IdentityFromContext(ctx)
 	if !ok {
 		return nil, ErrUnauthorized
@@ -157,9 +161,12 @@ func (s *WorkoutSessionService) Update(ctx context.Context, id domain.WorkoutSes
 	var ws *domain.WorkoutSession
 	err = withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var err error
-		ws, err = s.store.Update(ctx, q, identity.OrgID, id, p, sensitiveData, p.SensitiveData.Summary != nil)
+		ws, err = s.store.Update(ctx, q, identity.OrgID, id, p, sensitiveData, p.SensitiveData.Summary != nil, updatedAt)
 		return err
 	})
+	if errors.Is(err, store.ErrConflict) {
+		return nil, ErrConflict
+	}
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, ErrNotFound
 	}
@@ -255,9 +262,12 @@ func (s *WorkoutSessionService) Patch(ctx context.Context, id domain.WorkoutSess
 			return err
 		}
 
-		ws, err = s.store.Update(ctx, q, identity.OrgID, id, p, sensitiveData, setSummaryNow)
+		ws, err = s.store.Update(ctx, q, identity.OrgID, id, p, sensitiveData, setSummaryNow, patch.UpdatedAt)
 		return err
 	})
+	if errors.Is(err, store.ErrConflict) {
+		return nil, ErrConflict
+	}
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, ErrNotFound
 	}

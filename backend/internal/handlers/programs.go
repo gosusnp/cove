@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
@@ -34,10 +35,11 @@ func (h *ProgramHandler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 type programRequest struct {
-	Name        string  `json:"name"`
-	Description *string `json:"description,omitempty"`
-	Activity    *string `json:"activity,omitempty"`
-	IsPublic    bool    `json:"is_public"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description,omitempty"`
+	Activity    *string    `json:"activity,omitempty"`
+	IsPublic    bool       `json:"is_public"`
 }
 
 func (h *ProgramHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -109,7 +111,7 @@ func (h *ProgramHandler) update(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	program, err := h.svc.Update(r.Context(), id, req.Name, req.Description, req.Activity, req.IsPublic)
+	program, err := h.svc.Update(r.Context(), id, req.UpdatedAt, req.Name, req.Description, req.Activity, req.IsPublic)
 	if errors.Is(err, service.ErrUnauthorized) {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -119,12 +121,17 @@ func (h *ProgramHandler) update(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, ve.Error(), http.StatusBadRequest)
 		return
 	}
-	if errors.Is(err, service.ErrNotFound) {
-		jsonError(w, "program not found", http.StatusNotFound)
+	if errors.Is(err, service.ErrConflict) {
+		current, err := h.svc.Get(r.Context(), id)
+		if err != nil {
+			handleServiceError(w, r, err, "program not found")
+			return
+		}
+		jsonResponse(w, current, http.StatusConflict)
 		return
 	}
 	if err != nil {
-		internalError(w, r, err)
+		handleServiceError(w, r, err, "program not found")
 		return
 	}
 	jsonOK(w, program)

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 )
@@ -97,11 +98,11 @@ func (s *ProgramStore) Create(ctx context.Context, q Querier, orgID domain.OrgID
 	return s.GetLite(ctx, q, orgID, id)
 }
 
-func (s *ProgramStore) Update(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID, name string, description *string, activity *string, isPublic bool) (*domain.ProgramLite, error) {
+func (s *ProgramStore) Update(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ProgramID, name string, description *string, activity *string, isPublic bool, updatedAt *time.Time) (*domain.ProgramLite, error) {
 	res, err := q.ExecContext(ctx,
 		`UPDATE cove.programs SET name = $1, description = $2, activity = $3, is_public = $4
-		 WHERE id = $5 AND org_id = $6`,
-		name, description, activity, isPublic, id, orgID,
+		 WHERE id = $5 AND org_id = $6 AND ($7::timestamptz IS NULL OR updated_at = $7)`,
+		name, description, activity, isPublic, id, orgID, updatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("update program: %w", err)
@@ -111,7 +112,10 @@ func (s *ProgramStore) Update(ctx context.Context, q Querier, orgID domain.OrgID
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
 	if n == 0 {
-		return nil, ErrNotFound
+		if _, err := s.GetLite(ctx, q, orgID, id); errors.Is(err, ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, ErrConflict
 	}
 	return s.GetLite(ctx, q, orgID, id)
 }
@@ -229,6 +233,29 @@ func (s *ProgramStore) lockProgram(ctx context.Context, q Querier, orgID domain.
 	}
 	if err != nil {
 		return fmt.Errorf("lock program: %w", err)
+	}
+	return nil
+}
+
+// lockProgramWithVersion acquires a FOR UPDATE row lock on the programs row,
+// verifies ownership, and checks the optimistic lock version. It returns
+// ErrNotFound if the row does not exist, and ErrConflict if the row exists
+// but updated_at does not match updatedAt. If updatedAt is nil, the check
+// is skipped.
+func (s *ProgramStore) lockProgramWithVersion(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, updatedAt *time.Time) error {
+	var actual time.Time
+	err := q.QueryRowContext(ctx,
+		`SELECT updated_at FROM cove.programs WHERE id = $1 AND org_id = $2 FOR UPDATE`,
+		programID, orgID,
+	).Scan(&actual)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("lock program: %w", err)
+	}
+	if updatedAt != nil && !actual.Equal(*updatedAt) {
+		return ErrConflict
 	}
 	return nil
 }
@@ -355,8 +382,9 @@ func (s *ProgramStore) CreateSet(ctx context.Context, q Querier, orgID domain.Or
 }
 
 // UpdateSet updates an existing set in the programs.sets JSONB column.
-func (s *ProgramStore) UpdateSet(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, id int64, name *string, rounds int, intraSetRestSeconds *int) (*ProgramSet, error) {
-	if err := s.lockProgram(ctx, q, orgID, programID); err != nil {
+// updatedAt is the program's updated_at version token for optimistic locking.
+func (s *ProgramStore) UpdateSet(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, id int64, name *string, rounds int, intraSetRestSeconds *int, updatedAt *time.Time) (*ProgramSet, error) {
+	if err := s.lockProgramWithVersion(ctx, q, orgID, programID, updatedAt); err != nil {
 		return nil, err
 	}
 	sets, err := s.readSets(ctx, q, programID)
@@ -475,8 +503,9 @@ func (s *ProgramStore) CreateExercise(ctx context.Context, q Querier, orgID doma
 
 // UpdateExercise updates an existing exercise in the programs.sets JSONB column.
 // name_snapshot is never mutated on update; the existing value is preserved.
-func (s *ProgramStore) UpdateExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID, id int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeight *float64, weightUnit *domain.Unit) (*ProgramExercise, error) {
-	if err := s.lockProgram(ctx, q, orgID, programID); err != nil {
+// updatedAt is the program's updated_at version token for optimistic locking.
+func (s *ProgramStore) UpdateExercise(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, setID, id int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeight *float64, weightUnit *domain.Unit, updatedAt *time.Time) (*ProgramExercise, error) {
+	if err := s.lockProgramWithVersion(ctx, q, orgID, programID, updatedAt); err != nil {
 		return nil, err
 	}
 

@@ -133,9 +133,11 @@ func TestProgramSetHandler_Update(t *testing.T) {
 		app := NewTestApp(t)
 		p := app.SeedProgram("Test Program")
 		ps := app.SeedProgramSet(p.ID, 1)
+		ctx := domain.NewContext(context.Background(), app.programOwners[p.ID])
+		full, _ := app.Programs.Get(ctx, p.ID)
 
-		body := `{"rounds":5}`
-		r := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/programs/%d/sets/%d", p.ID, ps.ID), strings.NewReader(body))
+		body := mustJSON(t, map[string]any{"rounds": 5, "updated_at": full.UpdatedAt})
+		r := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/programs/%d/sets/%d", p.ID, ps.ID), body)
 		w := app.DoRaw(r)
 
 		if w.Code != http.StatusOK {
@@ -143,7 +145,6 @@ func TestProgramSetHandler_Update(t *testing.T) {
 		}
 
 		// Verify change
-		ctx := domain.NewContext(context.Background(), app.programOwners[p.ID])
 		got, _ := app.Programs.GetSet(ctx, p.ID, ps.ID)
 		if got.Rounds != 5 {
 			t.Errorf("got rounds %d, want 5", got.Rounds)
@@ -153,7 +154,8 @@ func TestProgramSetHandler_Update(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		app := NewTestApp(t)
 		p := app.SeedProgram("Test Program")
-		r := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/programs/%d/sets/999", p.ID), strings.NewReader(`{"rounds":1}`))
+		body := mustJSON(t, map[string]any{"rounds": 1, "updated_at": nil})
+		r := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/programs/%d/sets/999", p.ID), body)
 		w := app.DoRaw(r)
 
 		if w.Code != http.StatusNotFound {

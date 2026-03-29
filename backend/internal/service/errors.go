@@ -9,6 +9,7 @@ import (
 
 var ErrNotFound = store.ErrNotFound
 var ErrDuplicate = store.ErrDuplicate
+var ErrConflict = store.ErrConflict
 
 type ValidationError struct{ Msg string }
 

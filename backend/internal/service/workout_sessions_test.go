@@ -162,7 +162,7 @@ func TestWorkoutSessionService_Update(t *testing.T) {
 
 		newActivity := "Swim"
 		effort := 9
-		updated, err := svc.Update(ctx, created.ID, store.WorkoutSessionParams{
+		updated, err := svc.Update(ctx, created.ID, &created.UpdatedAt, store.WorkoutSessionParams{
 			Activity: &newActivity,
 			SensitiveData: domain.SessionSensitiveData{
 				PerceivedEffort: &effort,
@@ -187,7 +187,7 @@ func TestWorkoutSessionService_Update(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		svc, ctx := newTestWorkoutSessionService(t)
 
-		_, err := svc.Update(ctx, domain.WorkoutSessionID(999), store.WorkoutSessionParams{})
+		_, err := svc.Update(ctx, domain.WorkoutSessionID(999), nil, store.WorkoutSessionParams{})
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}

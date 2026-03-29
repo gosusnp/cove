@@ -13,6 +13,7 @@ import (
 
 var ErrNotFound = errors.New("not found")
 var ErrDuplicate = errors.New("duplicate")
+var ErrConflict = errors.New("conflict")
 
 // isUniqueViolation reports whether err is a PostgreSQL unique constraint violation (23505).
 func isUniqueViolation(err error) bool {

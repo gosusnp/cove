@@ -212,7 +212,7 @@ func TestExerciseStore_Update(t *testing.T) {
 		}
 
 		newProg := "Weight vest"
-		updated, err := s.Update(ctx, db, id.OrgID, created.ID, "Hard Push-up", &newProg, nil, true)
+		updated, err := s.Update(ctx, db, id.OrgID, created.ID, "Hard Push-up", &newProg, nil, true, &created.UpdatedAt)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -228,7 +228,7 @@ func TestExerciseStore_Update(t *testing.T) {
 		s, db, ctx := newTestExerciseStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
 
-		_, err := s.Update(ctx, db, id.OrgID, domain.ExerciseID(999), "Push-up", nil, nil, true)
+		_, err := s.Update(ctx, db, id.OrgID, domain.ExerciseID(999), "Push-up", nil, nil, true, nil)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}

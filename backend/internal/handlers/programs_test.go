@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 )
@@ -263,9 +264,11 @@ func TestProgramHandler_Update(t *testing.T) {
 		app := NewTestApp(t)
 		uID, oID := app.SeedUserWithOrg("test@test.com", "sub")
 		p := app.SeedProgramForUser(t.Context(), "Old Name", uID, oID)
+		ctx := domain.NewContext(t.Context(), &domain.Identity{UserID: uID, OrgID: oID})
+		full, _ := app.Programs.Get(ctx, p.ID)
 
-		body := `{"name":"New Name"}`
-		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/programs/%d", p.ID), strings.NewReader(body), uID)
+		body := mustJSON(t, map[string]any{"name": "New Name", "updated_at": full.UpdatedAt})
+		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/programs/%d", p.ID), body, uID)
 		w := app.Do(r)
 
 		if w.Code != http.StatusOK {
@@ -273,7 +276,6 @@ func TestProgramHandler_Update(t *testing.T) {
 		}
 
 		// Verify change
-		ctx := domain.NewContext(t.Context(), &domain.Identity{UserID: uID, OrgID: oID})
 		ex, _ := app.Programs.Get(ctx, p.ID)
 		if ex.Name != "New Name" {
 			t.Errorf("got name %q, want %q", ex.Name, "New Name")
@@ -283,11 +285,37 @@ func TestProgramHandler_Update(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		app := NewTestApp(t)
 		uID, _ := app.SeedUserWithOrg("test@test.com", "sub")
-		r := app.AuthRequest(http.MethodPut, "/api/programs/999", strings.NewReader(`{"name":"test"}`), uID)
+		body := mustJSON(t, map[string]any{"name": "test", "updated_at": nil})
+		r := app.AuthRequest(http.MethodPut, "/api/programs/999", body, uID)
 		w := app.Do(r)
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("conflict when updated_at is stale", func(t *testing.T) {
+		app := NewTestApp(t)
+		uID, oID := app.SeedUserWithOrg("test@test.com", "sub")
+		p := app.SeedProgramForUser(t.Context(), "Old Name", uID, oID)
+		ctx := domain.NewContext(t.Context(), &domain.Identity{UserID: uID, OrgID: oID})
+		full, _ := app.Programs.Get(ctx, p.ID)
+
+		// First update to advance the timestamp.
+		body1 := mustJSON(t, map[string]any{"name": "New Name", "updated_at": full.UpdatedAt})
+		r1 := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/programs/%d", p.ID), body1, uID)
+		w1 := app.Do(r1)
+		if w1.Code != http.StatusOK {
+			t.Fatalf("setup: got status %d, want %d", w1.Code, http.StatusOK)
+		}
+
+		// Second update using the old timestamp should conflict.
+		body2 := mustJSON(t, map[string]any{"name": "Another Name", "updated_at": full.UpdatedAt})
+		r2 := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/programs/%d", p.ID), body2, uID)
+		w2 := app.Do(r2)
+
+		if w2.Code != http.StatusConflict {
+			t.Errorf("stale: got status %d, want %d", w2.Code, http.StatusConflict)
 		}
 	})
 
@@ -299,8 +327,8 @@ func TestProgramHandler_Update(t *testing.T) {
 		p1 := app.SeedProgramForUser(t.Context(), "U1 Program", u1, o1)
 
 		// Request as U2
-		body := `{"name":"Hacked"}`
-		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/programs/%d", p1.ID), strings.NewReader(body), u2)
+		body := mustJSON(t, map[string]any{"name": "Hacked", "updated_at": time.Now()})
+		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/programs/%d", p1.ID), body, u2)
 		w := app.Do(r)
 
 		if w.Code != http.StatusNotFound {

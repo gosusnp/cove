@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 )
@@ -130,11 +131,11 @@ func (s *ExerciseStore) Create(ctx context.Context, q Querier, name string, prog
 	return s.Get(ctx, q, idInfo.OrgID, id)
 }
 
-func (s *ExerciseStore) Update(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ExerciseID, name string, progression *string, description *string, isPublic bool) (*domain.Exercise, error) {
+func (s *ExerciseStore) Update(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ExerciseID, name string, progression *string, description *string, isPublic bool, updatedAt *time.Time) (*domain.Exercise, error) {
 	res, err := q.ExecContext(ctx,
 		`UPDATE cove.exercises SET name = $1, progression = $2, description = $3, is_public = $4
-		 WHERE id = $5 AND org_id = $6`,
-		name, progression, description, isPublic, id, orgID,
+		 WHERE id = $5 AND org_id = $6 AND ($7::timestamptz IS NULL OR updated_at = $7)`,
+		name, progression, description, isPublic, id, orgID, updatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("update exercise: %w", err)
@@ -144,7 +145,10 @@ func (s *ExerciseStore) Update(ctx context.Context, q Querier, orgID domain.OrgI
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
 	if n == 0 {
-		return nil, ErrNotFound
+		if _, err := s.Get(ctx, q, orgID, id); errors.Is(err, ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, ErrConflict
 	}
 	return s.Get(ctx, q, orgID, id)
 }

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/markdown"
@@ -171,7 +172,7 @@ func (s *ProgramService) Create(ctx context.Context, name string, description *s
 	return p, err
 }
 
-func (s *ProgramService) Update(ctx context.Context, id domain.ProgramID, name string, description *string, activity *string, isPublic bool) (*domain.ProgramLite, error) {
+func (s *ProgramService) Update(ctx context.Context, id domain.ProgramID, updatedAt *time.Time, name string, description *string, activity *string, isPublic bool) (*domain.ProgramLite, error) {
 	name = normalizeName(name)
 	if name == "" {
 		return nil, &ValidationError{Msg: "name is required"}
@@ -186,11 +187,11 @@ func (s *ProgramService) Update(ctx context.Context, id domain.ProgramID, name s
 	var p *domain.ProgramLite
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var err error
-		p, err = s.store.Update(ctx, q, idInfo.OrgID, id, name, description, activity, isPublic)
+		p, err = s.store.Update(ctx, q, idInfo.OrgID, id, name, description, activity, isPublic, updatedAt)
 		return err
 	})
-	if errors.Is(err, store.ErrNotFound) {
-		return nil, ErrNotFound
+	if errors.Is(err, store.ErrConflict) {
+		return nil, ErrConflict
 	}
 	return p, err
 }
@@ -240,7 +241,7 @@ func (s *ProgramService) CreateSet(ctx context.Context, programID domain.Program
 	return ps, err
 }
 
-func (s *ProgramService) UpdateSet(ctx context.Context, programID domain.ProgramID, id int64, name *string, rounds int, intraSetRestSeconds *int) (*store.ProgramSet, error) {
+func (s *ProgramService) UpdateSet(ctx context.Context, programID domain.ProgramID, id int64, updatedAt *time.Time, name *string, rounds int, intraSetRestSeconds *int) (*store.ProgramSet, error) {
 	if rounds < 1 {
 		rounds = 1
 	}
@@ -248,9 +249,12 @@ func (s *ProgramService) UpdateSet(ctx context.Context, programID domain.Program
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		idInfo, _ := domain.IdentityFromContext(ctx)
 		var err error
-		ps, err = s.store.UpdateSet(ctx, q, idInfo.OrgID, programID, id, name, rounds, intraSetRestSeconds)
+		ps, err = s.store.UpdateSet(ctx, q, idInfo.OrgID, programID, id, name, rounds, intraSetRestSeconds, updatedAt)
 		return err
 	})
+	if errors.Is(err, store.ErrConflict) {
+		return nil, ErrConflict
+	}
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, ErrNotFound
 	}
@@ -327,7 +331,7 @@ func (s *ProgramService) CreateExercise(ctx context.Context, programID domain.Pr
 	return pe, err
 }
 
-func (s *ProgramService) UpdateExercise(ctx context.Context, programID domain.ProgramID, setID, id int64, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeight *float64, weightUnit *domain.Unit) (*store.ProgramExercise, error) {
+func (s *ProgramService) UpdateExercise(ctx context.Context, programID domain.ProgramID, setID, id int64, updatedAt *time.Time, exerciseID domain.ExerciseID, laterality *string, targetReps, targetDurationSeconds *int, targetWeight *float64, weightUnit *domain.Unit) (*store.ProgramExercise, error) {
 	if exerciseID == 0 {
 		return nil, &ValidationError{Msg: "exercise_id is required"}
 	}
@@ -348,9 +352,12 @@ func (s *ProgramService) UpdateExercise(ctx context.Context, programID domain.Pr
 			return ErrNotFound
 		}
 
-		pe, err = s.store.UpdateExercise(ctx, q, idInfo.OrgID, programID, setID, id, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeight, weightUnit)
+		pe, err = s.store.UpdateExercise(ctx, q, idInfo.OrgID, programID, setID, id, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeight, weightUnit, updatedAt)
 		return err
 	})
+	if errors.Is(err, store.ErrConflict) {
+		return nil, ErrConflict
+	}
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, ErrNotFound
 	}

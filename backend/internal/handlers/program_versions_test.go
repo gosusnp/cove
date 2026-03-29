@@ -32,8 +32,12 @@ func TestProgramVersions_ListAndRollback(t *testing.T) {
 	// Using service directly to ensure trigger fires
 	id := &domain.Identity{UserID: uID, OrgID: orgID}
 	ctx := domain.NewContext(context.Background(), id)
+	fullBeforeUpdate, err := app.Programs.Get(ctx, pLite.ID)
+	if err != nil {
+		t.Fatalf("get program before update: %v", err)
+	}
 	newName := "Updated Name"
-	_, err := app.Programs.Update(ctx, pLite.ID, newName, nil, nil, false)
+	_, err = app.Programs.Update(ctx, pLite.ID, &fullBeforeUpdate.UpdatedAt, newName, nil, nil, false)
 	if err != nil {
 		t.Fatalf("update program: %v", err)
 	}
@@ -95,7 +99,8 @@ func TestProgramVersions_ValidationAndIsolation(t *testing.T) {
 
 	// Create a version for Program A (via update)
 	ctxA := domain.NewContext(context.Background(), &domain.Identity{UserID: uA, OrgID: oA})
-	if _, err := app.Programs.Update(ctxA, pA.ID, "Program A Updated", nil, nil, false); err != nil {
+	fullA, _ := app.Programs.Get(ctxA, pA.ID)
+	if _, err := app.Programs.Update(ctxA, pA.ID, &fullA.UpdatedAt, "Program A Updated", nil, nil, false); err != nil {
 		t.Fatalf("update program A: %v", err)
 	}
 
@@ -142,7 +147,8 @@ func TestProgramVersions_ValidationAndIsolation(t *testing.T) {
 
 	// Create a version for Program B (within Org B)
 	ctxB := domain.NewContext(context.Background(), &domain.Identity{UserID: uB, OrgID: oB})
-	if _, err := app.Programs.Update(ctxB, pB.ID, "Program B Updated", nil, nil, false); err != nil {
+	fullB, _ := app.Programs.Get(ctxB, pB.ID)
+	if _, err := app.Programs.Update(ctxB, pB.ID, &fullB.UpdatedAt, "Program B Updated", nil, nil, false); err != nil {
 		t.Fatalf("update program B: %v", err)
 	}
 	rVersionsB := app.AuthRequest("GET", "/api/programs/"+strconv.FormatInt(int64(pB.ID), 10)+"/versions", nil, uB)

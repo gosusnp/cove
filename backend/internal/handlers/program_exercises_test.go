@@ -171,10 +171,12 @@ func TestProgramExerciseHandler_Update(t *testing.T) {
 		ps := app.SeedProgramSet(p.ID, 1)
 		e := app.SeedExercise("Pull-up", nil)
 		pe := app.SeedProgramExercise(p.ID, ps.ID, e.ID)
+		ctx := domain.NewContext(context.Background(), app.programOwners[p.ID])
+		full, _ := app.Programs.Get(ctx, p.ID)
 
-		body := fmt.Sprintf(`{"exercise_id": %d, "laterality": "updated notes"}`, e.ID)
+		body := mustJSON(t, map[string]any{"exercise_id": int64(e.ID), "laterality": "updated notes", "updated_at": full.UpdatedAt})
 		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/%d", p.ID, ps.ID, pe.ID)
-		r := httptest.NewRequest(http.MethodPut, url, strings.NewReader(body))
+		r := httptest.NewRequest(http.MethodPut, url, body)
 		w := app.DoRaw(r)
 
 		if w.Code != http.StatusOK {
@@ -182,7 +184,6 @@ func TestProgramExerciseHandler_Update(t *testing.T) {
 		}
 
 		// Verify change
-		ctx := domain.NewContext(context.Background(), app.programOwners[p.ID])
 		got, _ := app.Programs.GetExercise(ctx, p.ID, ps.ID, pe.ID)
 		if got.Laterality == nil || *got.Laterality != "updated notes" {
 			t.Errorf("got laterality %v, want 'updated notes'", got.Laterality)
@@ -195,8 +196,8 @@ func TestProgramExerciseHandler_Update(t *testing.T) {
 		ps := app.SeedProgramSet(p.ID, 1)
 		e := app.SeedExercise("Pull-up", nil)
 		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/999", p.ID, ps.ID)
-		body := fmt.Sprintf(`{"exercise_id": %d}`, e.ID)
-		r := httptest.NewRequest(http.MethodPut, url, strings.NewReader(body))
+		body := mustJSON(t, map[string]any{"exercise_id": int64(e.ID), "updated_at": nil})
+		r := httptest.NewRequest(http.MethodPut, url, body)
 		w := app.DoRaw(r)
 
 		if w.Code != http.StatusNotFound {
@@ -210,10 +211,12 @@ func TestProgramExerciseHandler_Update(t *testing.T) {
 		ps := app.SeedProgramSet(p.ID, 1)
 		e := app.SeedExercise("Squat", nil)
 		pe := app.SeedProgramExercise(p.ID, ps.ID, e.ID)
+		ctx := domain.NewContext(context.Background(), app.programOwners[p.ID])
+		full, _ := app.Programs.Get(ctx, p.ID)
 
-		body := fmt.Sprintf(`{"exercise_id": %d, "weight": 100}`, e.ID)
+		body := mustJSON(t, map[string]any{"exercise_id": int64(e.ID), "weight": 100, "updated_at": full.UpdatedAt})
 		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/%d", p.ID, ps.ID, pe.ID)
-		r := httptest.NewRequest(http.MethodPut, url, strings.NewReader(body))
+		r := httptest.NewRequest(http.MethodPut, url, body)
 		w := app.DoRaw(r)
 
 		if w.Code != http.StatusBadRequest {
@@ -227,10 +230,12 @@ func TestProgramExerciseHandler_Update(t *testing.T) {
 		ps := app.SeedProgramSet(p.ID, 1)
 		e := app.SeedExercise("Squat", nil)
 		pe := app.SeedProgramExercise(p.ID, ps.ID, e.ID)
+		ctx := domain.NewContext(context.Background(), app.programOwners[p.ID])
+		full, _ := app.Programs.Get(ctx, p.ID)
 
-		body := fmt.Sprintf(`{"exercise_id": %d, "weight": 100, "weight_unit": "ml"}`, e.ID)
+		body := mustJSON(t, map[string]any{"exercise_id": int64(e.ID), "weight": 100, "weight_unit": "ml", "updated_at": full.UpdatedAt})
 		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/%d", p.ID, ps.ID, pe.ID)
-		r := httptest.NewRequest(http.MethodPut, url, strings.NewReader(body))
+		r := httptest.NewRequest(http.MethodPut, url, body)
 		w := app.DoRaw(r)
 
 		if w.Code != http.StatusBadRequest {

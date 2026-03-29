@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
@@ -29,6 +30,7 @@ func (h *ProgramExerciseHandler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 type programExerciseRequest struct {
+	UpdatedAt             *time.Time        `json:"updated_at,omitempty"`
 	ExerciseID            domain.ExerciseID `json:"exercise_id"`
 	Laterality            *string           `json:"laterality,omitempty"`
 	TargetReps            *int              `json:"reps,omitempty"`
@@ -142,18 +144,23 @@ func (h *ProgramExerciseHandler) update(w http.ResponseWriter, r *http.Request) 
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	pe, err := h.svc.UpdateExercise(r.Context(), programID, setID, id, req.ExerciseID, req.Laterality, req.TargetReps, req.TargetDurationSeconds, req.TargetWeight, req.WeightUnit)
+	pe, err := h.svc.UpdateExercise(r.Context(), programID, setID, id, req.UpdatedAt, req.ExerciseID, req.Laterality, req.TargetReps, req.TargetDurationSeconds, req.TargetWeight, req.WeightUnit)
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
 		jsonError(w, ve.Msg, http.StatusBadRequest)
 		return
 	}
-	if errors.Is(err, service.ErrNotFound) {
-		jsonError(w, "program exercise not found", http.StatusNotFound)
+	if errors.Is(err, service.ErrConflict) {
+		current, err := h.svc.GetExercise(r.Context(), programID, setID, id)
+		if err != nil {
+			handleServiceError(w, r, err, "program exercise not found")
+			return
+		}
+		jsonResponse(w, current, http.StatusConflict)
 		return
 	}
 	if err != nil {
-		internalError(w, r, err)
+		handleServiceError(w, r, err, "program exercise not found")
 		return
 	}
 	jsonOK(w, pe)

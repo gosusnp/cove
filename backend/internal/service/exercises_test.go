@@ -157,7 +157,7 @@ func TestExerciseService_Update(t *testing.T) {
 		svc, ctx := newTestExerciseService(t)
 		e, _ := svc.Create(ctx, "Push-up", nil, nil, true)
 
-		_, err := svc.Update(ctx, e.ID, "", nil, nil, true)
+		_, err := svc.Update(ctx, e.ID, nil, "", nil, nil, true)
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
 			t.Fatalf("got %v, want ValidationError", err)
@@ -167,7 +167,7 @@ func TestExerciseService_Update(t *testing.T) {
 	t.Run("not found returns ErrNotFound", func(t *testing.T) {
 		svc, ctx := newTestExerciseService(t)
 
-		_, err := svc.Update(ctx, domain.ExerciseID(999), "Valid Name", nil, nil, true)
+		_, err := svc.Update(ctx, domain.ExerciseID(999), nil, "Valid Name", nil, nil, true)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}

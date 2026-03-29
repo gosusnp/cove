@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
@@ -100,7 +101,7 @@ func (s *ExerciseService) Create(ctx context.Context, name string, progression *
 	return ex, err
 }
 
-func (s *ExerciseService) Update(ctx context.Context, id domain.ExerciseID, name string, progression *string, description *string, isPublic bool) (*domain.Exercise, error) {
+func (s *ExerciseService) Update(ctx context.Context, id domain.ExerciseID, updatedAt *time.Time, name string, progression *string, description *string, isPublic bool) (*domain.Exercise, error) {
 	identity, ok := domain.IdentityFromContext(ctx)
 	if !ok {
 		return nil, ErrUnauthorized
@@ -113,11 +114,11 @@ func (s *ExerciseService) Update(ctx context.Context, id domain.ExerciseID, name
 	var ex *domain.Exercise
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var err error
-		ex, err = s.store.Update(ctx, q, identity.OrgID, id, name, progression, description, isPublic)
+		ex, err = s.store.Update(ctx, q, identity.OrgID, id, name, progression, description, isPublic, updatedAt)
 		return err
 	})
-	if errors.Is(err, store.ErrNotFound) {
-		return nil, ErrNotFound
+	if errors.Is(err, store.ErrConflict) {
+		return nil, ErrConflict
 	}
 	return ex, err
 }

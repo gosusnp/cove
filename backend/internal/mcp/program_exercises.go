@@ -6,6 +6,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
@@ -39,11 +40,12 @@ func registerProgramExerciseTools(server *mcp.Server, svc *service.ProgramServic
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "update_program_exercise",
-		Description: "Update a program exercise's targets or laterality",
+		Description: "Update a program exercise's details. updated_at is the version token for optimistic locking; omit for last-write-wins.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
 		ProgramID             int64        `json:"program_id"`
 		SetID                 int64        `json:"set_id"`
 		ID                    int64        `json:"id"`
+		UpdatedAt             *time.Time   `json:"updated_at,omitempty"`
 		ExerciseID            int64        `json:"exercise_id"`
 		Laterality            *string      `json:"laterality,omitempty"`
 		TargetReps            *int         `json:"reps,omitempty"`
@@ -51,7 +53,7 @@ func registerProgramExerciseTools(server *mcp.Server, svc *service.ProgramServic
 		TargetWeight          *float64     `json:"weight,omitempty"`
 		WeightUnit            *domain.Unit `json:"weight_unit,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		pe, err := svc.UpdateExercise(ctx, domain.ProgramID(params.ProgramID), params.SetID, params.ID, domain.ExerciseID(params.ExerciseID), params.Laterality, params.TargetReps, params.TargetDurationSeconds, params.TargetWeight, params.WeightUnit)
+		pe, err := svc.UpdateExercise(ctx, domain.ProgramID(params.ProgramID), params.SetID, params.ID, params.UpdatedAt, domain.ExerciseID(params.ExerciseID), params.Laterality, params.TargetReps, params.TargetDurationSeconds, params.TargetWeight, params.WeightUnit)
 		if err != nil {
 			return nil, struct{}{}, err
 		}

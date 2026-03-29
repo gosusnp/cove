@@ -5,10 +5,13 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"log/slog"
 	"net/http"
 	"strconv"
+
+	"github.com/gosusnp/cove/backend/internal/service"
 )
 
 func pathID[T ~int64](r *http.Request, key string) (T, error) {
@@ -37,4 +40,24 @@ func jsonError(w http.ResponseWriter, msg string, status int) {
 func internalError(w http.ResponseWriter, r *http.Request, err error) {
 	slog.Error("internal error", "method", r.Method, "path", r.URL.Path, "err", err)
 	jsonError(w, "internal error", http.StatusInternalServerError)
+}
+
+// handleServiceError maps common service errors to HTTP responses. notFoundMsg
+// is used for ErrNotFound; all other unrecognised errors fall through to
+// internalError.
+func handleServiceError(w http.ResponseWriter, r *http.Request, err error, notFoundMsg string) {
+	var ve *service.ValidationError
+	if errors.As(err, &ve) {
+		jsonError(w, ve.Error(), http.StatusBadRequest)
+		return
+	}
+	if errors.Is(err, service.ErrUnauthorized) {
+		jsonError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if errors.Is(err, service.ErrNotFound) {
+		jsonError(w, notFoundMsg, http.StatusNotFound)
+		return
+	}
+	internalError(w, r, err)
 }

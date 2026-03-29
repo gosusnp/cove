@@ -137,8 +137,12 @@ func TestProgramStore_Update(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		full, err := s.Get(ctx, db, id.OrgID, created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		updated, err := s.Update(ctx, db, id.OrgID, created.ID, "Max Strength", nil, nil, true)
+		updated, err := s.Update(ctx, db, id.OrgID, created.ID, "Max Strength", nil, nil, true, &full.UpdatedAt)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -151,7 +155,7 @@ func TestProgramStore_Update(t *testing.T) {
 		s, db, ctx := newTestProgramStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
 
-		_, err := s.Update(ctx, db, id.OrgID, domain.ProgramID(999), "Strength", nil, nil, true)
+		_, err := s.Update(ctx, db, id.OrgID, domain.ProgramID(999), "Strength", nil, nil, true, nil)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}
@@ -373,7 +377,7 @@ func TestProgramStore_UpdateSet(t *testing.T) {
 		s, programID, ctx2, q2 := seedTwoOrgs(t)
 		o2ID := domain.OrgID{UUID: uuid.MustParse("019cb68a-0000-0000-0000-000000000004")}
 
-		_, err := s.UpdateSet(ctx2, q2, o2ID, programID, 999, nil, 1, nil)
+		_, err := s.UpdateSet(ctx2, q2, o2ID, programID, 999, nil, 1, nil, nil)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
 		}

@@ -33,6 +33,7 @@ func (h *WorkoutSessionHandler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 type workoutSessionRequest struct {
+	UpdatedAt        *time.Time `json:"updated_at,omitempty"`
 	ProgramID        *int64     `json:"program_id,omitempty"`
 	ProgramName      *string    `json:"program_name,omitempty"`
 	ProgramStructure *string    `json:"program_structure,omitempty"`
@@ -168,17 +169,23 @@ func (h *WorkoutSessionHandler) replace(w http.ResponseWriter, r *http.Request) 
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	ws, err := h.svc.Update(r.Context(), id, req.toParams())
-	if errors.Is(err, service.ErrUnauthorized) {
-		jsonError(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	if errors.Is(err, service.ErrNotFound) {
-		jsonError(w, "session not found", http.StatusNotFound)
+	ws, err := h.svc.Update(r.Context(), id, req.UpdatedAt, req.toParams())
+	if errors.Is(err, service.ErrConflict) {
+		current, err := h.svc.Get(r.Context(), id)
+		if err != nil {
+			handleServiceError(w, r, err, "session not found")
+			return
+		}
+		resp, err := toResponse(r, current)
+		if err != nil {
+			internalError(w, r, err)
+			return
+		}
+		jsonResponse(w, resp, http.StatusConflict)
 		return
 	}
 	if err != nil {
-		internalError(w, r, err)
+		handleServiceError(w, r, err, "session not found")
 		return
 	}
 	resp, err := toResponse(r, ws)
@@ -201,16 +208,22 @@ func (h *WorkoutSessionHandler) patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ws, err := h.svc.Patch(r.Context(), id, patch)
-	if errors.Is(err, service.ErrUnauthorized) {
-		jsonError(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	if errors.Is(err, service.ErrNotFound) {
-		jsonError(w, "session not found", http.StatusNotFound)
+	if errors.Is(err, service.ErrConflict) {
+		current, err := h.svc.Get(r.Context(), id)
+		if err != nil {
+			handleServiceError(w, r, err, "session not found")
+			return
+		}
+		resp, err := toResponse(r, current)
+		if err != nil {
+			internalError(w, r, err)
+			return
+		}
+		jsonResponse(w, resp, http.StatusConflict)
 		return
 	}
 	if err != nil {
-		internalError(w, r, err)
+		handleServiceError(w, r, err, "session not found")
 		return
 	}
 	resp, err := toResponse(r, ws)

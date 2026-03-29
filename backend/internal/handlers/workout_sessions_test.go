@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
@@ -255,7 +256,7 @@ func TestWorkoutSessionHandler_Replace(t *testing.T) {
 		activity := "Swim"
 		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{Activity: &activity})
 		notes := "Great session"
-		body := mustJSON(t, map[string]any{"activity": "Swim", "session_notes": notes})
+		body := mustJSON(t, map[string]any{"activity": "Swim", "session_notes": notes, "updated_at": ws.UpdatedAt})
 		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/sessions/%d", ws.ID), body, u1)
 		w := app.Do(r)
 
@@ -274,7 +275,7 @@ func TestWorkoutSessionHandler_Replace(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		app := NewTestApp(t)
 		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
-		body := mustJSON(t, map[string]any{})
+		body := mustJSON(t, map[string]any{"updated_at": time.Now()})
 		r := app.AuthRequest(http.MethodPut, "/api/sessions/999", body, u1)
 		w := app.Do(r)
 
@@ -286,7 +287,7 @@ func TestWorkoutSessionHandler_Replace(t *testing.T) {
 	t.Run("invalid id", func(t *testing.T) {
 		app := NewTestApp(t)
 		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
-		body := mustJSON(t, map[string]any{})
+		body := mustJSON(t, map[string]any{"updated_at": time.Now()})
 		r := app.AuthRequest(http.MethodPut, "/api/sessions/abc", body, u1)
 		w := app.Do(r)
 
@@ -312,7 +313,7 @@ func TestWorkoutSessionHandler_Replace(t *testing.T) {
 		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
 		u2, _ := app.SeedUserWithOrg("u2@test.com", "sub2")
 		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
-		body := mustJSON(t, map[string]any{})
+		body := mustJSON(t, map[string]any{"updated_at": ws.UpdatedAt})
 		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/sessions/%d", ws.ID), body, u2)
 		w := app.Do(r)
 
@@ -346,7 +347,7 @@ func TestWorkoutSessionHandler_Patch(t *testing.T) {
 			},
 		})
 		notes := "Felt great"
-		body := mustJSON(t, map[string]any{"session_notes": notes})
+		body := mustJSON(t, map[string]any{"session_notes": notes, "updated_at": ws.UpdatedAt})
 		r := app.AuthRequest(http.MethodPatch, fmt.Sprintf("/api/sessions/%d", ws.ID), body, u1)
 		w := app.Do(r)
 
@@ -371,7 +372,7 @@ func TestWorkoutSessionHandler_Patch(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		app := NewTestApp(t)
 		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
-		body := mustJSON(t, map[string]any{})
+		body := mustJSON(t, map[string]any{"updated_at": time.Now()})
 		r := app.AuthRequest(http.MethodPatch, "/api/sessions/999", body, u1)
 		w := app.Do(r)
 
@@ -383,7 +384,7 @@ func TestWorkoutSessionHandler_Patch(t *testing.T) {
 	t.Run("invalid id", func(t *testing.T) {
 		app := NewTestApp(t)
 		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
-		body := mustJSON(t, map[string]any{})
+		body := mustJSON(t, map[string]any{"updated_at": time.Now()})
 		r := app.AuthRequest(http.MethodPatch, "/api/sessions/abc", body, u1)
 		w := app.Do(r)
 
@@ -409,12 +410,50 @@ func TestWorkoutSessionHandler_Patch(t *testing.T) {
 		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
 		u2, _ := app.SeedUserWithOrg("u2@test.com", "sub2")
 		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
-		body := mustJSON(t, map[string]any{})
+		body := mustJSON(t, map[string]any{"updated_at": ws.UpdatedAt})
 		r := app.AuthRequest(http.MethodPatch, fmt.Sprintf("/api/sessions/%d", ws.ID), body, u2)
 		w := app.Do(r)
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("optimistic locking is optional", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+
+		// Omitting updated_at should succeed ("last write wins").
+		body := mustJSON(t, map[string]any{"activity": "Yoga"})
+		r := app.AuthRequest(http.MethodPatch, fmt.Sprintf("/api/sessions/%d", ws.ID), body, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("omitted: got status %d, want %d", w.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("conflict when updated_at is provided but stale", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+
+		// First update to move the timestamp.
+		body1 := mustJSON(t, map[string]any{"activity": "Yoga", "updated_at": ws.UpdatedAt})
+		r1 := app.AuthRequest(http.MethodPatch, fmt.Sprintf("/api/sessions/%d", ws.ID), body1, u1)
+		w1 := app.Do(r1)
+		if w1.Code != http.StatusOK {
+			t.Fatalf("setup: got status %d, want %d", w1.Code, http.StatusOK)
+		}
+
+		// Second update using the OLD timestamp should fail.
+		body2 := mustJSON(t, map[string]any{"activity": "Swim", "updated_at": ws.UpdatedAt})
+		r2 := app.AuthRequest(http.MethodPatch, fmt.Sprintf("/api/sessions/%d", ws.ID), body2, u1)
+		w2 := app.Do(r2)
+
+		if w2.Code != http.StatusConflict {
+			t.Errorf("stale: got status %d, want %d", w2.Code, http.StatusConflict)
 		}
 	})
 

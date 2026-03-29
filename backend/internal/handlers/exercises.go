@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
@@ -29,10 +30,11 @@ func (h *ExerciseHandler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 type exerciseRequest struct {
-	Name        string  `json:"name"`
-	Progression *string `json:"progression,omitempty"`
-	Description *string `json:"description,omitempty"`
-	IsPublic    bool    `json:"is_public"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+	Name        string     `json:"name"`
+	Progression *string    `json:"progression,omitempty"`
+	Description *string    `json:"description,omitempty"`
+	IsPublic    bool       `json:"is_public"`
 }
 
 func (h *ExerciseHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -83,7 +85,16 @@ func (h *ExerciseHandler) update(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	exercise, err := h.svc.Update(r.Context(), id, req.Name, req.Progression, req.Description, req.IsPublic)
+	exercise, err := h.svc.Update(r.Context(), id, req.UpdatedAt, req.Name, req.Progression, req.Description, req.IsPublic)
+	if errors.Is(err, service.ErrConflict) {
+		current, err := h.svc.Get(r.Context(), id)
+		if err != nil {
+			h.handleError(w, r, err)
+			return
+		}
+		jsonResponse(w, current, http.StatusConflict)
+		return
+	}
 	if err != nil {
 		h.handleError(w, r, err)
 		return

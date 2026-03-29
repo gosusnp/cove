@@ -6,6 +6,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
@@ -35,15 +36,16 @@ func registerProgramSetTools(server *mcp.Server, svc *service.ProgramService) {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "update_program_set",
-		Description: "Update a program set's name, rounds, or rest period",
+		Description: "Update a program set's name, rounds or rest. updated_at is the version token for optimistic locking; omit for last-write-wins.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
-		ProgramID           int64   `json:"program_id"`
-		ID                  int64   `json:"id"`
-		Name                *string `json:"name,omitempty"`
-		Rounds              int     `json:"rounds"`
-		IntraSetRestSeconds *int    `json:"rest_s,omitempty"`
+		ProgramID           int64      `json:"program_id"`
+		ID                  int64      `json:"id"`
+		UpdatedAt           *time.Time `json:"updated_at,omitempty"`
+		Name                *string    `json:"name,omitempty"`
+		Rounds              int        `json:"rounds"`
+		IntraSetRestSeconds *int       `json:"rest_s,omitempty"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		ps, err := svc.UpdateSet(ctx, domain.ProgramID(params.ProgramID), params.ID, params.Name, params.Rounds, params.IntraSetRestSeconds)
+		ps, err := svc.UpdateSet(ctx, domain.ProgramID(params.ProgramID), params.ID, params.UpdatedAt, params.Name, params.Rounds, params.IntraSetRestSeconds)
 		if err != nil {
 			return nil, struct{}{}, err
 		}
