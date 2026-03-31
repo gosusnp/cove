@@ -181,6 +181,57 @@ func TestOAuth(t *testing.T) {
 		}
 	})
 
+	t.Run("service account token sets IsServiceAccount and no OrgID", func(t *testing.T) {
+		database := testutil.NewDB(t)
+		us := store.NewUserStore()
+		orgs := store.NewOrgStore()
+		svc := service.NewUserService(database, us, orgs)
+
+		svcUserID := domain.NewUserID()
+		if _, err := database.Exec(
+			`INSERT INTO cove.users (id, is_service_account) VALUES ($1, true)`, svcUserID,
+		); err != nil {
+			t.Fatalf("insert service account: %v", err)
+		}
+		rawToken := "svc_middleware_test"
+		h := sha256.Sum256([]byte(rawToken))
+		hash := hex.EncodeToString(h[:])
+		if _, err := database.Exec(
+			`INSERT INTO cove.user_tokens (id, user_id, org_id, kind, token, initial_ip_masked, initial_browser, initial_os)
+			 VALUES ($1, $2, NULL, 'pat', $3, '', '', '')`,
+			domain.NewSessionID(), svcUserID, hash,
+		); err != nil {
+			t.Fatalf("insert service account token: %v", err)
+		}
+
+		handler := OAuth(svc, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			id, ok := IdentityFromContext(r.Context())
+			if !ok {
+				t.Fatal("expected identity in context")
+			}
+			if id.UserID != svcUserID {
+				t.Errorf("got userID %v, want %v", id.UserID, svcUserID)
+			}
+			if !id.IsServiceAccount() {
+				t.Error("expected IsServiceAccount=true")
+			}
+			if id.OrgID != (domain.OrgID{}) {
+				t.Errorf("expected zero OrgID for service account, got %v", id.OrgID)
+			}
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.Header.Set("Authorization", "Bearer "+rawToken)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("got code %d, want 200", w.Code)
+		}
+	})
+
 	t.Run("expired token returns 401", func(t *testing.T) {
 		database := testutil.NewDB(t)
 		us := store.NewUserStore()

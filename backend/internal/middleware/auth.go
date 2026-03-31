@@ -72,9 +72,12 @@ func OAuth(uSvc *service.UserService, next http.Handler) http.Handler {
 		}
 
 		id := &domain.Identity{
-			UserID:  user.ID,
-			OrgID:   org.ID,
-			TokenID: tokenID,
+			UserID:         user.ID,
+			TokenID:        tokenID,
+			ServiceAccount: user.IsServiceAccount,
+		}
+		if org != nil {
+			id.OrgID = org.ID
 		}
 
 		next.ServeHTTP(w, r.WithContext(domain.NewContext(r.Context(), id)))

@@ -210,11 +210,49 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 		if gotUser.ID != user.ID {
 			t.Errorf("got userID %v, want %v", gotUser.ID, user.ID)
 		}
-		if gotOrg.ID == (domain.OrgID{}) {
+		if gotOrg == nil || gotOrg.ID == (domain.OrgID{}) {
 			t.Error("expected non-empty org ID")
 		}
 		if tokenID == (uuid.Nil) {
 			t.Error("expected non-empty token ID")
+		}
+		if gotUser.IsServiceAccount {
+			t.Error("expected IsServiceAccount=false for regular user")
+		}
+	})
+
+	t.Run("service account token returns nil org and IsServiceAccount=true", func(t *testing.T) {
+		svcUserID := domain.NewUserID()
+		if _, err := db.ExecContext(ctx,
+			`INSERT INTO cove.users (id, is_service_account) VALUES ($1, true)`,
+			svcUserID,
+		); err != nil {
+			t.Fatalf("insert service account: %v", err)
+		}
+
+		// Insert a PAT with no org_id for the service account.
+		rawToken := "svctoken_test"
+		hash := sha256TokenHash(rawToken)
+		if _, err := db.ExecContext(ctx,
+			`INSERT INTO cove.user_tokens (id, user_id, org_id, kind, token, initial_ip_masked, initial_browser, initial_os)
+			 VALUES ($1, $2, NULL, 'pat', $3, '', '', '')`,
+			domain.NewTokenID(uuid.New()), svcUserID, hash,
+		); err != nil {
+			t.Fatalf("insert service account token: %v", err)
+		}
+
+		gotUser, gotOrg, _, err := s.GetUserByToken(ctx, db, rawToken, "", "", "")
+		if err != nil {
+			t.Fatalf("GetUserByToken: %v", err)
+		}
+		if gotUser.ID != svcUserID {
+			t.Errorf("got userID %v, want %v", gotUser.ID, svcUserID)
+		}
+		if gotOrg != nil {
+			t.Errorf("expected nil org for service account, got %v", gotOrg)
+		}
+		if !gotUser.IsServiceAccount {
+			t.Error("expected IsServiceAccount=true")
 		}
 	})
 

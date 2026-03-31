@@ -15,9 +15,16 @@ import (
 
 // Identity represents the authenticated caller (user, org, and specific token).
 type Identity struct {
-	UserID  UserID
-	OrgID   OrgID
-	TokenID uuid.UUID
+	UserID         UserID
+	OrgID          OrgID
+	TokenID        uuid.UUID
+	ServiceAccount bool
+}
+
+// IsServiceAccount reports whether this identity belongs to a service account
+// rather than a regular user. Use this instead of checking ServiceAccount directly.
+func (id *Identity) IsServiceAccount() bool {
+	return id.ServiceAccount
 }
 
 type identityCtxKey struct{}
@@ -70,6 +77,7 @@ type User struct {
 	FitnessUnitSystem *UnitSystem `json:"fitness_unit_system,omitempty"`
 	CookingUnitSystem *UnitSystem `json:"cooking_unit_system,omitempty"`
 	CreatedAt         time.Time   `json:"created_at"`
+	IsServiceAccount  bool        `json:"-"`
 }
 
 // -----------------------------------------------------------------------------

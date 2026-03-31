@@ -29,25 +29,40 @@ type Querier interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
-// ScopedQuerier wraps a Querier and automatically sets the current_org_id and
-// current_user_id session variables for the duration of the request or transaction.
+// ScopedQuerier wraps a Querier and automatically sets the RLS session variables
+// for the duration of the transaction. For regular users it sets current_org_id and
+// current_user_id; for service accounts it sets current_is_service instead.
 type ScopedQuerier struct {
-	q      Querier
-	orgID  string
-	userID string
+	q         Querier
+	orgID     string
+	userID    string
+	isService bool
 }
 
 func NewScopedQuerier(q Querier, orgID, userID string) *ScopedQuerier {
-	return &ScopedQuerier{
-		q:      q,
-		orgID:  orgID,
-		userID: userID,
-	}
+	return &ScopedQuerier{q: q, orgID: orgID, userID: userID}
 }
 
+// NewServiceScopedQuerier returns a ScopedQuerier for a service account identity.
+// It sets app.current_is_service = true instead of an org/user scope.
+func NewServiceScopedQuerier(q Querier, userID string) *ScopedQuerier {
+	return &ScopedQuerier{q: q, userID: userID, isService: true}
+}
+
+// setSession writes transaction-local session variables (set_config third arg = true)
+// so they are automatically cleared when the transaction ends.
 func (s *ScopedQuerier) setSession(ctx context.Context) error {
-	// We use SET LOCAL so that it only lasts for the current transaction.
-	_, err := s.q.ExecContext(ctx, "SELECT set_config('app.current_org_id', $1, true), set_config('app.current_user_id', $2, true)", s.orgID, s.userID)
+	if s.isService {
+		_, err := s.q.ExecContext(ctx,
+			"SELECT set_config('app.current_user_id', $1, true), set_config('app.current_is_service', 'true', true)",
+			s.userID,
+		)
+		return err
+	}
+	_, err := s.q.ExecContext(ctx,
+		"SELECT set_config('app.current_org_id', $1, true), set_config('app.current_user_id', $2, true)",
+		s.orgID, s.userID,
+	)
 	return err
 }
 

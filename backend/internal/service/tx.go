@@ -30,7 +30,12 @@ func withScopedTx(ctx context.Context, db *sql.DB, fn func(store.Querier) error)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	q := store.NewScopedQuerier(tx, id.OrgID.String(), id.UserID.String())
+	var q store.Querier
+	if id.IsServiceAccount() {
+		q = store.NewServiceScopedQuerier(tx, id.UserID.String())
+	} else {
+		q = store.NewScopedQuerier(tx, id.OrgID.String(), id.UserID.String())
+	}
 
 	if err := fn(q); err != nil {
 		return err

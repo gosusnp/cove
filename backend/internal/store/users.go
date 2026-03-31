@@ -327,7 +327,7 @@ func sha256TokenHash(token string) string {
 }
 
 // GetUserByToken hashes the provided token and looks up the matching non-expired token.
-// Returns both the user and the org the token is scoped to.
+// Returns the user, the org the token is scoped to (nil for service accounts), and the token ID.
 // As a side effect, updates last_used_at and last session info when either the throttle
 // window (1 minute) has elapsed or the client info has changed, to minimise dead tuples.
 func (s *UserStore) GetUserByToken(
@@ -339,11 +339,13 @@ func (s *UserStore) GetUserByToken(
 	os string,
 ) (*domain.User, *domain.Org, uuid.UUID, error) {
 	var user domain.User
-	var org domain.Org
+	var orgUUID *uuid.UUID
 	var tokenID uuid.UUID
 
 	// Use UPDATE ... RETURNING to atomically update last used info and fetch user/org details.
 	// The CASE handles the 1-minute throttle to minimize vacuum pressure.
+	// COALESCE on email/google_sub handles service accounts which have neither.
+	// org_id is nullable for service account tokens.
 	err := q.QueryRowContext(
 		ctx,
 		`WITH t AS (
@@ -364,11 +366,11 @@ func (s *UserStore) GetUserByToken(
 			  AND (expires_at IS NULL OR expires_at > NOW())
 			RETURNING user_id, org_id, id AS token_id
 		)
-		SELECT u.id, u.email, u.google_sub, u.fitness_unit_system, u.cooking_unit_system, u.created_at, t.org_id, t.token_id
+		SELECT u.id, COALESCE(u.email, ''), COALESCE(u.google_sub, ''), u.fitness_unit_system, u.cooking_unit_system, u.created_at, u.is_service_account, t.org_id, t.token_id
 		FROM t
 		JOIN cove.users u ON u.id = t.user_id`,
 		sha256TokenHash(token), ipMasked, browser, os,
-	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.FitnessUnitSystem, &user.CookingUnitSystem, &user.CreatedAt, &org.ID, &tokenID)
+	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.FitnessUnitSystem, &user.CookingUnitSystem, &user.CreatedAt, &user.IsServiceAccount, &orgUUID, &tokenID)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil, uuid.Nil, ErrNotFound
@@ -376,5 +378,10 @@ func (s *UserStore) GetUserByToken(
 	if err != nil {
 		return nil, nil, uuid.Nil, fmt.Errorf("get user by token: %w", err)
 	}
-	return &user, &org, tokenID, nil
+
+	var org *domain.Org
+	if orgUUID != nil {
+		org = &domain.Org{ID: domain.OrgID{UUID: *orgUUID}}
+	}
+	return &user, org, tokenID, nil
 }
