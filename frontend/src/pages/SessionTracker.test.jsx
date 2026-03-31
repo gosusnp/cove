@@ -41,7 +41,11 @@ vi.mock("../components/ui/Combobox.jsx", () => ({
 }));
 
 vi.mock("../components/shared/ActivityPicker.jsx", () => ({
-	ActivityPicker: () => null,
+	ActivityPicker: ({ value, onChange }) => (
+		<button type="button" onClick={() => onChange("Climbing")}>
+			Activity: {value || "none"}
+		</button>
+	),
 }));
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -77,7 +81,7 @@ function mockFetch({ sessionId = 1, patchOk = true } = {}) {
 }
 
 function mockFetchWithProgram(exercises) {
-	vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+	return vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
 		if (url.includes("/api/programs/")) {
 			return Promise.resolve({
 				ok: true,
@@ -119,6 +123,16 @@ async function startSession() {
 
 async function selectProgramAndStart() {
 	fireEvent.click(screen.getByRole("button", { name: "Program (optional)" }));
+	fireEvent.click(screen.getByRole("button", { name: "Start" }));
+	await waitFor(() =>
+		expect(
+			screen.getByRole("button", { name: "End Session" }),
+		).toBeInTheDocument(),
+	);
+}
+
+async function selectActivityAndStart() {
+	fireEvent.click(screen.getByRole("button", { name: "Activity: none" }));
 	fireEvent.click(screen.getByRole("button", { name: "Start" }));
 	await waitFor(() =>
 		expect(
@@ -340,6 +354,185 @@ describe("SessionTracker", () => {
 			await waitFor(() =>
 				// 100 kg → 220.46 lb → quantized to nearest 0.5 lb = 220.5 lb
 				expect(screen.getByText("220.5 lb")).toBeInTheDocument(),
+			);
+		});
+	});
+
+	describe("Add Program", () => {
+		it("shows + Add Program button when session is running", async () => {
+			mockFetch();
+			renderTracker();
+			await startSession();
+			expect(
+				screen.getByRole("button", { name: "+ Add Program" }),
+			).toBeInTheDocument();
+		});
+
+		it("hides + Add Program button before session starts", () => {
+			mockFetch();
+			renderTracker();
+			expect(
+				screen.queryByRole("button", { name: "+ Add Program" }),
+			).not.toBeInTheDocument();
+		});
+
+		it("appends exercises from the selected program", async () => {
+			mockFetchWithProgram([{ name: "Ring row", reps: 8 }]);
+			renderTracker();
+			await startSession();
+
+			fireEvent.click(screen.getByRole("button", { name: "+ Add Program" }));
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: "Program" }),
+				).toBeInTheDocument(),
+			);
+			fireEvent.click(screen.getByRole("button", { name: "Program" }));
+			fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+			await waitFor(() =>
+				expect(screen.getByText("8x Ring row")).toBeInTheDocument(),
+			);
+		});
+
+		it("shows program name labels when multiple programs are tracked", async () => {
+			mockFetchWithProgram([{ name: "Pull-up", reps: 5 }]);
+			renderTracker();
+			await selectProgramAndStart();
+
+			fireEvent.click(screen.getByRole("button", { name: "+ Add Program" }));
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: "Program" }),
+				).toBeInTheDocument(),
+			);
+			fireEvent.click(screen.getByRole("button", { name: "Program" }));
+			fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+			await waitFor(() =>
+				// Two programs → program name label appears above each CheckList
+				expect(
+					screen.getAllByText("Test Program").length,
+				).toBeGreaterThanOrEqual(2),
+			);
+		});
+
+		it("PATCHes the session with the accumulated program_name", async () => {
+			const fetchSpy = mockFetchWithProgram([{ name: "Pull-up", reps: 5 }]);
+			renderTracker();
+			await startSession();
+
+			fireEvent.click(screen.getByRole("button", { name: "+ Add Program" }));
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: "Program" }),
+				).toBeInTheDocument(),
+			);
+			fireEvent.click(screen.getByRole("button", { name: "Program" }));
+			fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+			await waitFor(() =>
+				expect(screen.getByText("5x Pull-up")).toBeInTheDocument(),
+			);
+
+			const patchCalls = fetchSpy.mock.calls.filter(
+				([url, opts]) =>
+					opts?.method === "PATCH" && url.includes("/api/sessions/"),
+			);
+			expect(patchCalls).toHaveLength(1);
+			const body = JSON.parse(patchCalls[0][1].body);
+			expect(body.program_name).toBe("Test Program");
+		});
+
+		it("accumulates program names when adding a second program", async () => {
+			const fetchSpy = mockFetchWithProgram([{ name: "Pull-up", reps: 5 }]);
+			renderTracker();
+			await selectProgramAndStart();
+
+			fireEvent.click(screen.getByRole("button", { name: "+ Add Program" }));
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: "Program" }),
+				).toBeInTheDocument(),
+			);
+			fireEvent.click(screen.getByRole("button", { name: "Program" }));
+			fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+			await waitFor(() =>
+				expect(screen.getAllByText("5x Pull-up").length).toBeGreaterThanOrEqual(
+					2,
+				),
+			);
+
+			const patchCalls = fetchSpy.mock.calls.filter(
+				([url, opts]) =>
+					opts?.method === "PATCH" && url.includes("/api/sessions/"),
+			);
+			expect(patchCalls).toHaveLength(1);
+			const body = JSON.parse(patchCalls[0][1].body);
+			expect(body.program_name).toBe("Test Program, Test Program");
+		});
+
+		it("shows error message when PATCH fails", async () => {
+			vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+				if (url.includes("/api/programs/")) {
+					return Promise.resolve({
+						ok: true,
+						json: () =>
+							Promise.resolve({
+								id: 1,
+								name: "Test Program",
+								sets: [],
+							}),
+					});
+				}
+				if (url.includes("/api/programs")) {
+					return Promise.resolve({
+						ok: true,
+						json: () => Promise.resolve([{ id: 1, name: "Test Program" }]),
+					});
+				}
+				if (opts?.method === "POST") {
+					return Promise.resolve({
+						ok: true,
+						json: () => Promise.resolve({ id: 1 }),
+					});
+				}
+				if (opts?.method === "PATCH") {
+					return Promise.resolve({ ok: false });
+				}
+				return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+			});
+			renderTracker();
+			await startSession();
+
+			fireEvent.click(screen.getByRole("button", { name: "+ Add Program" }));
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: "Program" }),
+				).toBeInTheDocument(),
+			);
+			fireEvent.click(screen.getByRole("button", { name: "Program" }));
+			fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+			await waitFor(() =>
+				expect(
+					screen.getByText("Failed to update session"),
+				).toBeInTheDocument(),
+			);
+		});
+	});
+
+	describe("free-form session", () => {
+		it("shows a checklist with the activity name when no program is selected", async () => {
+			mockFetch();
+			renderTracker();
+			await selectActivityAndStart();
+
+			await waitFor(() =>
+				expect(screen.getAllByText("Climbing").length).toBeGreaterThanOrEqual(
+					1,
+				),
 			);
 		});
 	});

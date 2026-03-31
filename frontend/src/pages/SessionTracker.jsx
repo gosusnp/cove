@@ -13,6 +13,12 @@ import {
 	CheckListSection,
 } from "../components/ui/CheckList.jsx";
 import { Combobox } from "../components/ui/Combobox.jsx";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogTitle,
+} from "../components/ui/Dialog.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { SessionSummaryDialog } from "./SessionSummaryDialog.jsx";
 import { apiFetch } from "../lib/api.js";
@@ -21,6 +27,7 @@ import {
 	convertFitnessWeight,
 	useUnitPreferences,
 } from "../hooks/useUnitPreferences.js";
+import { useDialog } from "../hooks/useDialog.js";
 
 // Formats elapsed seconds as HH:MM:SS.
 function formatElapsed(totalSeconds) {
@@ -83,6 +90,22 @@ function formatSubtitle(ex, fitnessWeightUnit) {
 	return parts.join(" · ");
 }
 
+// Build a synthetic program object for free-form sessions (no program selected).
+// Produces a single set of 1 round with one exercise named after the activity,
+// so the tracking screen has a consistent CheckList UI regardless of program use.
+function syntheticProgram(activityName) {
+	return {
+		name: activityName,
+		sets: [
+			{
+				name: activityName,
+				rounds: 1,
+				exercises: [{ name: activityName }],
+			},
+		],
+	};
+}
+
 export function SessionTracker() {
 	const { user } = useAuth();
 	const { route } = useLocation();
@@ -118,6 +141,16 @@ export function SessionTracker() {
 
 	// Full program detail (fetched on selection to get structure field).
 	const programDetail = useSignal(null);
+
+	// Programs being tracked in the current session (for CheckList rendering).
+	// Populated on Start and appended to via "Add Program".
+	const sessionPrograms = useSignal([]);
+
+	// Add Program dialog state.
+	const addProgramDialog = useDialog();
+	const addProgramId = useSignal("");
+	const addingProgram = useSignal(false);
+	const addProgramError = useSignal("");
 
 	// Load programs list for the selector.
 	useEffect(() => {
@@ -191,7 +224,17 @@ export function SessionTracker() {
 		saving.value = true;
 		saveError.value = "";
 		try {
-			const prog = programDetail.value;
+			// If a program is selected but its detail hasn't loaded yet (e.g. the
+			// user tapped Start before the background fetch resolved), fetch it now.
+			let prog = programDetail.value;
+			if (selectedProgramId.value && !prog) {
+				const dr = await apiFetch(`/api/programs/${selectedProgramId.value}`);
+				if (dr.ok) {
+					prog = await dr.json();
+					programDetail.value = prog;
+					activity.value = prog.activity ?? "";
+				}
+			}
 			const body = {
 				started_at: new Date().toISOString(),
 				...(prog && {
@@ -210,6 +253,13 @@ export function SessionTracker() {
 			sessionId.value = data.id;
 			segmentStartRef.current = Date.now();
 			running.value = true;
+
+			// Initialise the session program list for CheckList rendering.
+			if (prog) {
+				sessionPrograms.value = [prog];
+			} else if (activity.value) {
+				sessionPrograms.value = [syntheticProgram(activity.value)];
+			}
 		} catch (err) {
 			saveError.value = err.message;
 		} finally {
@@ -258,23 +308,19 @@ export function SessionTracker() {
 	}
 
 	// Save Session: patch with completed_at, duration, notes, effort, then navigate.
+	// Program name and structure are already up-to-date on the server (set on POST
+	// and updated via PATCH on each mid-session add), so they are omitted here.
 	async function handleSave() {
 		if (sessionId.value == null) return;
 		saving.value = true;
 		saveError.value = "";
 		try {
-			const prog = programDetail.value;
 			const body = {
 				completed_at: completedAtRef.current.toISOString(),
 				duration_s: summaryElapsed.value,
 				session_notes: notes.value || null,
 				perceived_effort: perceivedEffort.value,
 				activity: activity.value || null,
-				...(prog && {
-					program_id: prog.id,
-					program_name: prog.name,
-					program_structure: prog.structure ?? null,
-				}),
 			};
 			const r = await apiFetch(`/api/sessions/${sessionId.value}`, {
 				method: "PATCH",
@@ -289,6 +335,46 @@ export function SessionTracker() {
 		}
 	}
 
+	// Add a program to the active session mid-workout.
+	// Fetches the selected program, appends it to the local render list, and
+	// PATCHes the session with accumulated program name and structure.
+	async function handleAddProgram() {
+		const pid = addProgramId.value;
+		if (!pid || !sessionId.value) return;
+		addingProgram.value = true;
+		addProgramError.value = "";
+		try {
+			const r = await apiFetch(`/api/programs/${pid}`);
+			if (!r.ok) throw new Error("Failed to load program");
+			const prog = await r.json();
+
+			const allPrograms = [...sessionPrograms.value, prog];
+			const accName = allPrograms.map((p) => p.name).join(", ");
+			const accStructure = allPrograms
+				.map((p) => p.structure)
+				.filter(Boolean)
+				.join("\n\n");
+
+			const patch = { program_name: accName };
+			if (accStructure) patch.program_structure = accStructure;
+
+			const pr = await apiFetch(`/api/sessions/${sessionId.value}`, {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(patch),
+			});
+			if (!pr.ok) throw new Error("Failed to update session");
+
+			sessionPrograms.value = allPrograms;
+			addProgramId.value = "";
+			addProgramDialog.hide();
+		} catch (err) {
+			addProgramError.value = err.message;
+		} finally {
+			addingProgram.value = false;
+		}
+	}
+
 	const notStarted = sessionId.value == null;
 	const started = sessionId.value != null;
 
@@ -296,6 +382,12 @@ export function SessionTracker() {
 		value: String(p.id),
 		label: p.name,
 	}));
+
+	// Accumulated program name across all session programs (for summary dialog).
+	const accumulatedProgramName =
+		sessionPrograms.value.length > 0
+			? sessionPrograms.value.map((p) => p.name).join(", ")
+			: null;
 
 	return (
 		<>
@@ -394,24 +486,47 @@ export function SessionTracker() {
 							</div>
 						)}
 
-						{/* Program tracker — visible once the session is running */}
-						{started && programDetail.value && (
-							<CheckList>
-								{flattenProgram(programDetail.value).map(
-									({ label, exercises }, i) => (
-										<CheckListSection key={i} label={label}>
-											{exercises.map((ex, j) => (
-												<CheckListItem
-													key={j}
-													subtitle={formatSubtitle(ex, fitnessWeightUnit)}
-												>
-													{formatLabel(ex)}
-												</CheckListItem>
+						{/* Program tracker — one CheckList per program in the session */}
+						{started && sessionPrograms.value.length > 0 && (
+							<div class="flex flex-col gap-4">
+								{sessionPrograms.value.map((prog, pi) => (
+									<div key={pi} class="flex flex-col gap-2">
+										{sessionPrograms.value.length > 1 && (
+											<p
+												class="text-xs font-medium uppercase tracking-wide px-1"
+												style={{ color: "var(--color-muted)" }}
+											>
+												{prog.name}
+											</p>
+										)}
+										<CheckList>
+											{flattenProgram(prog).map(({ label, exercises }, i) => (
+												<CheckListSection key={i} label={label}>
+													{exercises.map((ex, j) => (
+														<CheckListItem
+															key={j}
+															subtitle={formatSubtitle(ex, fitnessWeightUnit)}
+														>
+															{formatLabel(ex)}
+														</CheckListItem>
+													))}
+												</CheckListSection>
 											))}
-										</CheckListSection>
-									),
-								)}
-							</CheckList>
+										</CheckList>
+									</div>
+								))}
+							</div>
+						)}
+
+						{/* Add Program — visible once session is running */}
+						{started && (
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={addProgramDialog.show}
+							>
+								+ Add Program
+							</Button>
 						)}
 
 						{/* Notes */}
@@ -434,7 +549,7 @@ export function SessionTracker() {
 				openSignal={showSummary}
 				completedAt={completedAtRef.current}
 				elapsed={summaryElapsed.value}
-				programName={programDetail.value?.name ?? null}
+				programName={accumulatedProgramName}
 				notesSignal={notes}
 				effortSignal={perceivedEffort}
 				activitySignal={activity}
@@ -443,6 +558,49 @@ export function SessionTracker() {
 				onCancel={handleSummaryCancel}
 				onSave={handleSave}
 			/>
+
+			{/* Add Program dialog */}
+			<Dialog
+				openSignal={addProgramDialog.open}
+				onOpenChange={(v) => {
+					if (!v) addProgramError.value = "";
+				}}
+			>
+				<DialogContent>
+					<DialogTitle>Add Program</DialogTitle>
+					<div class="flex flex-col gap-4 mt-4">
+						<Combobox
+							label="Program"
+							value={addProgramId.value}
+							onChange={(v) => {
+								addProgramId.value = v;
+							}}
+							options={programOptions}
+							placeholder="Select a program…"
+						/>
+						{addProgramError.value && (
+							<p class="text-sm" style={{ color: "var(--color-error)" }}>
+								{addProgramError.value}
+							</p>
+						)}
+						<div class="flex justify-end gap-2">
+							<DialogClose>
+								<Button variant="outline" size="sm">
+									Cancel
+								</Button>
+							</DialogClose>
+							<Button
+								variant="primary"
+								size="sm"
+								disabled={!addProgramId.value || addingProgram.value}
+								onClick={handleAddProgram}
+							>
+								Add
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
 		</>
 	);
 }
