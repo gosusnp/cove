@@ -282,4 +282,124 @@ func TestWorkoutSessionStore_Delete(t *testing.T) {
 	})
 }
 
+// TestWorkoutSessionStore_ServiceAccountRLS verifies that migration 023 exposes exactly
+// the right surface to service accounts: SELECT and UPDATE pass; INSERT and DELETE are blocked.
+func TestWorkoutSessionStore_ServiceAccountRLS(t *testing.T) {
+	db := testutil.NewDB(t)
+
+	uID := domain.UserID{UUID: uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe01")}
+	oID := domain.OrgID{UUID: uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe02")}
+	svcUID := domain.NewUserID()
+
+	_, _ = db.Exec(`INSERT INTO cove.users (id, email, google_sub) VALUES ($1, 'rls@test.com', 'sub-rls')`, uID)
+	_, _ = db.Exec(`INSERT INTO cove.orgs (id, name) VALUES ($1, 'rls-org')`, oID)
+	_, _ = db.Exec(`INSERT INTO cove.org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID, uID)
+	_, _ = db.Exec(`INSERT INTO cove.users (id, is_service_account) VALUES ($1, true)`, svcUID)
+
+	// Seed a session as the regular user (committed so service account tx can see it).
+	userCtx := domain.NewContext(context.Background(), &domain.Identity{UserID: uID, OrgID: oID})
+	seedTx, _ := db.BeginTx(userCtx, nil)
+	seedQ := NewScopedQuerier(seedTx, oID.String(), uID.String())
+	s := NewWorkoutSessionStore()
+	p := WorkoutSessionParams{Activity: strPtr("Run")}
+	created, err := s.Create(userCtx, seedQ, p, secureBytes(t, userCtx, p))
+	if err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+	if err := seedTx.Commit(); err != nil {
+		t.Fatalf("seed commit: %v", err)
+	}
+
+	svcCtx := domain.NewContext(context.Background(), &domain.Identity{
+		UserID:         svcUID,
+		ServiceAccount: true,
+	})
+
+	newSvcTx := func(t *testing.T) Querier {
+		t.Helper()
+		tx, err := db.BeginTx(svcCtx, nil)
+		if err != nil {
+			t.Fatalf("begin svc tx: %v", err)
+		}
+		t.Cleanup(func() { _ = tx.Rollback() })
+		return NewServiceScopedQuerier(tx, svcUID.String())
+	}
+
+	t.Run("service account can SELECT workout sessions", func(t *testing.T) {
+		q := newSvcTx(t)
+		got, err := s.Get(svcCtx, q, oID, created.ID)
+		if err != nil {
+			t.Fatalf("expected SELECT to succeed, got: %v", err)
+		}
+		if got.ID != created.ID {
+			t.Errorf("got ID %v, want %v", got.ID, created.ID)
+		}
+	})
+
+	t.Run("service account can UPDATE workout sessions", func(t *testing.T) {
+		q := newSvcTx(t)
+		p := WorkoutSessionParams{Activity: strPtr("Bike")}
+		updated, err := s.Update(svcCtx, q, oID, created.ID, p, nil, true, nil)
+		if err != nil {
+			t.Fatalf("expected UPDATE to succeed, got: %v", err)
+		}
+		if updated.Activity == nil || *updated.Activity != "Bike" {
+			t.Errorf("got activity %v, want Bike", updated.Activity)
+		}
+	})
+
+	t.Run("service account cannot INSERT workout sessions", func(t *testing.T) {
+		q := newSvcTx(t)
+		// Use a real (empty) sensitive-data blob so the failure is unambiguously
+		// RLS, not a null-dereference or encoding error.
+		p := WorkoutSessionParams{Activity: strPtr("Swim")}
+		if _, err := s.Create(svcCtx, q, p, secureBytes(t, userCtx, p)); err == nil {
+			t.Error("expected INSERT to be blocked for service account, got nil error")
+		}
+	})
+
+	t.Run("service account cannot DELETE workout sessions", func(t *testing.T) {
+		q := newSvcTx(t)
+		// RLS makes the row invisible to the DELETE rather than returning a
+		// permission error, so RowsAffected == 0 → ErrNotFound. This is the
+		// expected RLS-via-invisibility behaviour for unextended USING clauses.
+		if err := s.Delete(svcCtx, q, oID, created.ID); !errors.Is(err, ErrNotFound) {
+			t.Errorf("expected DELETE to be invisible via RLS (ErrNotFound), got: %v", err)
+		}
+	})
+
+	t.Run("service account is constrained by explicit org_id parameter", func(t *testing.T) {
+		// Seed a second org with its own session.
+		uID2 := domain.UserID{UUID: uuid.MustParse("019cb68a-cfcb-76db-9003-87bbcaaebe03")}
+		oID2 := domain.OrgID{UUID: uuid.MustParse("019cb68a-cfce-7aa3-bdfb-9700ccaebe04")}
+		_, _ = db.Exec(`INSERT INTO cove.users (id, email, google_sub) VALUES ($1, 'other@test.com', 'sub-other')`, uID2)
+		_, _ = db.Exec(`INSERT INTO cove.orgs (id, name) VALUES ($1, 'other-org')`, oID2)
+		_, _ = db.Exec(`INSERT INTO cove.org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`, oID2, uID2)
+
+		userCtx2 := domain.NewContext(context.Background(), &domain.Identity{UserID: uID2, OrgID: oID2})
+		seedTx2, _ := db.BeginTx(userCtx2, nil)
+		seedQ2 := NewScopedQuerier(seedTx2, oID2.String(), uID2.String())
+		p2 := WorkoutSessionParams{Activity: strPtr("Yoga")}
+		session2, err := s.Create(userCtx2, seedQ2, p2, secureBytes(t, userCtx2, p2))
+		if err != nil {
+			t.Fatalf("seed org2 session: %v", err)
+		}
+		if err := seedTx2.Commit(); err != nil {
+			t.Fatalf("seed org2 commit: %v", err)
+		}
+
+		q := newSvcTx(t)
+
+		// Service account can read the session when given the correct org_id.
+		if _, err := s.Get(svcCtx, q, oID2, session2.ID); err != nil {
+			t.Fatalf("expected service account to read session with correct org_id, got: %v", err)
+		}
+
+		// Service account cannot read across orgs: passing the wrong org_id returns not found.
+		if _, err := s.Get(svcCtx, q, oID, session2.ID); !errors.Is(err, ErrNotFound) {
+			t.Errorf("expected ErrNotFound when org_id does not match, got: %v", err)
+		}
+	})
+}
+
 func strPtr(s string) *string { return &s }
