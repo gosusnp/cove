@@ -61,6 +61,7 @@ type userResponse struct {
 	FitnessUnitSystem *domain.UnitSystem `json:"fitness_unit_system,omitempty"`
 	CookingUnitSystem *domain.UnitSystem `json:"cooking_unit_system,omitempty"`
 	CreatedAt         time.Time          `json:"created_at"`
+	IsAdmin           bool               `json:"is_admin"`
 }
 
 func userToResponse(u *domain.User) userResponse {
@@ -70,6 +71,7 @@ func userToResponse(u *domain.User) userResponse {
 		FitnessUnitSystem: u.FitnessUnitSystem,
 		CookingUnitSystem: u.CookingUnitSystem,
 		CreatedAt:         u.CreatedAt,
+		IsAdmin:           u.IsAdmin,
 	}
 }
 

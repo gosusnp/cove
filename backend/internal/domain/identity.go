@@ -19,12 +19,18 @@ type Identity struct {
 	OrgID          OrgID
 	TokenID        uuid.UUID
 	ServiceAccount bool
+	Admin          bool
 }
 
 // IsServiceAccount reports whether this identity belongs to a service account
 // rather than a regular user. Use this instead of checking ServiceAccount directly.
 func (id *Identity) IsServiceAccount() bool {
 	return id.ServiceAccount
+}
+
+// IsAdmin reports whether this identity has administrative privileges.
+func (id *Identity) IsAdmin() bool {
+	return id.Admin
 }
 
 type identityCtxKey struct{}
@@ -78,6 +84,7 @@ type User struct {
 	CookingUnitSystem *UnitSystem `json:"cooking_unit_system,omitempty"`
 	CreatedAt         time.Time   `json:"created_at"`
 	IsServiceAccount  bool        `json:"-"`
+	IsAdmin           bool        `json:"-"`
 }
 
 // -----------------------------------------------------------------------------

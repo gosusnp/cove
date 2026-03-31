@@ -75,6 +75,7 @@ func OAuth(uSvc *service.UserService, next http.Handler) http.Handler {
 			UserID:         user.ID,
 			TokenID:        tokenID,
 			ServiceAccount: user.IsServiceAccount,
+			Admin:          user.IsAdmin,
 		}
 		if org != nil {
 			id.OrgID = org.ID

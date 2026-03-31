@@ -89,6 +89,31 @@ func TestUserStore_UpsertUser(t *testing.T) {
 			t.Errorf("got id %v, want %v", user.ID, id)
 		}
 	})
+
+	t.Run("first user is promoted to admin", func(t *testing.T) {
+		ctx, db, s, _ := newTestUserStore(t)
+
+		first, _, err := s.UpsertUser(ctx, db, domain.NewUserID(), "first@example.com", "sub-first")
+		if err != nil {
+			t.Fatalf("UpsertUser first: %v", err)
+		}
+		if !first.IsAdmin {
+			t.Error("expected first user to have IsAdmin=true")
+		}
+	})
+
+	t.Run("second user is not promoted to admin", func(t *testing.T) {
+		ctx, db, s, _ := newTestUserStore(t)
+
+		_, _, _ = s.UpsertUser(ctx, db, domain.NewUserID(), "first@example.com", "sub-first")
+		second, _, err := s.UpsertUser(ctx, db, domain.NewUserID(), "second@example.com", "sub-second")
+		if err != nil {
+			t.Fatalf("UpsertUser second: %v", err)
+		}
+		if second.IsAdmin {
+			t.Error("expected second user to have IsAdmin=false")
+		}
+	})
 }
 
 func TestUserStore_GetByID(t *testing.T) {
@@ -218,6 +243,9 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 		}
 		if gotUser.IsServiceAccount {
 			t.Error("expected IsServiceAccount=false for regular user")
+		}
+		if !gotUser.IsAdmin {
+			t.Error("expected IsAdmin=true for first user")
 		}
 	})
 

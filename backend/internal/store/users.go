@@ -37,14 +37,14 @@ func (s *UserStore) UpsertUser(
 	var created bool
 	err := q.QueryRowContext(
 		ctx,
-		`INSERT INTO cove.users (id, email, google_sub)
-		 VALUES ($1, $2, $3)
+		`INSERT INTO cove.users (id, email, google_sub, is_admin)
+		 VALUES ($1, $2, $3, NOT EXISTS (SELECT 1 FROM cove.users WHERE NOT is_service_account))
 		 ON CONFLICT (google_sub) DO UPDATE SET email = EXCLUDED.email
-		 RETURNING id, email, google_sub, fitness_unit_system, cooking_unit_system, created_at, (xmax = 0)`,
+		 RETURNING id, email, google_sub, fitness_unit_system, cooking_unit_system, created_at, is_admin, (xmax = 0)`,
 		id,
 		email,
 		googleSub,
-	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.FitnessUnitSystem, &user.CookingUnitSystem, &user.CreatedAt, &created)
+	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.FitnessUnitSystem, &user.CookingUnitSystem, &user.CreatedAt, &user.IsAdmin, &created)
 
 	if err != nil {
 		return nil, false, fmt.Errorf("upsert user: %w", err)
@@ -61,10 +61,10 @@ func (s *UserStore) GetByID(
 	var user domain.User
 	err := q.QueryRowContext(
 		ctx,
-		`SELECT id, email, google_sub, fitness_unit_system, cooking_unit_system, created_at
+		`SELECT id, email, google_sub, fitness_unit_system, cooking_unit_system, created_at, is_admin
 		 FROM cove.users WHERE id = $1`,
 		id,
-	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.FitnessUnitSystem, &user.CookingUnitSystem, &user.CreatedAt)
+	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.FitnessUnitSystem, &user.CookingUnitSystem, &user.CreatedAt, &user.IsAdmin)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -91,9 +91,9 @@ func (s *UserStore) UpdatePreferences(
 		`UPDATE cove.users
 		 SET fitness_unit_system = $2, cooking_unit_system = $3
 		 WHERE id = $1
-		 RETURNING id, email, google_sub, fitness_unit_system, cooking_unit_system, created_at`,
+		 RETURNING id, email, google_sub, fitness_unit_system, cooking_unit_system, created_at, is_admin`,
 		id, fitnessUnitSystem, cookingUnitSystem,
-	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.FitnessUnitSystem, &user.CookingUnitSystem, &user.CreatedAt)
+	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.FitnessUnitSystem, &user.CookingUnitSystem, &user.CreatedAt, &user.IsAdmin)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -366,11 +366,11 @@ func (s *UserStore) GetUserByToken(
 			  AND (expires_at IS NULL OR expires_at > NOW())
 			RETURNING user_id, org_id, id AS token_id
 		)
-		SELECT u.id, COALESCE(u.email, ''), COALESCE(u.google_sub, ''), u.fitness_unit_system, u.cooking_unit_system, u.created_at, u.is_service_account, t.org_id, t.token_id
+		SELECT u.id, COALESCE(u.email, ''), COALESCE(u.google_sub, ''), u.fitness_unit_system, u.cooking_unit_system, u.created_at, u.is_service_account, u.is_admin, t.org_id, t.token_id
 		FROM t
 		JOIN cove.users u ON u.id = t.user_id`,
 		sha256TokenHash(token), ipMasked, browser, os,
-	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.FitnessUnitSystem, &user.CookingUnitSystem, &user.CreatedAt, &user.IsServiceAccount, &orgUUID, &tokenID)
+	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.FitnessUnitSystem, &user.CookingUnitSystem, &user.CreatedAt, &user.IsServiceAccount, &user.IsAdmin, &orgUUID, &tokenID)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil, uuid.Nil, ErrNotFound
