@@ -39,5 +39,10 @@ func NewAPIHandler(svcs Services, secureCookies bool) http.Handler {
 	handlers.NewFDCHandler(svcs.FDCClient).RegisterRoutes(apiMux)
 	handlers.NewRecipeHandler(svcs.Recipes).RegisterRoutes(apiMux)
 	handlers.NewPreparationHandler(svcs.Preparations).RegisterRoutes(apiMux)
+
+	adminMux := http.NewServeMux()
+	handlers.NewServiceAccountHandler(svcs.Users).RegisterRoutes(adminMux)
+	apiMux.Handle("/admin/", middleware.RequireAdmin(adminMux))
+
 	return http.StripPrefix("/api", middleware.NoStore(middleware.OAuth(svcs.Users, apiMux)))
 }

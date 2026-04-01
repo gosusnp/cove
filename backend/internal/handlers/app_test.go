@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-
 	"net/http/httptest"
 	"testing"
 
@@ -101,6 +100,10 @@ func newTestApp(t *testing.T, fdcClient *fdc.Client) *TestApp {
 	NewProgramExerciseHandler(pSvc).RegisterRoutes(apiMux)
 	NewUserHandler(uSvc, false).RegisterRoutes(apiMux)
 	NewWorkoutSessionHandler(wsSvc).RegisterRoutes(apiMux)
+
+	adminMux := http.NewServeMux()
+	NewServiceAccountHandler(uSvc).RegisterRoutes(adminMux)
+	apiMux.Handle("/admin/", middleware.RequireAdmin(adminMux))
 
 	// Apply OAuth middleware with /api prefix as in server.go
 	handler := http.StripPrefix("/api", middleware.OAuth(uSvc, apiMux))
@@ -316,6 +319,14 @@ func (a *TestApp) SeedPreparationIngredientForUser(ctx context.Context, prepID d
 		a.T.Fatalf("seed preparation ingredient: %v", err)
 	}
 	return ing
+}
+
+// DecodeJSON decodes the JSON response body of a recorder into v or fails the test.
+func DecodeJSON(t *testing.T, w *httptest.ResponseRecorder, v any) {
+	t.Helper()
+	if err := json.NewDecoder(w.Body).Decode(v); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
 }
 
 // SeedProgramExercise adds an exercise to a set.

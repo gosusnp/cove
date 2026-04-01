@@ -61,10 +61,10 @@ func (s *UserStore) GetByID(
 	var user domain.User
 	err := q.QueryRowContext(
 		ctx,
-		`SELECT id, email, google_sub, fitness_unit_system, cooking_unit_system, created_at, is_admin, display_name, first_name, last_name
+		`SELECT id, COALESCE(email, ''), COALESCE(google_sub, ''), fitness_unit_system, cooking_unit_system, created_at, is_admin, is_service_account, display_name, first_name, last_name
 		 FROM cove.users WHERE id = $1`,
 		id,
-	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.FitnessUnitSystem, &user.CookingUnitSystem, &user.CreatedAt, &user.IsAdmin, &user.DisplayName, &user.FirstName, &user.LastName)
+	).Scan(&user.ID, &user.Email, &user.GoogleSub, &user.FitnessUnitSystem, &user.CookingUnitSystem, &user.CreatedAt, &user.IsAdmin, &user.IsServiceAccount, &user.DisplayName, &user.FirstName, &user.LastName)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -270,6 +270,105 @@ func (s *UserStore) DeleteSession(ctx context.Context, q Querier, userID domain.
 		return ErrNotFound
 	}
 	return nil
+}
+
+// CreateServiceAccount inserts a new service account user with the given display name.
+func (s *UserStore) CreateServiceAccount(ctx context.Context, q Querier, id domain.UserID, name string) (*domain.User, error) {
+	var user domain.User
+	err := q.QueryRowContext(
+		ctx,
+		`INSERT INTO cove.users (id, is_service_account, display_name)
+		 VALUES ($1, true, $2)
+		 RETURNING id, display_name, created_at`,
+		id, name,
+	).Scan(&user.ID, &user.DisplayName, &user.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("create service account: %w", err)
+	}
+	user.IsServiceAccount = true
+	return &user, nil
+}
+
+// ListServiceAccounts returns all service account users ordered by creation time.
+func (s *UserStore) ListServiceAccounts(ctx context.Context, q Querier) ([]domain.User, error) {
+	rows, err := q.QueryContext(
+		ctx,
+		`SELECT id, display_name, created_at FROM cove.users WHERE is_service_account = true ORDER BY created_at`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list service accounts: %w", err)
+	}
+	defer rows.Close()
+
+	accounts := []domain.User{}
+	for rows.Next() {
+		var u domain.User
+		if err := rows.Scan(&u.ID, &u.DisplayName, &u.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan service account: %w", err)
+		}
+		u.IsServiceAccount = true
+		accounts = append(accounts, u)
+	}
+	return accounts, rows.Err()
+}
+
+// DeleteServiceAccountPATs deletes all PATs belonging to a service account.
+func (s *UserStore) DeleteServiceAccountPATs(ctx context.Context, q Querier, userID domain.UserID) error {
+	_, err := q.ExecContext(
+		ctx,
+		`DELETE FROM cove.user_tokens WHERE user_id = $1 AND kind = 'pat'`,
+		userID,
+	)
+	if err != nil {
+		return fmt.Errorf("delete service account pats: %w", err)
+	}
+	return nil
+}
+
+// DeleteServiceAccount deletes a service account user row. Returns ErrNotFound if absent or not a service account.
+func (s *UserStore) DeleteServiceAccount(ctx context.Context, q Querier, id domain.UserID) error {
+	res, err := q.ExecContext(
+		ctx,
+		`DELETE FROM cove.users WHERE id = $1 AND is_service_account = true`,
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("delete service account: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// CreateServiceAccountPAT generates a PAT for a service account (no org scope).
+// The raw token is returned once; only its SHA-256 hash is stored.
+func (s *UserStore) CreateServiceAccountPAT(ctx context.Context, q Querier, userID domain.UserID, name string) (string, *domain.PAT, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return "", nil, fmt.Errorf("generate pat id: %w", err)
+	}
+	token, err := generateToken("pat_")
+	if err != nil {
+		return "", nil, err
+	}
+	hash := sha256TokenHash(token)
+
+	var pat domain.PAT
+	err = q.QueryRowContext(
+		ctx,
+		`INSERT INTO cove.user_tokens (id, user_id, kind, name, token)
+		 VALUES ($1, $2, 'pat', $3, $4) RETURNING id, name, created_at`,
+		id, userID, name, hash,
+	).Scan(&pat.ID, &pat.Name, &pat.CreatedAt)
+	if err != nil {
+		return "", nil, fmt.Errorf("create service account pat: %w", err)
+	}
+	return token, &pat, nil
 }
 
 // CreateOAuthToken generates an OAuth access token (prefixed with "pat_") that never expires.

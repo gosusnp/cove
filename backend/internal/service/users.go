@@ -222,6 +222,106 @@ func trimToNil(s *string) *string {
 	return &v
 }
 
+// CreateServiceAccount creates a named service account user.
+func (s *UserService) CreateServiceAccount(ctx context.Context, name string) (*domain.User, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, &ValidationError{Msg: "name is required"}
+	}
+	id := domain.NewUserID()
+	user, err := s.users.CreateServiceAccount(ctx, s.db, id, name)
+	if err != nil {
+		return nil, fmt.Errorf("create service account: %w", err)
+	}
+	return user, nil
+}
+
+// ListServiceAccounts returns all service account users.
+func (s *UserService) ListServiceAccounts(ctx context.Context) ([]domain.User, error) {
+	accounts, err := s.users.ListServiceAccounts(ctx, s.db)
+	if err != nil {
+		return nil, fmt.Errorf("list service accounts: %w", err)
+	}
+	return accounts, nil
+}
+
+// DeleteServiceAccount deletes a service account and all its tokens.
+func (s *UserService) DeleteServiceAccount(ctx context.Context, id domain.UserID) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if err := s.users.DeleteServiceAccountPATs(ctx, tx, id); err != nil {
+		return fmt.Errorf("delete service account pats: %w", err)
+	}
+	if err := s.users.DeleteServiceAccount(ctx, tx, id); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("delete service account: %w", err)
+	}
+	return tx.Commit()
+}
+
+// requireServiceAccount returns ErrNotFound if the user does not exist or is not a service account.
+func (s *UserService) requireServiceAccount(ctx context.Context, id domain.UserID) error {
+	u, err := s.users.GetByID(ctx, s.db, id)
+	if errors.Is(err, store.ErrNotFound) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("get user: %w", err)
+	}
+	if !u.IsServiceAccount {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// CreateServiceAccountPAT generates a PAT for a service account. Returns the raw token (shown once) and metadata.
+func (s *UserService) CreateServiceAccountPAT(ctx context.Context, userID domain.UserID, name string) (string, *domain.PAT, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", nil, &ValidationError{Msg: "name is required"}
+	}
+	if err := s.requireServiceAccount(ctx, userID); err != nil {
+		return "", nil, err
+	}
+	token, pat, err := s.users.CreateServiceAccountPAT(ctx, s.db, userID, name)
+	if err != nil {
+		return "", nil, fmt.Errorf("create service account pat: %w", err)
+	}
+	return token, pat, nil
+}
+
+// ListServiceAccountPATs returns all PATs for a service account.
+func (s *UserService) ListServiceAccountPATs(ctx context.Context, userID domain.UserID) ([]domain.PAT, error) {
+	if err := s.requireServiceAccount(ctx, userID); err != nil {
+		return nil, err
+	}
+	pats, err := s.users.ListPATs(ctx, s.db, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list service account pats: %w", err)
+	}
+	return pats, nil
+}
+
+// DeleteServiceAccountPAT deletes a PAT belonging to a service account.
+func (s *UserService) DeleteServiceAccountPAT(ctx context.Context, userID domain.UserID, tokenID domain.TokenID) error {
+	if err := s.requireServiceAccount(ctx, userID); err != nil {
+		return err
+	}
+	if err := s.users.DeletePAT(ctx, s.db, userID, tokenID); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("delete service account pat: %w", err)
+	}
+	return nil
+}
+
 // DeleteSession deletes the session with the given id for the user.
 func (s *UserService) DeleteSession(ctx context.Context, userID domain.UserID, sessionID domain.SessionID) error {
 	if err := s.users.DeleteSession(ctx, s.db, userID, sessionID); err != nil {
