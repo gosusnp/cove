@@ -69,20 +69,40 @@ export function Settings() {
 	const firstName = useSignal(user?.first_name ?? "");
 	const lastName = useSignal(user?.last_name ?? "");
 
+	// ── Unit fields ───────────────────────────────────────────────────────
+	const fitnessUnit = useSignal(user?.fitness_unit_system ?? "metric");
+	const cookingUnit = useSignal(user?.cooking_unit_system ?? "metric");
+
 	useEffect(() => {
 		if (!user) return;
 		displayName.value = user.display_name ?? "";
 		firstName.value = user.first_name ?? "";
 		lastName.value = user.last_name ?? "";
+		fitnessUnit.value = user.fitness_unit_system ?? "metric";
+		cookingUnit.value = user.cooking_unit_system ?? "metric";
 	}, [user?.id]);
 
-	async function saveName(field, value) {
+	async function saveName(field, signal) {
+		const prev = user?.[field] ?? "";
 		const r = await apiFetch("/api/users/me", {
 			method: "PATCH",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ [field]: value.trim() || null }),
+			body: JSON.stringify({ [field]: signal.value.trim() || null }),
 		});
 		if (r.ok) updateUser(await r.json());
+		else signal.value = prev;
+	}
+
+	async function saveUnit(field, signal, value) {
+		const prev = signal.value;
+		signal.value = value;
+		const r = await apiFetch("/api/users/me", {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ [field]: value }),
+		});
+		if (r.ok) updateUser(await r.json());
+		else signal.value = prev;
 	}
 
 	// ── Tokens ───────────────────────────────────────────────────────────
@@ -234,7 +254,7 @@ export function Settings() {
 						onInput={(e) => {
 							displayName.value = e.target.value;
 						}}
-						onBlur={() => saveName("display_name", displayName.value)}
+						onBlur={() => saveName("display_name", displayName)}
 					/>
 				</Row>
 				<Row label="First name">
@@ -244,7 +264,7 @@ export function Settings() {
 						onInput={(e) => {
 							firstName.value = e.target.value;
 						}}
-						onBlur={() => saveName("first_name", firstName.value)}
+						onBlur={() => saveName("first_name", firstName)}
 					/>
 				</Row>
 				<Row label="Last name" last>
@@ -254,7 +274,7 @@ export function Settings() {
 						onInput={(e) => {
 							lastName.value = e.target.value;
 						}}
-						onBlur={() => saveName("last_name", lastName.value)}
+						onBlur={() => saveName("last_name", lastName)}
 					/>
 				</Row>
 			</Section>
@@ -262,15 +282,8 @@ export function Settings() {
 			<Section title="Units">
 				<Row label="Fitness weight">
 					<ToggleGroup
-						value={user?.fitness_unit_system ?? "metric"}
-						onChange={async (v) => {
-							const r = await apiFetch("/api/users/me", {
-								method: "PATCH",
-								headers: { "Content-Type": "application/json" },
-								body: JSON.stringify({ fitness_unit_system: v }),
-							});
-							if (r.ok) updateUser(await r.json());
-						}}
+						value={fitnessUnit.value}
+						onChange={(v) => saveUnit("fitness_unit_system", fitnessUnit, v)}
 						options={[
 							{ value: "metric", label: "kg" },
 							{ value: "imperial", label: "lb" },
@@ -279,15 +292,8 @@ export function Settings() {
 				</Row>
 				<Row label="Cooking" last>
 					<ToggleGroup
-						value={user?.cooking_unit_system ?? "metric"}
-						onChange={async (v) => {
-							const r = await apiFetch("/api/users/me", {
-								method: "PATCH",
-								headers: { "Content-Type": "application/json" },
-								body: JSON.stringify({ cooking_unit_system: v }),
-							});
-							if (r.ok) updateUser(await r.json());
-						}}
+						value={cookingUnit.value}
+						onChange={(v) => saveUnit("cooking_unit_system", cookingUnit, v)}
 						options={[
 							{ value: "metric", label: "Metric" },
 							{ value: "imperial", label: "Imperial" },
