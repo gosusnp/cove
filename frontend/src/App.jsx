@@ -5,6 +5,7 @@ import { useEffect } from "preact/hooks";
 import { LocationProvider, Route, Router, useLocation } from "preact-iso";
 import { AuthProvider, useAuth } from "./Auth.jsx";
 import { Nav } from "./components/shared/Nav.jsx";
+import { AdminServiceAccounts } from "./pages/AdminServiceAccounts.jsx";
 import { DesignElements } from "./pages/DesignElements.jsx";
 import { Exercises } from "./pages/Exercises.jsx";
 import { Home } from "./pages/Home.jsx";
@@ -23,6 +24,7 @@ const PROTECTED_ROUTES = [
 	"/sessions",
 	"/workout",
 	"/cook",
+	"/admin",
 ];
 
 function Layout() {
@@ -32,12 +34,15 @@ function Layout() {
 	const isProtected = PROTECTED_ROUTES.some(
 		(p) => url === p || url.startsWith(`${p}/`),
 	);
+	const isAdminRoute = url === "/admin" || url.startsWith("/admin/");
 
 	useEffect(() => {
 		if (loading) return;
 		if (!user && isProtected) {
 			route("/login");
 		} else if (user && url === "/login") {
+			route("/");
+		} else if (user && isAdminRoute && !user.is_admin) {
 			route("/");
 		}
 	}, [user, url, loading]);
@@ -46,6 +51,7 @@ function Layout() {
 	if (loading) return null;
 	if (!user && isProtected) return null;
 	if (user && url === "/login") return null;
+	if (user && isAdminRoute && !user.is_admin) return null;
 
 	return (
 		<div class="app-shell flex flex-col min-h-dvh">
@@ -65,6 +71,10 @@ function Layout() {
 				<Route path="/sessions/:id" component={Sessions} />
 				<Route path="/workout" component={SessionTracker} />
 				<Route path="/settings" component={Settings} />
+				<Route
+					path="/admin/service-accounts"
+					component={AdminServiceAccounts}
+				/>
 				{import.meta.env.VITE_COVE_ENV === "dev" && (
 					<Route path="/design-elements" component={DesignElements} />
 				)}

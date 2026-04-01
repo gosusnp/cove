@@ -47,6 +47,7 @@ const PAGE_TITLES = [
 	{ label: "Settings", href: "/settings" },
 	{ label: "Ingredients", href: "/cook/ingredients" },
 	{ label: "Compose", href: "/cook/recipes" },
+	{ label: "Service Accounts", href: "/admin/service-accounts" },
 ];
 
 function pageTitle(url) {
@@ -107,7 +108,7 @@ function DesktopSidebar({ user, url }) {
 				borderRight: "1px solid var(--color-border)",
 			}}
 		>
-			<nav class="flex flex-col gap-1 px-2 py-4">
+			<nav class="flex-1 flex flex-col gap-1 px-2 py-4 overflow-y-auto">
 				{user &&
 					NAV_SECTIONS.map(({ label, items }, i) => (
 						<>
@@ -129,6 +130,25 @@ function DesktopSidebar({ user, url }) {
 						</>
 					))}
 			</nav>
+			{user?.is_admin && (
+				<div
+					class="flex flex-col gap-1 px-2 py-4"
+					style={{ borderTop: "1px solid var(--color-border)" }}
+				>
+					<p
+						class="px-4 py-1 text-xs font-semibold uppercase tracking-wider"
+						style={{ color: "var(--color-text)" }}
+					>
+						Admin
+					</p>
+					<SidebarLink
+						href="/admin/service-accounts"
+						active={isActive("/admin/service-accounts", url)}
+					>
+						Service Accounts
+					</SidebarLink>
+				</div>
+			)}
 		</aside>
 	);
 }
@@ -157,6 +177,22 @@ function MobileBottomBar({ user, url }) {
 					>
 						Cove
 					</a>
+					{user?.is_admin && (
+						<a
+							href="/admin/service-accounts"
+							aria-current={url.startsWith("/admin/") ? "page" : undefined}
+							aria-label="Admin"
+							class={cn(
+								"flex flex-1 items-center justify-center text-xs font-medium transition-colors touch-manipulation select-none",
+								url.startsWith("/admin/")
+									? "text-(--color-accent)"
+									: "text-(--color-muted)",
+							)}
+							style={{ textDecoration: "none" }}
+						>
+							Admin
+						</a>
+					)}
 					<a
 						href="/settings"
 						aria-current={url === "/settings" ? "page" : undefined}

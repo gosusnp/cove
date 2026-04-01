@@ -16,4 +16,18 @@ describe("App", () => {
 		render(<App />);
 		await waitFor(() => expect(screen.getByRole("banner")).toBeInTheDocument());
 	});
+
+	it("redirects non-admin users away from admin routes", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue({
+				ok: true,
+				json: () =>
+					Promise.resolve({ email: "user@test.com", is_admin: false }),
+			}),
+		);
+		window.history.pushState({}, "", "/admin/service-accounts");
+		render(<App />);
+		await waitFor(() => expect(window.location.pathname).toBe("/"));
+	});
 });

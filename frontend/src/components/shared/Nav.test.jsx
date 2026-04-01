@@ -54,6 +54,20 @@ describe("Nav", () => {
 		}
 	});
 
+	it("hides Admin link for regular users", () => {
+		withProviders(<Nav />, { user: MOCK_USER });
+		expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
+	});
+
+	it("shows Admin link pointing to /admin/service-accounts for admin users", () => {
+		withProviders(<Nav />, { user: { ...MOCK_USER, is_admin: true } });
+		const links = screen.getAllByRole("link", { name: "Admin" });
+		expect(links.length).toBeGreaterThan(0);
+		for (const link of links) {
+			expect(link).toHaveAttribute("href", "/admin/service-accounts");
+		}
+	});
+
 	it("shows Train and Program nav links when signed in", () => {
 		withProviders(<Nav />, { user: MOCK_USER });
 		const workoutLinks = screen.getAllByRole("link", { name: "Workout" });
