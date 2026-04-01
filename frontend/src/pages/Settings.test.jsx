@@ -20,7 +20,7 @@ vi.mock("../components/ui/Dialog.jsx", () => ({
 	),
 }));
 
-const MOCK_USER = { email: "jane@example.com", name: "Jane Smith" };
+const MOCK_USER = { email: "jane@example.com", display_name: "Jane Smith" };
 
 const renderSettings = (opts = {}) =>
 	withProviders(<Settings />, { path: "/settings", user: MOCK_USER, ...opts });
@@ -74,10 +74,12 @@ describe("Settings", () => {
 			expect(screen.getByText(MOCK_USER.email)).toBeInTheDocument();
 		});
 
-		it("shows the signed-in user name", () => {
+		it("shows the signed-in user display name", () => {
 			mockFetch();
 			renderSettings();
-			expect(screen.getAllByText(MOCK_USER.name).length).toBeGreaterThan(0);
+			expect(
+				screen.getAllByText(MOCK_USER.display_name).length,
+			).toBeGreaterThan(0);
 		});
 	});
 

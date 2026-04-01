@@ -85,6 +85,9 @@ type User struct {
 	CreatedAt         time.Time   `json:"created_at"`
 	IsServiceAccount  bool        `json:"-"`
 	IsAdmin           bool        `json:"-"`
+	DisplayName       *string     `json:"-"`
+	FirstName         *string     `json:"-"`
+	LastName          *string     `json:"-"`
 }
 
 // -----------------------------------------------------------------------------

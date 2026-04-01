@@ -23,18 +23,31 @@ import { timeAgo } from "../lib/utils";
 import { apiFetch } from "../lib/api.js";
 
 function initials(user) {
-	if (user.name) {
-		return user.name
+	if (user.display_name) {
+		return user.display_name
 			.split(" ")
 			.map((p) => p[0])
 			.join("")
 			.toUpperCase()
 			.slice(0, 2);
 	}
+	if (user.first_name || user.last_name) {
+		return [user.first_name?.[0], user.last_name?.[0]]
+			.filter(Boolean)
+			.join("")
+			.toUpperCase();
+	}
 	if (user.email) {
 		return user.email[0].toUpperCase();
 	}
 	return "?";
+}
+
+function displayLabel(user) {
+	if (user?.display_name) return user.display_name;
+	if (user?.first_name || user?.last_name)
+		return [user.first_name, user.last_name].filter(Boolean).join(" ");
+	return null;
 }
 
 export function Settings() {
@@ -50,6 +63,27 @@ export function Settings() {
 			})
 			.catch(() => {});
 	}, []);
+
+	// ── Name fields ──────────────────────────────────────────────────────
+	const displayName = useSignal(user?.display_name ?? "");
+	const firstName = useSignal(user?.first_name ?? "");
+	const lastName = useSignal(user?.last_name ?? "");
+
+	useEffect(() => {
+		if (!user) return;
+		displayName.value = user.display_name ?? "";
+		firstName.value = user.first_name ?? "";
+		lastName.value = user.last_name ?? "";
+	}, [user?.id]);
+
+	async function saveName(field, value) {
+		const r = await apiFetch("/api/users/me", {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ [field]: value.trim() || null }),
+		});
+		if (r.ok) updateUser(await r.json());
+	}
 
 	// ── Tokens ───────────────────────────────────────────────────────────
 	const tokens = useSignal([]);
@@ -183,9 +217,9 @@ export function Settings() {
 						class="w-14 h-14 text-xl shrink-0"
 					/>
 					<div class="flex flex-col gap-0.5">
-						{user?.name && (
+						{displayLabel(user) && (
 							<span class="font-medium" style={{ color: "var(--color-text)" }}>
-								{user.name}
+								{displayLabel(user)}
 							</span>
 						)}
 						<span class="text-sm" style={{ color: "var(--color-muted)" }}>
@@ -193,11 +227,36 @@ export function Settings() {
 						</span>
 					</div>
 				</div>
-				{user?.name && (
-					<Row label="Display name" last>
-						<span>{user.name}</span>
-					</Row>
-				)}
+				<Row label="Display name">
+					<TextField
+						value={displayName.value}
+						placeholder="e.g. Jon Doe"
+						onInput={(e) => {
+							displayName.value = e.target.value;
+						}}
+						onBlur={() => saveName("display_name", displayName.value)}
+					/>
+				</Row>
+				<Row label="First name">
+					<TextField
+						value={firstName.value}
+						placeholder="First"
+						onInput={(e) => {
+							firstName.value = e.target.value;
+						}}
+						onBlur={() => saveName("first_name", firstName.value)}
+					/>
+				</Row>
+				<Row label="Last name" last>
+					<TextField
+						value={lastName.value}
+						placeholder="Last"
+						onInput={(e) => {
+							lastName.value = e.target.value;
+						}}
+						onBlur={() => saveName("last_name", lastName.value)}
+					/>
+				</Row>
 			</Section>
 
 			<Section title="Units">

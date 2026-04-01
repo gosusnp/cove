@@ -153,6 +153,9 @@ func (s *UserService) DeletePAT(ctx context.Context, userID domain.UserID, id do
 type UserPreferencesPatch struct {
 	FitnessUnitSystem domain.Optional[*domain.UnitSystem] `json:"fitness_unit_system"`
 	CookingUnitSystem domain.Optional[*domain.UnitSystem] `json:"cooking_unit_system"`
+	DisplayName       domain.Optional[*string]            `json:"display_name"`
+	FirstName         domain.Optional[*string]            `json:"first_name"`
+	LastName          domain.Optional[*string]            `json:"last_name"`
 }
 
 // PatchPreferences applies a partial update to the user's unit system preferences.
@@ -168,12 +171,24 @@ func (s *UserService) PatchPreferences(ctx context.Context, userID domain.UserID
 
 	newFitness := current.FitnessUnitSystem
 	newCooking := current.CookingUnitSystem
+	newDisplayName := current.DisplayName
+	newFirstName := current.FirstName
+	newLastName := current.LastName
 
 	if patch.FitnessUnitSystem.Set {
 		newFitness = patch.FitnessUnitSystem.Value
 	}
 	if patch.CookingUnitSystem.Set {
 		newCooking = patch.CookingUnitSystem.Value
+	}
+	if patch.DisplayName.Set {
+		newDisplayName = trimToNil(patch.DisplayName.Value)
+	}
+	if patch.FirstName.Set {
+		newFirstName = trimToNil(patch.FirstName.Value)
+	}
+	if patch.LastName.Set {
+		newLastName = trimToNil(patch.LastName.Value)
 	}
 
 	if newFitness != nil {
@@ -185,7 +200,7 @@ func (s *UserService) PatchPreferences(ctx context.Context, userID domain.UserID
 		return nil, &ValidationError{Msg: "cooking_unit_system must be 'metric', 'imperial', or 'us_customary'"}
 	}
 
-	user, err := s.users.UpdatePreferences(ctx, s.db, userID, newFitness, newCooking)
+	user, err := s.users.UpdatePreferences(ctx, s.db, userID, newFitness, newCooking, newDisplayName, newFirstName, newLastName)
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, ErrNotFound
 	}
@@ -193,6 +208,18 @@ func (s *UserService) PatchPreferences(ctx context.Context, userID domain.UserID
 		return nil, fmt.Errorf("update preferences: %w", err)
 	}
 	return user, nil
+}
+
+// trimToNil trims whitespace from s and returns nil if the result is empty.
+func trimToNil(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	v := strings.TrimSpace(*s)
+	if v == "" {
+		return nil
+	}
+	return &v
 }
 
 // DeleteSession deletes the session with the given id for the user.

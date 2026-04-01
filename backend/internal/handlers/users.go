@@ -62,6 +62,9 @@ type userResponse struct {
 	CookingUnitSystem *domain.UnitSystem `json:"cooking_unit_system,omitempty"`
 	CreatedAt         time.Time          `json:"created_at"`
 	IsAdmin           bool               `json:"is_admin"`
+	DisplayName       *string            `json:"display_name,omitempty"`
+	FirstName         *string            `json:"first_name,omitempty"`
+	LastName          *string            `json:"last_name,omitempty"`
 }
 
 func userToResponse(u *domain.User) userResponse {
@@ -72,6 +75,9 @@ func userToResponse(u *domain.User) userResponse {
 		CookingUnitSystem: u.CookingUnitSystem,
 		CreatedAt:         u.CreatedAt,
 		IsAdmin:           u.IsAdmin,
+		DisplayName:       u.DisplayName,
+		FirstName:         u.FirstName,
+		LastName:          u.LastName,
 	}
 }
 
