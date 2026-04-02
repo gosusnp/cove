@@ -9,7 +9,6 @@ Structural rules for how the Cove backend is organized and how layers interact.
 ```
 android/          — Capacitor Android project (mobile builds)
 backend/          — Go module (github.com/gosusnp/cove/backend)
-  cmd/mcp/        — standalone MCP server entry point
   cmd/llm/        — standalone CLI for iterating on LLM prompt workflows without the HTTP server
   internal/
     db/           — database connection and migrations/
@@ -18,7 +17,7 @@ backend/          — Go module (github.com/gosusnp/cove/backend)
     domain/       — domain entities, logic, and hardened types
     store/        — SQL queries and database error translation
     middleware/   — APIKey and OAuth auth, request logging
-    mcp/          — MCP tool registration grouped by resource
+    workers/      — background job orchestration; ports.go defines data-tier boundaries
     crypto/       — Encryptor interface, AES-256-GCM impl, EncryptedField[T] hardened type, SensitiveString
     llm/          — LLM Client interface and OpenAI-compatible implementation
     llm/prompts/  — shared prompt builders and embedded templates, grouped by domain (fitness, cooking)
@@ -46,6 +45,7 @@ docs/             — architecture and style guides
 
 ```
 Handlers  →  Services  →  Stores  →  Database
+Workers   →  Ports     →  (Services or remote HTTP)
 ```
 
 This is a strict, one-direction dependency chain.
@@ -55,6 +55,7 @@ This is a strict, one-direction dependency chain.
 - **DON'T** skip layers — a handler must not instantiate a store or call SQL.
 - **DON'T** let services share state or call each other. Coordination belongs at the handler or a dedicated service.
 - **DO** allow a service to depend on multiple stores when it needs to coordinate across resources (e.g. `ProgramService` depends on both `ProgramStore` and `ExerciseStore`).
+- **DON'T** let workers import `internal/service` or `internal/store` directly — all data access goes through a port.
 
 ---
 
@@ -538,9 +539,9 @@ Some domain fields contain user-private data (e.g. session notes, perceived effo
 ### Layer Responsibilities
 
 ```
-Handler   → calls ws.UseSensitiveData(ctx, fn) — only place plaintext exists
-Service   → encrypts on write; calls ws.SetEncryptor after store read; never decrypts
-Store     → scans sensitive_data into ws.SensitiveDataScanner(); writes raw []byte
+Handler/Worker → calls ws.UseSensitiveData(ctx, fn) — only place plaintext exists
+Service        → encrypts on write; calls ws.SetEncryptor after store read; never decrypts
+Store          → scans sensitive_data into ws.SensitiveDataScanner(); writes raw []byte
 ```
 
 ### Domain Entity Pattern
@@ -633,7 +634,7 @@ func (h *WorkoutSessionHandler) get(w http.ResponseWriter, r *http.Request) {
 - **DO** use `sensitive_data BYTEA` (nullable) as the DB column — `NULL` means no sensitive data was set.
 - **DO** inject `crypto.Encryptor` into the service constructor; wire from `SESSION_ENCRYPTION_KEY` env var in `main.go`.
 - **DO** call `SetEncryptor` on every `*[Entity]` returned by the store before handing it to the handler.
-- **DON'T** call `UseSensitiveData` in the service — decryption belongs in the handler.
+- **DON'T** call `UseSensitiveData` in the service — decryption belongs in the handler or worker.
 - **DON'T** add sensitive fields directly to the domain entity struct — they must go through `[Entity]SensitiveData`.
 - **DON'T** store the result of `UseSensitiveData` in a struct field or return value — use it inline only.
 - **DON'T** assign `*SensitiveString` fields directly to response structs — convert via `stringPtr(s.Field)` inside the callback.
@@ -728,6 +729,57 @@ This distinction matters because the author and the viewer may be different peop
 | `tsp` | 0.125 | 1/8 tsp — smallest common measuring spoon |
 | `tbsp` | 0.5 | 1/2 tbsp — smallest common measuring spoon |
 | `cup` | 0.125 | 1/8 cup |
+
+---
+
+## Workers
+
+Workers are background job processors that run alongside the HTTP server in the same binary. They use the same service layer as handlers but access it through **ports** — interfaces that define the data-tier boundary.
+
+### Why Ports
+
+All data access from a worker must go through a port, never by importing `internal/service` or `internal/store` directly. This establishes a clean seam for two reasons:
+
+1. **Database connection scaling**: Only the API tier (services) should hold database connections. Workers that bypass services multiply DB clients independently, making connection count harder to reason about as the system scales.
+2. **Deployment flexibility**: When the worker is eventually split into a separate process, the port implementation swaps from a local adapter (direct service call) to a remote adapter (HTTP client). The workflow orchestration code does not change.
+
+### Structure
+
+```go
+// internal/workers/ports.go — data-tier boundary interfaces
+type WorkoutSessionPort interface {
+    Get(ctx context.Context, id domain.WorkoutSessionID) (*domain.WorkoutSession, error)
+    PatchSummary(ctx context.Context, id domain.WorkoutSessionID, patch WorkoutSessionSummaryPatch) error
+}
+
+// internal/workers/local.go — local adapter (fat-binary deployment)
+type LocalWorkoutSessionAdapter struct { svc *service.WorkoutSessionService }
+
+// internal/workers/session_summary.go — workflow orchestration
+type SessionSummaryWorker struct {
+    sessions  WorkoutSessionPort
+    summarize *service.SummarizeService
+}
+```
+
+The workflow code depends only on `WorkoutSessionPort`. The local adapter is a thin wrapper on `WorkoutSessionService`. When the worker splits to a separate pod, the local adapter is replaced by an HTTP client — zero changes to the workflow.
+
+### Port Design Rules
+
+- **DO** define ports in `internal/workers/ports.go` as narrow interfaces covering only the operations the worker actually needs. A worker that only writes summaries does not need `List` or `Delete`.
+- **DO** keep each port scoped to a single resource (`WorkoutSessionPort`, not a catch-all `DataPort`).
+- **DON'T** expose `service.WorkoutSessionPatch` or other service types through a port boundary — define worker-owned input types (e.g. `WorkoutSessionSummaryPatch`) and translate in the adapter.
+- **DO** require identity in ctx (via `domain.NewContext`) before calling any port method — the same convention as the service layer.
+- **DON'T** define ports for pure-computation dependencies (e.g. `SummarizeService`, LLM client) — these are direct dependencies of the worker, not data-tier boundaries.
+
+### Adapters
+
+- **Local adapter** (`LocalWorkoutSessionAdapter`): delegates directly to `WorkoutSessionService`. Used in the fat-binary deployment where worker and API server share a process and DB connection pool.
+- **Remote adapter** (future): HTTP client that calls the API. Used when the worker runs as a separate pod. Satisfies the same port interface; workflow code is unchanged.
+
+### Sensitive Data
+
+Workers call `ws.UseSensitiveData(ctx, fn)` the same way handlers do — it is the only sanctioned way to access sensitive fields regardless of call site. Sensitive data never appears in job payloads; job inputs carry only opaque identifiers `(session_id, org_id, user_id)`.
 
 ---
 

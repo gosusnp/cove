@@ -32,7 +32,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -48,6 +47,7 @@ import (
 	"github.com/gosusnp/cove/backend/internal/llm"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
+	"github.com/gosusnp/cove/backend/internal/workers"
 )
 
 func main() {
@@ -65,6 +65,7 @@ func main() {
 	defer database.Close()
 
 	wsSvc := service.NewWorkoutSessionService(database, store.NewWorkoutSessionStore(), enc)
+	adapter := workers.NewLocalWorkoutSessionAdapter(wsSvc)
 
 	var summarizeSvc *service.SummarizeService
 	if *preview {
@@ -78,15 +79,17 @@ func main() {
 		}))
 	}
 
+	worker := workers.NewSessionSummaryWorker(adapter, summarizeSvc)
+
 	switch cmd {
 	case "session":
-		runSession(rawID, *preview, database, wsSvc, summarizeSvc)
+		runSession(rawID, *preview, database, worker)
 	default:
 		log.Fatalf("unknown command: %s", cmd)
 	}
 }
 
-func runSession(rawID string, preview bool, database *sql.DB, wsSvc *service.WorkoutSessionService, summarizeSvc *service.SummarizeService) {
+func runSession(rawID string, preview bool, database *sql.DB, worker *workers.SessionSummaryWorker) {
 	n, err := strconv.ParseInt(rawID, 10, 64)
 	if err != nil {
 		log.Fatalf("invalid session id %q: %v", rawID, err)
@@ -109,34 +112,17 @@ func runSession(rawID string, preview bool, database *sql.DB, wsSvc *service.Wor
 	}
 	ctx = domain.NewContext(ctx, identity)
 
-	ws, err := wsSvc.Get(ctx, id)
-	if err != nil {
-		log.Fatalf("get session %d: %v", id, err)
-	}
-
 	if preview {
-		if err := ws.UseSensitiveData(ctx, func(sd domain.SessionSensitiveData) error {
-			return summarizeSvc.PreviewSession(os.Stdout, ws, sd)
-		}); err != nil {
+		if err := worker.Preview(ctx, id, os.Stdout); err != nil {
 			log.Fatalf("preview session %d: %v", id, err)
 		}
 		return
 	}
 
-	var result *service.SessionSummary
-	if err := ws.UseSensitiveData(ctx, func(sd domain.SessionSensitiveData) error {
-		var err error
-		result, err = summarizeSvc.SummarizeSession(ctx, ws, sd)
-		return err
-	}); err != nil {
+	if err := worker.Run(ctx, id); err != nil {
 		log.Fatalf("summarize session %d: %v", id, err)
 	}
-
-	out, err := json.MarshalIndent(result, "", "  ")
-	if err != nil {
-		log.Fatalf("marshal result: %v", err)
-	}
-	fmt.Println(string(out))
+	fmt.Printf("session %d summarized\n", id)
 }
 
 // sessionIdentity queries the user_id and org_id for a session so the CLI can
