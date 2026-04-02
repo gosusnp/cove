@@ -123,6 +123,7 @@ if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 - **DO** define request DTOs as unexported structs within the handler file.
 - **DO** return `400 Bad Request` immediately on decode failure.
 - **DON'T** reuse domain types (from `store`) as request DTOs.
+- **Exception — patch types:** `[Entity]Patch` structs that use `domain.Optional[T]` to carry partial-update semantics are defined in the service package and decoded directly in the handler. Duplicating them as handler DTOs adds no value. See `WorkoutSessionPatch` and `UserPreferencesPatch` for the established pattern.
 
 ### HTTP Status Codes
 
@@ -519,9 +520,9 @@ Some domain fields contain user-private data (e.g. session notes, perceived effo
 
 ### Design Principles
 
-- **Plaintext never leaves the handler scope.** The only way to read sensitive fields is via `UseSensitiveData` — a callback pattern that decrypts into a `*T`, calls the handler, then zeros the struct in place before returning.
+- **Plaintext never leaves the handler scope in normal read flows.** The only way to read sensitive fields is via `UseSensitiveData` — a callback pattern that decrypts into a `*T`, calls the handler, then zeros the struct in place before returning.
 - **String fields use `crypto.SensitiveString` (`[]byte`-backed).** Go string interning means `*string` fields cannot be reliably zeroed; `SensitiveString` avoids that risk. Zeroing the `*T` struct after the callback wipes the backing bytes.
-- **The service injects the encryptor; it never decrypts.** This keeps the plaintext lifetime as short as possible.
+- **The service injects the encryptor; it never decrypts for output.** This keeps the plaintext lifetime as short as possible. **Exception — read-modify-write:** a service `Patch` method may call `UseSensitiveData` internally to merge existing encrypted state with the incoming patch before re-encrypting. This is the only sanctioned case for decryption in the service layer.
 - **The store is a pure byte pass-through.** It has no knowledge of encryption — it scans and writes raw `[]byte`.
 - **User ID is bound into every ciphertext via GCM additional data.** `UseSensitiveData` passes `ws.UserID.UUID[:]` as AAD; decryption will fail if the stored user_id does not match, preventing row-swapping attacks.
 - **Empty sensitive data is stored as NULL.** `[Entity]SensitiveData` must implement `IsEmpty() bool`; the service skips encryption and writes `NULL` when it returns true, avoiding spurious ciphertext for empty payloads.
@@ -539,8 +540,9 @@ Some domain fields contain user-private data (e.g. session notes, perceived effo
 ### Layer Responsibilities
 
 ```
-Handler/Worker → calls ws.UseSensitiveData(ctx, fn) — only place plaintext exists
-Service        → encrypts on write; calls ws.SetEncryptor after store read; never decrypts
+Handler/Worker → calls ws.UseSensitiveData(ctx, fn) — primary site where plaintext exists
+Service        → encrypts on write; calls ws.SetEncryptor after store read; may decrypt
+                 only in Patch (read-modify-write) to merge before re-encrypting
 Store          → scans sensitive_data into ws.SensitiveDataScanner(); writes raw []byte
 ```
 
@@ -634,7 +636,7 @@ func (h *WorkoutSessionHandler) get(w http.ResponseWriter, r *http.Request) {
 - **DO** use `sensitive_data BYTEA` (nullable) as the DB column — `NULL` means no sensitive data was set.
 - **DO** inject `crypto.Encryptor` into the service constructor; wire from `SESSION_ENCRYPTION_KEY` env var in `main.go`.
 - **DO** call `SetEncryptor` on every `*[Entity]` returned by the store before handing it to the handler.
-- **DON'T** call `UseSensitiveData` in the service — decryption belongs in the handler or worker.
+- **DON'T** call `UseSensitiveData` in the service except in `Patch` methods — the only sanctioned case is reading existing encrypted state to merge it with an incoming patch before re-encrypting. All other decryption belongs in the handler or worker.
 - **DON'T** add sensitive fields directly to the domain entity struct — they must go through `[Entity]SensitiveData`.
 - **DON'T** store the result of `UseSensitiveData` in a struct field or return value — use it inline only.
 - **DON'T** assign `*SensitiveString` fields directly to response structs — convert via `stringPtr(s.Field)` inside the callback.
