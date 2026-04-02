@@ -212,3 +212,71 @@ type ExerciseLite struct {
 	ID   ExerciseID `json:"id"`
 	Name string     `json:"name"`
 }
+
+// -----------------------------------------------------------------------------
+// User Training Profile
+// -----------------------------------------------------------------------------
+
+// TrainingProfileSensitiveData holds the sensitive training profile information.
+type TrainingProfileSensitiveData struct {
+	Motivation  *crypto.SensitiveString     `json:"motivation,omitempty"`
+	Disciplines []TrainingProfileDiscipline `json:"disciplines,omitempty"`
+	Constraints *crypto.SensitiveString     `json:"constraints,omitempty"`
+}
+
+type TrainingProfileDiscipline struct {
+	Name          *crypto.SensitiveString `json:"name,omitempty"`
+	YearsPractice *float64                `json:"years_practice,omitempty"`
+	Level         *crypto.SensitiveString `json:"level,omitempty"`
+	Notes         *crypto.SensitiveString `json:"notes,omitempty"`
+}
+
+// Format implements fmt.Formatter.
+func (s TrainingProfileSensitiveData) Format(f fmt.State, _ rune) {
+	_, _ = io.WriteString(f, "TrainingProfileSensitiveData[REDACTED]")
+}
+
+// GoString implements fmt.GoStringer.
+func (s TrainingProfileSensitiveData) GoString() string {
+	return "TrainingProfileSensitiveData[REDACTED]"
+}
+
+// IsEmpty reports whether all sensitive fields are unset.
+func (s TrainingProfileSensitiveData) IsEmpty() bool {
+	return s.Motivation == nil && len(s.Disciplines) == 0 && s.Constraints == nil
+}
+
+// UserTrainingProfile represents a user's training goals and history.
+type UserTrainingProfile struct {
+	UserID    UserID    `json:"user_id"`
+	OrgID     OrgID     `json:"org_id"`
+	CreatedBy UserID    `json:"created_by"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedBy *UserID   `json:"updated_by,omitempty"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	sensitiveData crypto.EncryptedField[TrainingProfileSensitiveData] `json:"-"`
+}
+
+// UseSensitiveData decrypts the profile's sensitive payload, calls fn with it,
+// then zeros the struct in place before returning.
+func (tp *UserTrainingProfile) UseSensitiveData(ctx context.Context, fn func(TrainingProfileSensitiveData) error) error {
+	return tp.sensitiveData.Use(ctx, func(p *TrainingProfileSensitiveData) error {
+		return fn(*p)
+	}, tp.UserID.UUID[:])
+}
+
+// SetEncryptor injects the encryptor needed to decrypt sensitive data.
+func (tp *UserTrainingProfile) SetEncryptor(enc crypto.Encryptor) {
+	tp.sensitiveData.SetEncryptor(enc)
+}
+
+// SensitiveDataScanner returns a pointer suitable for sql.Scan.
+func (tp *UserTrainingProfile) SensitiveDataScanner() interface{ Scan(any) error } {
+	return &tp.sensitiveData
+}
+
+// SensitiveDataBytes returns the raw ciphertext for writing to the store.
+func (tp *UserTrainingProfile) SensitiveDataBytes() []byte {
+	return tp.sensitiveData.Value()
+}

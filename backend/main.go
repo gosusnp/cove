@@ -126,6 +126,7 @@ func main() {
 	exSvc := service.NewExerciseService(database, exStore)
 	pSvc := service.NewProgramService(database, exStore)
 	wsSvc := service.NewWorkoutSessionService(database, store.NewWorkoutSessionStore(), enc)
+	tpSvc := service.NewTrainingProfileService(database, store.NewTrainingProfileStore(), enc)
 	ingSvc := service.NewIngredientService(database, store.NewIngredientStore(), fdcClient)
 	recipeSvc := service.NewRecipeService(database, store.NewRecipeStore())
 	prepSvc := service.NewPreparationService(database, store.NewPreparationStore())
@@ -136,14 +137,15 @@ func main() {
 	}
 
 	apiSvcs := Services{
-		Users:           userSvc,
-		Exercises:       exSvc,
-		Programs:        pSvc,
-		WorkoutSessions: wsSvc,
-		Ingredients:     ingSvc,
-		Recipes:         recipeSvc,
-		Preparations:    prepSvc,
-		FDCClient:       fdcClient,
+		Users:            userSvc,
+		Exercises:        exSvc,
+		Programs:         pSvc,
+		WorkoutSessions:  wsSvc,
+		TrainingProfiles: tpSvc,
+		Ingredients:      ingSvc,
+		Recipes:          recipeSvc,
+		Preparations:     prepSvc,
+		FDCClient:        fdcClient,
 	}
 
 	secureCookies := os.Getenv("COVE_DEV") == ""

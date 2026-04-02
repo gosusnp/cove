@@ -14,14 +14,15 @@ import (
 
 // Services bundles all application service dependencies for NewAPIHandler.
 type Services struct {
-	Users           *service.UserService
-	Exercises       *service.ExerciseService
-	Programs        *service.ProgramService
-	WorkoutSessions *service.WorkoutSessionService
-	Ingredients     *service.IngredientService
-	Recipes         *service.RecipeService
-	Preparations    *service.PreparationService
-	FDCClient       *fdc.Client
+	Users            *service.UserService
+	Exercises        *service.ExerciseService
+	Programs         *service.ProgramService
+	WorkoutSessions  *service.WorkoutSessionService
+	TrainingProfiles *service.TrainingProfileService
+	Ingredients      *service.IngredientService
+	Recipes          *service.RecipeService
+	Preparations     *service.PreparationService
+	FDCClient        *fdc.Client
 }
 
 // NewAPIHandler assembles the API sub-mux and returns a handler that serves
@@ -35,6 +36,7 @@ func NewAPIHandler(svcs Services, secureCookies bool) http.Handler {
 	handlers.NewProgramExerciseHandler(svcs.Programs).RegisterRoutes(apiMux)
 	handlers.NewUserHandler(svcs.Users, secureCookies).RegisterRoutes(apiMux)
 	handlers.NewWorkoutSessionHandler(svcs.WorkoutSessions).RegisterRoutes(apiMux)
+	handlers.NewTrainingProfileHandler(svcs.TrainingProfiles).RegisterRoutes(apiMux)
 	handlers.NewIngredientHandler(svcs.Ingredients).RegisterRoutes(apiMux)
 	handlers.NewFDCHandler(svcs.FDCClient).RegisterRoutes(apiMux)
 	handlers.NewRecipeHandler(svcs.Recipes).RegisterRoutes(apiMux)

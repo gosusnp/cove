@@ -30,16 +30,18 @@ type TestApp struct {
 	RawMux http.Handler // Raw mux with OAuth (no /api prefix)
 
 	// Services
-	Exercises       *service.ExerciseService
-	Ingredients     *service.IngredientService
-	Preparations    *service.PreparationService
-	Programs        *service.ProgramService
-	Users           *service.UserService
-	WorkoutSessions *service.WorkoutSessionService
+	Exercises        *service.ExerciseService
+	Ingredients      *service.IngredientService
+	Preparations     *service.PreparationService
+	Programs         *service.ProgramService
+	TrainingProfiles *service.TrainingProfileService
+	Users            *service.UserService
+	WorkoutSessions  *service.WorkoutSessionService
 
 	// Stores (for direct seeding/verification)
-	UserStore *store.UserStore
-	OrgStore  *store.OrgStore
+	UserStore            *store.UserStore
+	OrgStore             *store.OrgStore
+	TrainingProfileStore *store.TrainingProfileStore
 
 	// Internal
 	programOwners map[domain.ProgramID]*domain.Identity
@@ -70,6 +72,7 @@ func newTestApp(t *testing.T, fdcClient *fdc.Client) *TestApp {
 	uStore := store.NewUserStore()
 	oStore := store.NewOrgStore()
 	wsStore := store.NewWorkoutSessionStore()
+	tpStore := store.NewTrainingProfileStore()
 
 	// Services
 	exSvc := service.NewExerciseService(database, exStore)
@@ -78,6 +81,7 @@ func newTestApp(t *testing.T, fdcClient *fdc.Client) *TestApp {
 	pSvc := service.NewProgramService(database, exStore)
 	uSvc := service.NewUserService(database, uStore, oStore)
 	wsSvc := service.NewWorkoutSessionService(database, wsStore, crypto.NewTestEncryptor())
+	tpSvc := service.NewTrainingProfileService(database, tpStore, crypto.NewTestEncryptor())
 
 	// Create system user for raw mux auth
 	sysUser, _, err := uSvc.GetOrCreate(context.Background(), domain.Email("system@test.com"), domain.GoogleSub("system-sub"))
@@ -100,6 +104,7 @@ func newTestApp(t *testing.T, fdcClient *fdc.Client) *TestApp {
 	NewProgramExerciseHandler(pSvc).RegisterRoutes(apiMux)
 	NewUserHandler(uSvc, false).RegisterRoutes(apiMux)
 	NewWorkoutSessionHandler(wsSvc).RegisterRoutes(apiMux)
+	NewTrainingProfileHandler(tpSvc).RegisterRoutes(apiMux)
 
 	adminMux := http.NewServeMux()
 	NewServiceAccountHandler(uSvc).RegisterRoutes(adminMux)
@@ -111,20 +116,22 @@ func newTestApp(t *testing.T, fdcClient *fdc.Client) *TestApp {
 	rawHandler := middleware.OAuth(uSvc, apiMux)
 
 	app := &TestApp{
-		T:               t,
-		DB:              database,
-		Mux:             handler,
-		RawMux:          rawHandler,
-		Exercises:       exSvc,
-		Ingredients:     ingSvc,
-		Preparations:    prepSvc,
-		Programs:        pSvc,
-		Users:           uSvc,
-		WorkoutSessions: wsSvc,
-		UserStore:       uStore,
-		OrgStore:        oStore,
-		programOwners:   make(map[domain.ProgramID]*domain.Identity),
-		systemToken:     sysToken,
+		T:                    t,
+		DB:                   database,
+		Mux:                  handler,
+		RawMux:               rawHandler,
+		Exercises:            exSvc,
+		Ingredients:          ingSvc,
+		Preparations:         prepSvc,
+		Programs:             pSvc,
+		TrainingProfiles:     tpSvc,
+		Users:                uSvc,
+		WorkoutSessions:      wsSvc,
+		UserStore:            uStore,
+		OrgStore:             oStore,
+		TrainingProfileStore: tpStore,
+		programOwners:        make(map[domain.ProgramID]*domain.Identity),
+		systemToken:          sysToken,
 	}
 	return app
 }
@@ -282,6 +289,17 @@ func (a *TestApp) SeedWorkoutSession(ctx context.Context, userID domain.UserID, 
 		a.T.Fatalf("seed workout session: %v", err)
 	}
 	return ws
+}
+
+// SeedTrainingProfile creates or updates a training profile for a user.
+func (a *TestApp) SeedTrainingProfile(ctx context.Context, userID domain.UserID, orgID domain.OrgID, data domain.TrainingProfileSensitiveData) *domain.UserTrainingProfile {
+	a.T.Helper()
+	authCtx := domain.NewContext(ctx, &domain.Identity{UserID: userID, OrgID: orgID})
+	tp, err := a.TrainingProfiles.Upsert(authCtx, data)
+	if err != nil {
+		a.T.Fatalf("seed training profile: %v", err)
+	}
+	return tp
 }
 
 // SeedIngredientForUser creates an ingredient owned by the user's org.
