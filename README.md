@@ -31,6 +31,9 @@ Personal fitness and cooking companion with an MCP interface for AI-assisted wor
    | `COVE_PORT` | `8080` | no | HTTP listen port |
    | `COVE_DB_SCHEMA` | `cove` | no | Database schema; set to a unique name when sharing a Postgres instance |
    | `COVE_DEV` | _(unset)_ | no | Set to any non-empty value to enable dev mode (disk UI assets, dev login route, relaxed cookie security) |
+   | `COVE_WORKER_ENABLED` | _(unset)_ | no | Set to `true` to start the background Hatchet worker process |
+   | `HATCHET_CLIENT_TOKEN` | — | when worker enabled | Hatchet API token; required when `COVE_WORKER_ENABLED=true` |
+   | `HATCHET_CLIENT_LOG_LEVEL` | `debug` | no | Hatchet client log level; set to `info` to suppress heartbeat debug logs |
 
    All variables support a `_FILE` variant that reads the value from a file (e.g. `SESSION_ENCRYPTION_KEY_FILE=/run/secrets/enc-key`). Set `COVE_SECRETS_DIR` to a directory and each key will be read from a file named after the variable — useful for k8s mounted secrets.
 

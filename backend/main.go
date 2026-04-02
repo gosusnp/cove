@@ -4,13 +4,16 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -19,10 +22,12 @@ import (
 	"github.com/gosusnp/cove/backend/internal/db"
 	"github.com/gosusnp/cove/backend/internal/fdc"
 	"github.com/gosusnp/cove/backend/internal/handlers"
+	"github.com/gosusnp/cove/backend/internal/llm"
 	covemcp "github.com/gosusnp/cove/backend/internal/mcp"
 	"github.com/gosusnp/cove/backend/internal/middleware"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
+	"github.com/gosusnp/cove/backend/internal/workers"
 )
 
 //go:embed ui
@@ -182,6 +187,25 @@ func main() {
 	outer.Handle("/api/", mux)
 	outer.Handle("/mcp/", mux)
 	outer.Handle("/", spaHandler)
+
+	if os.Getenv("COVE_WORKER_ENABLED") == "true" {
+		if os.Getenv("HATCHET_CLIENT_TOKEN") == "" {
+			log.Fatal("HATCHET_CLIENT_TOKEN is required when COVE_WORKER_ENABLED=true")
+		}
+		llmClient := llm.NewOpenAICompatClient(llm.Config{
+			BaseURL: getSecret("LLM_BASE_URL"),
+			APIKey:  getSecret("LLM_API_KEY"),
+			Model:   getSecret("LLM_MODEL"),
+		})
+		summarizeSvc := service.NewSummarizeService(llmClient)
+		adapter := workers.NewLocalWorkoutSessionAdapter(wsSvc)
+		workerCtx, workerStop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer workerStop()
+		if err := workers.StartWorker(workerCtx, adapter, summarizeSvc); err != nil {
+			log.Fatalf("start hatchet worker: %v", err)
+		}
+		log.Printf("hatchet worker started")
+	}
 
 	port := getSecret("COVE_PORT")
 	if port == "" {
