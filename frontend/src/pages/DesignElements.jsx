@@ -38,6 +38,7 @@ import { Button } from "../components/ui/Button.jsx";
 import { Combobox } from "../components/ui/Combobox.jsx";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
 import { EditableMarkdown } from "../components/ui/EditableMarkdown.jsx";
+import { Markdown } from "../components/ui/Markdown.jsx";
 import {
 	Dialog,
 	DialogClose,
@@ -1042,6 +1043,17 @@ export function DesignElements() {
 							confirmResult.value = `Deleted at ${new Date().toLocaleTimeString()}`;
 						}}
 					/>
+				</PreviewRow>
+			</PageSection>
+
+			<Divider />
+
+			{/* ── Markdown ─────────────────────────────────────── */}
+			<PageSection title="Markdown">
+				<PreviewRow label="nested lists">
+					<div class="w-full max-w-md">
+						<Markdown>{`- Upper body\n  - Bench press\n    - Flat\n    - Incline\n  - Rows\n- Lower body\n  1. Squat\n     1. Back squat\n     2. Front squat\n  2. Deadlift`}</Markdown>
+					</div>
 				</PreviewRow>
 			</PageSection>
 
