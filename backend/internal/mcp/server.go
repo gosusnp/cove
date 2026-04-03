@@ -23,6 +23,7 @@ func NewServer(svcs Services) *mcp.Server {
 	registerProgramSetTools(server, svcs.Programs)
 	registerProgramExerciseTools(server, svcs.Programs)
 	registerTrainingProfileTools(server, svcs.Profiles)
+	registerPrompts(server, svcs.Profiles)
 	return server
 }
 
