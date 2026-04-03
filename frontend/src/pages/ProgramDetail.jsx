@@ -873,7 +873,7 @@ function ProgramDetailInner({
 	// ── Render ────────────────────────────────────────────────────────────────
 	return (
 		<>
-			<div class="p-6 max-w-3xl mx-auto w-full flex flex-col gap-6">
+			<div class="page-content">
 				{/* Header */}
 				<div class="flex flex-col gap-4">
 					{/* Name */}

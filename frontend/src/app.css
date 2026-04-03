@@ -126,6 +126,23 @@ body {
 	}
 }
 
+/* ── Page content width ───────────────────────────── */
+/*
+ * Canonical content width for all page content areas — both single-pane pages
+ * and the detail panel of two-pane layouts. Using the same max-width keeps the
+ * visual rhythm consistent as you navigate between views.
+ */
+@utility page-content {
+	max-width: 48rem;
+	margin-inline: auto;
+	width: 100%;
+	padding-block: 1.5rem;
+	padding-inline: 1rem;
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+
 /* ── Markdown body typography ─────────────────────── */
 .markdown-body {
 	color: var(--color-muted);

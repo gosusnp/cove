@@ -223,7 +223,7 @@ export function Settings() {
 	}
 
 	return (
-		<main class="flex flex-1 flex-col gap-8 px-4 py-6 max-w-lg mx-auto w-full">
+		<main class="flex-1 page-content">
 			<PageTitle>Settings</PageTitle>
 
 			<Section title="Profile">

@@ -106,7 +106,7 @@ export function TrainingProfile() {
 	if (loading.value) return null;
 
 	return (
-		<main class="flex flex-1 flex-col gap-8 px-4 py-6 max-w-lg mx-auto w-full">
+		<main class="flex-1 page-content">
 			<PageTitle>Training Profile</PageTitle>
 
 			<Section title="Motivation">

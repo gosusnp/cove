@@ -216,7 +216,7 @@ function ExerciseDetailInner({
 
 	return (
 		<>
-			<div class="p-6 max-w-3xl mx-auto w-full flex flex-col gap-6">
+			<div class="page-content">
 				{/* Name */}
 				{editingField.value === "name" ? (
 					<div class="flex flex-col gap-1">

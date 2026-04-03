@@ -1275,7 +1275,7 @@ export function RecipeDetail({ recipeId, onRecipeUpdated }) {
 	if (!recipe.value) return null;
 
 	return (
-		<div class="flex flex-col gap-6 p-4">
+		<div class="page-content">
 			{/* Recipe name */}
 			<div>
 				{editingName.value ? (

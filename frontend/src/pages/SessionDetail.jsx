@@ -279,7 +279,7 @@ export function SessionDetail({ sessionId, onDelete }) {
 	const hasPerceivedEffort = s.perceived_effort != null;
 
 	return (
-		<div class="max-w-2xl mx-auto px-4 py-6 flex flex-col gap-6">
+		<div class="page-content">
 			<div class="flex items-center justify-between gap-2">
 				<PageTitle>{pageTitle}</PageTitle>
 				<Tooltip>

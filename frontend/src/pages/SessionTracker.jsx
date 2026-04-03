@@ -461,7 +461,7 @@ export function SessionTracker() {
 					class="flex-1 min-h-0 overflow-y-auto"
 					style={{ touchAction: "pan-y" }}
 				>
-					<div class="flex flex-col gap-6 px-4 py-6 max-w-2xl mx-auto w-full">
+					<div class="page-content">
 						{/* Program selector — only shown before session starts */}
 						{notStarted && (
 							<div class="flex flex-col gap-2">
