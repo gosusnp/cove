@@ -16,6 +16,7 @@ import { Programs } from "./pages/Programs.jsx";
 import { Sessions } from "./pages/Sessions.jsx";
 import { SessionTracker } from "./pages/SessionTracker.jsx";
 import { Settings } from "./pages/Settings.jsx";
+import { TrainingProfile } from "./pages/TrainingProfile.jsx";
 
 const PROTECTED_ROUTES = [
 	"/settings",
@@ -23,6 +24,7 @@ const PROTECTED_ROUTES = [
 	"/programs",
 	"/sessions",
 	"/workout",
+	"/train",
 	"/cook",
 	"/admin",
 ];
@@ -70,6 +72,7 @@ function Layout() {
 				<Route path="/sessions" component={Sessions} />
 				<Route path="/sessions/:id" component={Sessions} />
 				<Route path="/workout" component={SessionTracker} />
+				<Route path="/train/profile" component={TrainingProfile} />
 				<Route path="/settings" component={Settings} />
 				<Route
 					path="/admin/service-accounts"

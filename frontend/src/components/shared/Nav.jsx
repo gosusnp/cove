@@ -19,6 +19,7 @@ const NAV_SECTIONS = [
 		items: [
 			{ label: "Workout", href: "/workout" },
 			{ label: "Review Sessions", href: "/sessions" },
+			{ label: "Training Profile", href: "/train/profile" },
 		],
 	},
 	{
@@ -44,6 +45,7 @@ const PAGE_TITLES = [
 	{ label: "Exercises", href: "/exercises" },
 	{ label: "Build Programs", href: "/programs" },
 	{ label: "Review Sessions", href: "/sessions" },
+	{ label: "Training Profile", href: "/train/profile" },
 	{ label: "Settings", href: "/settings" },
 	{ label: "Ingredients", href: "/cook/ingredients" },
 	{ label: "Compose", href: "/cook/recipes" },

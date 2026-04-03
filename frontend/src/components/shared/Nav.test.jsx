@@ -87,4 +87,11 @@ describe("Nav", () => {
 		expect(programLinks.length).toBeGreaterThan(0);
 		expect(programLinks[0]).toHaveAttribute("href", "/programs");
 	});
+
+	it("shows Training Profile link under Train when signed in", () => {
+		withProviders(<Nav />, { user: MOCK_USER });
+		const links = screen.getAllByRole("link", { name: "Training Profile" });
+		expect(links.length).toBeGreaterThan(0);
+		expect(links[0]).toHaveAttribute("href", "/train/profile");
+	});
 });
