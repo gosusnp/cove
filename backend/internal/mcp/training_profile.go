@@ -105,7 +105,7 @@ func registerTrainingProfileTools(server *mcp.Server, svc *service.TrainingProfi
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "update_training_profile",
-		Description: "Update your training profile (motivation, constraints, disciplines). All fields are optional. Motivation and constraints are merged (top-level only). Disciplines is a full array replacement — pass the entire list of sports/activities you want to keep. Valid levels: beginner, intermediate, advanced, expert.",
+		Description: "Update your training profile (motivation, constraints, disciplines). All fields are optional. Motivation and constraints replace the existing value when provided. Disciplines is a full array replacement — pass the entire list of sports/activities you want to keep. Valid levels: beginner, intermediate, advanced, expert.",
 		InputSchema: trainingProfileUpdateSchema(),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, params updateParams) (*mcp.CallToolResult, struct{}, error) {
 		patch := service.TrainingProfilePatch{}
