@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 )
@@ -85,7 +86,8 @@ func (h *OAuthHandler) verifyIDToken(ctx context.Context, idToken string) (*goog
 		return nil, fmt.Errorf("build request: %w", err)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("tokeninfo request: %w", err)
 	}
