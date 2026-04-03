@@ -13,6 +13,7 @@ import (
 type Services struct {
 	Exercises *service.ExerciseService
 	Programs  *service.ProgramService
+	Profiles  *service.TrainingProfileService
 }
 
 func NewServer(svcs Services) *mcp.Server {
@@ -21,6 +22,7 @@ func NewServer(svcs Services) *mcp.Server {
 	registerProgramTools(server, svcs.Programs)
 	registerProgramSetTools(server, svcs.Programs)
 	registerProgramExerciseTools(server, svcs.Programs)
+	registerTrainingProfileTools(server, svcs.Profiles)
 	return server
 }
 

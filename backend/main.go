@@ -134,6 +134,7 @@ func main() {
 	mcpSvcs := covemcp.Services{
 		Exercises: exSvc,
 		Programs:  pSvc,
+		Profiles:  tpSvc,
 	}
 
 	apiSvcs := Services{
