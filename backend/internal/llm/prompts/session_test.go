@@ -65,7 +65,7 @@ func TestSessionSummary_publicFields(t *testing.T) {
 	if !strings.Contains(user, "cycling") {
 		t.Errorf("user prompt missing activity: %q", user)
 	}
-	if !strings.Contains(user, "3600") {
+	if !strings.Contains(user, "1h 0m") {
 		t.Errorf("user prompt missing duration: %q", user)
 	}
 	if !strings.Contains(user, "Tue Mar 24, 2026") {
@@ -116,6 +116,17 @@ func TestSessionSummary_temperature(t *testing.T) {
 	}
 	if *req.Temperature != 0.1 {
 		t.Errorf("Temperature = %v, want 0.1", *req.Temperature)
+	}
+}
+
+func TestSessionSummary_nilDurationOmitted(t *testing.T) {
+	ws := &domain.WorkoutSession{}
+	req, err := SessionSummary(ws, domain.SessionSensitiveData{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(req.Messages[1].Content, "Duration:") {
+		t.Errorf("user prompt should not contain Duration: when DurationS is nil:\n%s", req.Messages[1].Content)
 	}
 }
 

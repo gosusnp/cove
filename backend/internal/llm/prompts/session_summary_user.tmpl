@@ -24,7 +24,8 @@ Output format:
 # Session Data
 
 Date: {{ formatDate .StartedAt }}
-Duration: {{ .DurationS }} seconds
+{{- with .DurationS}}Duration: {{ formatDuration . }}
+{{- end}}
 {{- with .Sensitive.PerceivedEffort}}
 RPE: {{.}}
 {{- end }}
