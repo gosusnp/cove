@@ -635,6 +635,125 @@ func TestProgramService_PatchExercise(t *testing.T) {
 	})
 }
 
+func TestProgramService_Patch(t *testing.T) {
+	setup := func(t *testing.T) (*ProgramService, context.Context, *domain.ProgramLite) {
+		t.Helper()
+		svc, ctx := newTestProgramService(t)
+		desc := "original desc"
+		p, _ := svc.Create(ctx, "Original", &desc, nil, false)
+		return svc, ctx, p
+	}
+
+	t.Run("patches only provided fields", func(t *testing.T) {
+		svc, ctx, p := setup(t)
+
+		updated, err := svc.Patch(ctx, p.ID, ProgramPatch{
+			Name: domain.Optional[string]{Value: "Updated", Set: true},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if updated.Name != "Updated" {
+			t.Errorf("got name %q, want Updated", updated.Name)
+		}
+		// IsPublic should be unchanged.
+		if updated.IsPublic != false {
+			t.Errorf("is_public changed unexpectedly")
+		}
+	})
+
+	t.Run("empty name returns ValidationError", func(t *testing.T) {
+		svc, ctx, p := setup(t)
+
+		_, err := svc.Patch(ctx, p.ID, ProgramPatch{
+			Name: domain.Optional[string]{Value: "   ", Set: true},
+		})
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("got %v, want ValidationError", err)
+		}
+	})
+
+	t.Run("not found returns ErrNotFound", func(t *testing.T) {
+		svc, ctx, _ := setup(t)
+
+		_, err := svc.Patch(ctx, domain.ProgramID(999), ProgramPatch{
+			Name: domain.Optional[string]{Value: "X", Set: true},
+		})
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func TestProgramService_ReplaceFull(t *testing.T) {
+	setup := func(t *testing.T) (*ProgramService, context.Context, domain.ExerciseID, *domain.ProgramLite) {
+		t.Helper()
+		svc, ctx := newTestProgramService(t)
+		exSvc := NewExerciseService(svc.db, store.NewExerciseStore())
+		e, _ := exSvc.Create(ctx, "Squat", nil, nil, true)
+		reps := 5
+		p, _ := svc.CreateFull(ctx, "Test", nil, nil, false, []ProgramSetInput{
+			{Rounds: 3, Exercises: []ProgramExerciseInput{{ExerciseID: e.ID, TargetReps: &reps}}},
+		})
+		return svc, ctx, e.ID, p
+	}
+
+	t.Run("replaces structure atomically", func(t *testing.T) {
+		svc, ctx, eID, p := setup(t)
+		exSvc := NewExerciseService(svc.db, store.NewExerciseStore())
+		e2, _ := exSvc.Create(ctx, "Deadlift", nil, nil, true)
+
+		reps := 8
+		result, err := svc.ReplaceFull(ctx, p.ID, []ProgramSetInput{
+			{Rounds: 4, Exercises: []ProgramExerciseInput{{ExerciseID: eID, TargetReps: &reps}}},
+			{Rounds: 2, Exercises: []ProgramExerciseInput{{ExerciseID: e2.ID}}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(result.Sets) != 2 {
+			t.Errorf("got %d sets, want 2", len(result.Sets))
+		}
+		if result.Sets[0].Rounds != 4 {
+			t.Errorf("got rounds %d, want 4", result.Sets[0].Rounds)
+		}
+	})
+
+	t.Run("empty sets clears structure", func(t *testing.T) {
+		svc, ctx, _, p := setup(t)
+
+		result, err := svc.ReplaceFull(ctx, p.ID, []ProgramSetInput{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(result.Sets) != 0 {
+			t.Errorf("got %d sets, want 0", len(result.Sets))
+		}
+	})
+
+	t.Run("invalid exercise_id returns ValidationError", func(t *testing.T) {
+		svc, ctx, _, p := setup(t)
+
+		_, err := svc.ReplaceFull(ctx, p.ID, []ProgramSetInput{
+			{Rounds: 1, Exercises: []ProgramExerciseInput{{ExerciseID: domain.ExerciseID(999)}}},
+		})
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("got %v, want ValidationError", err)
+		}
+	})
+
+	t.Run("not found returns ErrNotFound", func(t *testing.T) {
+		svc, ctx, _, _ := setup(t)
+
+		_, err := svc.ReplaceFull(ctx, domain.ProgramID(999), []ProgramSetInput{})
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+}
+
 func TestProgramService_Normalization(t *testing.T) {
 	t.Run("Create normalizes name", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)

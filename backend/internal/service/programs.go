@@ -94,6 +94,42 @@ func (s *ProgramService) List(ctx context.Context) ([]domain.ProgramLite, error)
 	return list, err
 }
 
+// resolveExerciseNames bulk-fetches live exercise names and updates p.Sets in place.
+// Missing exercise IDs silently fall back to the name_snapshot already stored on each exercise.
+// Must be called inside a transaction.
+func (s *ProgramService) resolveExerciseNames(ctx context.Context, q store.Querier, orgID domain.OrgID, p *domain.Program) error {
+	seen := map[domain.ExerciseID]bool{}
+	var exerciseIDs []domain.ExerciseID
+	for _, set := range p.Sets {
+		for _, ex := range set.Exercises {
+			if !seen[ex.ExerciseID] {
+				seen[ex.ExerciseID] = true
+				exerciseIDs = append(exerciseIDs, ex.ExerciseID)
+			}
+		}
+	}
+	if len(exerciseIDs) == 0 {
+		return nil
+	}
+	found, _, err := s.exStore.GetByIDs(ctx, q, orgID, exerciseIDs)
+	if err != nil {
+		return fmt.Errorf("resolve exercise names: %w", err)
+	}
+	liveNames := make(map[domain.ExerciseID]string, len(found))
+	for _, e := range found {
+		liveNames[e.ID] = e.Name
+	}
+	for i, set := range p.Sets {
+		for j, ex := range set.Exercises {
+			if name, ok := liveNames[ex.ExerciseID]; ok {
+				p.Sets[i].Exercises[j].Name = name
+			}
+			// else: Name retains the name_snapshot set by the store.
+		}
+	}
+	return nil
+}
+
 func (s *ProgramService) Get(ctx context.Context, id domain.ProgramID) (*ProgramEnriched, error) {
 	idInfo, ok := domain.IdentityFromContext(ctx)
 	if !ok {
@@ -107,40 +143,7 @@ func (s *ProgramService) Get(ctx context.Context, id domain.ProgramID) (*Program
 		if err != nil {
 			return err
 		}
-
-		// Collect unique exercise IDs for bulk name resolution.
-		seen := map[domain.ExerciseID]bool{}
-		var exerciseIDs []domain.ExerciseID
-		for _, set := range p.Sets {
-			for _, ex := range set.Exercises {
-				if !seen[ex.ExerciseID] {
-					seen[ex.ExerciseID] = true
-					exerciseIDs = append(exerciseIDs, ex.ExerciseID)
-				}
-			}
-		}
-
-		if len(exerciseIDs) > 0 {
-			// Bulk fetch live names; missing IDs fall back to name_snapshot already in Name.
-			found, _, err := s.exStore.GetByIDs(ctx, q, idInfo.OrgID, exerciseIDs)
-			if err != nil {
-				return fmt.Errorf("resolve exercise names: %w", err)
-			}
-			liveNames := make(map[domain.ExerciseID]string, len(found))
-			for _, e := range found {
-				liveNames[e.ID] = e.Name
-			}
-			for i, set := range p.Sets {
-				for j, ex := range set.Exercises {
-					if name, ok := liveNames[ex.ExerciseID]; ok {
-						p.Sets[i].Exercises[j].Name = name
-					}
-					// else: Name retains the name_snapshot set by the store.
-				}
-			}
-		}
-
-		return nil
+		return s.resolveExerciseNames(ctx, q, idInfo.OrgID, p)
 	})
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, ErrNotFound
@@ -375,6 +378,142 @@ func (s *ProgramService) DeleteExercise(ctx context.Context, programID domain.Pr
 	return err
 }
 
+// ProgramPatch contains the fields that may be changed via a partial update of a program.
+// Only fields where Optional.Set == true are applied.
+type ProgramPatch struct {
+	UpdatedAt   *time.Time               `json:"updated_at,omitempty"`
+	Name        domain.Optional[string]  `json:"name"`
+	Description domain.Optional[*string] `json:"description"`
+	Activity    domain.Optional[*string] `json:"activity"`
+	IsPublic    domain.Optional[bool]    `json:"is_public"`
+}
+
+// Patch applies a partial update to a program. Fields with Optional.Set == false retain
+// their current values. Name normalization and validation are applied if Name is set.
+func (s *ProgramService) Patch(ctx context.Context, id domain.ProgramID, patch ProgramPatch) (*domain.ProgramLite, error) {
+	idInfo, ok := domain.IdentityFromContext(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
+	}
+
+	var p *domain.ProgramLite
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		cur, err := s.store.Get(ctx, q, idInfo.OrgID, id)
+		if err != nil {
+			return err
+		}
+
+		name := cur.Name
+		description := cur.Description
+		activity := cur.Activity
+		isPublic := cur.IsPublic
+
+		if patch.Name.Set {
+			name = normalizeName(patch.Name.Value)
+			if name == "" {
+				return &ValidationError{Msg: "name is required"}
+			}
+		}
+		if patch.Description.Set {
+			description = patch.Description.Value
+		}
+		if patch.Activity.Set {
+			activity = normalizeActivity(patch.Activity.Value)
+		}
+		if patch.IsPublic.Set {
+			isPublic = patch.IsPublic.Value
+		}
+
+		p, err = s.store.Update(ctx, q, idInfo.OrgID, id, name, description, activity, isPublic, patch.UpdatedAt)
+		return err
+	})
+	if errors.Is(err, store.ErrConflict) {
+		return nil, ErrConflict
+	}
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return p, err
+}
+
+// ReplaceFull atomically replaces the entire set and exercise structure of an existing program.
+// Exercise IDs are validated against the org's accessible exercise library before writing.
+func (s *ProgramService) ReplaceFull(ctx context.Context, programID domain.ProgramID, sets []ProgramSetInput) (*ProgramEnriched, error) {
+	idInfo, ok := domain.IdentityFromContext(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
+	}
+
+	// Collect unique exercise IDs preserving insertion order for deterministic error messages.
+	seen := map[domain.ExerciseID]bool{}
+	var ids []domain.ExerciseID
+	for _, set := range sets {
+		for _, ex := range set.Exercises {
+			if !seen[ex.ExerciseID] {
+				seen[ex.ExerciseID] = true
+				ids = append(ids, ex.ExerciseID)
+			}
+		}
+	}
+
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+
+		exerciseNames := map[domain.ExerciseID]string{}
+		if len(ids) > 0 {
+			found, missing, err := s.exStore.GetByIDs(ctx, q, idInfo.OrgID, ids)
+			if err != nil {
+				return fmt.Errorf("check exercises: %w", err)
+			}
+			for _, e := range found {
+				exerciseNames[e.ID] = e.Name
+			}
+			for _, missingID := range missing {
+				return &ValidationError{Msg: fmt.Sprintf("exercise_id %d not found or access denied", missingID)}
+			}
+		}
+
+		jsonSets := make([]store.JSONProgramSet, 0, len(sets))
+		var nextSetID int64 = 1
+		var nextExID int64 = 1
+		for _, set := range sets {
+			if set.Rounds < 1 {
+				set.Rounds = 1
+			}
+			jsonExercises := make([]store.JSONProgramExercise, 0, len(set.Exercises))
+			for _, ex := range set.Exercises {
+				jsonExercises = append(jsonExercises, store.JSONProgramExercise{
+					ID:                    nextExID,
+					ExerciseID:            ex.ExerciseID,
+					NameSnapshot:          exerciseNames[ex.ExerciseID],
+					Laterality:            ex.Laterality,
+					TargetReps:            ex.TargetReps,
+					TargetDurationSeconds: ex.TargetDurationSeconds,
+					TargetWeight:          ex.TargetWeight,
+					WeightUnit:            ex.WeightUnit,
+				})
+				nextExID++
+			}
+			jsonSets = append(jsonSets, store.JSONProgramSet{
+				ID:                  nextSetID,
+				Name:                set.Name,
+				Rounds:              set.Rounds,
+				IntraSetRestSeconds: set.IntraSetRestSeconds,
+				Exercises:           jsonExercises,
+			})
+			nextSetID++
+		}
+
+		return s.store.ReplaceSets(ctx, q, idInfo.OrgID, programID, jsonSets)
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.Get(ctx, programID)
+}
+
 // ProgramSetPatch contains the fields that may be changed via a partial update
 // of a program set. Only fields where Optional.Set == true are applied.
 type ProgramSetPatch struct {
@@ -514,25 +653,43 @@ type StructureEntry struct {
 	ExerciseIDs []int64 `json:"exercise_ids"`
 }
 
-// ReorderStructure atomically reorders sets and exercises within a program.
-func (s *ProgramService) ReorderStructure(ctx context.Context, programID domain.ProgramID, structure []StructureEntry) error {
+// ReorderStructure atomically reorders sets and exercises within a program and returns
+// the updated program. The read-back happens inside the same transaction to avoid a
+// TOCTOU race between the reorder write and a subsequent Get call.
+func (s *ProgramService) ReorderStructure(ctx context.Context, programID domain.ProgramID, structure []StructureEntry) (*ProgramEnriched, error) {
 	entries := make([]store.ProgramStructureEntry, len(structure))
 	for i, e := range structure {
 		entries[i] = store.ProgramStructureEntry{SetID: e.SetID, ExerciseIDs: e.ExerciseIDs}
 	}
 
+	idInfo, ok := domain.IdentityFromContext(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
+	}
+
+	var p *domain.Program
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
-		idInfo, _ := domain.IdentityFromContext(ctx)
-		return s.store.ReorderStructure(ctx, q, idInfo.OrgID, programID, entries)
+		if err := s.store.ReorderStructure(ctx, q, idInfo.OrgID, programID, entries); err != nil {
+			return err
+		}
+		var err error
+		p, err = s.store.Get(ctx, q, idInfo.OrgID, programID)
+		if err != nil {
+			return err
+		}
+		return s.resolveExerciseNames(ctx, q, idInfo.OrgID, p)
 	})
 	var bse *store.BadStructureError
 	if errors.As(err, &bse) {
-		return &ValidationError{Msg: bse.Msg}
+		return nil, &ValidationError{Msg: bse.Msg}
 	}
 	if errors.Is(err, store.ErrNotFound) {
-		return ErrNotFound
+		return nil, ErrNotFound
 	}
-	return err
+	if err != nil {
+		return nil, err
+	}
+	return &ProgramEnriched{Program: p, Structure: markdown.Program(p)}, nil
 }
 
 func (s *ProgramService) Delete(ctx context.Context, id domain.ProgramID) error {

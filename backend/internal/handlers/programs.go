@@ -157,7 +157,7 @@ func (h *ProgramHandler) reorderStructure(w http.ResponseWriter, r *http.Request
 	for i, e := range req {
 		entries[i] = service.StructureEntry{SetID: e.SetID, ExerciseIDs: e.ExerciseIDs}
 	}
-	err = h.svc.ReorderStructure(r.Context(), id, entries)
+	program, err := h.svc.ReorderStructure(r.Context(), id, entries)
 	if errors.Is(err, service.ErrUnauthorized) {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -175,7 +175,7 @@ func (h *ProgramHandler) reorderStructure(w http.ResponseWriter, r *http.Request
 		internalError(w, r, err)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	jsonOK(w, program)
 }
 
 func (h *ProgramHandler) delete(w http.ResponseWriter, r *http.Request) {

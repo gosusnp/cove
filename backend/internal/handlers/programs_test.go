@@ -418,8 +418,8 @@ func TestProgramHandler_ReorderStructure(t *testing.T) {
 		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/programs/%d/structure", p.ID), body, uID)
 		w := app.Do(r)
 
-		if w.Code != http.StatusNoContent {
-			t.Errorf("got status %d, want %d: %s", w.Code, http.StatusNoContent, w.Body.String())
+		if w.Code != http.StatusOK {
+			t.Errorf("got status %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
 		}
 
 		ctx := domain.NewContext(t.Context(), &domain.Identity{UserID: uID, OrgID: oID})
@@ -449,8 +449,8 @@ func TestProgramHandler_ReorderStructure(t *testing.T) {
 		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/programs/%d/structure", p.ID), body, uID)
 		w := app.Do(r)
 
-		if w.Code != http.StatusNoContent {
-			t.Errorf("got status %d, want %d: %s", w.Code, http.StatusNoContent, w.Body.String())
+		if w.Code != http.StatusOK {
+			t.Errorf("got status %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
 		}
 
 		ctx := domain.NewContext(t.Context(), &domain.Identity{UserID: uID, OrgID: oID})
@@ -480,8 +480,8 @@ func TestProgramHandler_ReorderStructure(t *testing.T) {
 		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/programs/%d/structure", p.ID), body, uID)
 		w := app.Do(r)
 
-		if w.Code != http.StatusNoContent {
-			t.Errorf("got status %d, want %d: %s", w.Code, http.StatusNoContent, w.Body.String())
+		if w.Code != http.StatusOK {
+			t.Errorf("got status %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
 		}
 
 		ctx := domain.NewContext(t.Context(), &domain.Identity{UserID: uID, OrgID: oID})

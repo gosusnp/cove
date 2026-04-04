@@ -641,6 +641,13 @@ func (s *ProgramStore) ListExercises(ctx context.Context, q Querier, orgID domai
 	return nil, ErrNotFound
 }
 
+// ReplaceSets atomically replaces the entire sets structure for an existing program.
+// No explicit row lock is needed: writeSets issues an UPDATE which acquires a row-level
+// lock automatically, serializing concurrent replacements at the database level.
+func (s *ProgramStore) ReplaceSets(ctx context.Context, q Querier, orgID domain.OrgID, programID domain.ProgramID, sets []JSONProgramSet) error {
+	return s.writeSets(ctx, q, orgID, programID, sets)
+}
+
 // WriteSetsForNewProgram updates programs.sets for a freshly-created program row.
 // It is used by CreateFull where the program was just inserted in the same transaction
 // and there is no need for a lockProgram call.
