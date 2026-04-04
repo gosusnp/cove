@@ -164,6 +164,65 @@ func TestProgramSetHandler_Update(t *testing.T) {
 	})
 }
 
+func TestProgramSetHandler_Patch(t *testing.T) {
+	t.Run("patches only provided fields", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test Program")
+		ps := app.SeedProgramSet(p.ID, 3)
+
+		body := `{"rounds": 5}`
+		r := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/programs/%d/sets/%d", p.ID, ps.ID), strings.NewReader(body))
+		w := app.DoRaw(r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
+		}
+		ctx := domain.NewContext(context.Background(), app.programOwners[p.ID])
+		got, _ := app.Programs.GetSet(ctx, p.ID, ps.ID)
+		if got.Rounds != 5 {
+			t.Errorf("got rounds %d, want 5", got.Rounds)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test Program")
+		r := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/programs/%d/sets/999", p.ID), strings.NewReader(`{"rounds": 1}`))
+		w := app.DoRaw(r)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("invalid body", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test Program")
+		ps := app.SeedProgramSet(p.ID, 1)
+		r := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/programs/%d/sets/%d", p.ID, ps.ID), strings.NewReader(`not json`))
+		w := app.DoRaw(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("cannot patch another org's set", func(t *testing.T) {
+		app := NewTestApp(t)
+		ownerID, ownerOrgID := app.SeedUserWithOrg("owner@test.com", "owner-sub")
+		p := app.SeedProgramForUser(context.Background(), "Private Program", ownerID, ownerOrgID)
+		ps := app.SeedProgramSet(p.ID, 3)
+
+		attackerID, _ := app.SeedUserWithOrg("attacker@test.com", "attacker-sub")
+		r := app.AuthRequest(http.MethodPatch, fmt.Sprintf("/programs/%d/sets/%d", p.ID, ps.ID), strings.NewReader(`{"rounds": 1}`), attackerID)
+		w := app.DoRaw(r)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+}
+
 func TestProgramSetHandler_Delete(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		app := NewTestApp(t)

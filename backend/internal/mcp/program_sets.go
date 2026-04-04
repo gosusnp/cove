@@ -36,16 +36,22 @@ func registerProgramSetTools(server *mcp.Server, svc *service.ProgramService) {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "update_program_set",
-		Description: "Update a program set's name, rounds or rest. updated_at is the version token for optimistic locking; omit for last-write-wins.",
+		Description: "Partially update a program set. Only provided fields are changed; omitted fields retain their current values. updated_at is the version token for optimistic locking; omit for last-write-wins.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
-		ProgramID           int64      `json:"program_id"`
-		ID                  int64      `json:"id"`
-		UpdatedAt           *time.Time `json:"updated_at,omitempty"`
-		Name                *string    `json:"name,omitempty"`
-		Rounds              int        `json:"rounds"`
-		IntraSetRestSeconds *int       `json:"rest_s,omitempty"`
+		ProgramID           int64                    `json:"program_id"`
+		ID                  int64                    `json:"id"`
+		UpdatedAt           *time.Time               `json:"updated_at,omitempty"`
+		Name                domain.Optional[*string] `json:"name"`
+		Rounds              domain.Optional[int]     `json:"rounds"`
+		IntraSetRestSeconds domain.Optional[*int]    `json:"rest_s"`
 	}) (*mcp.CallToolResult, struct{}, error) {
-		ps, err := svc.UpdateSet(ctx, domain.ProgramID(params.ProgramID), params.ID, params.UpdatedAt, params.Name, params.Rounds, params.IntraSetRestSeconds)
+		patch := service.ProgramSetPatch{
+			UpdatedAt:           params.UpdatedAt,
+			Name:                params.Name,
+			Rounds:              params.Rounds,
+			IntraSetRestSeconds: params.IntraSetRestSeconds,
+		}
+		ps, err := svc.PatchSet(ctx, domain.ProgramID(params.ProgramID), params.ID, patch)
 		if err != nil {
 			return nil, struct{}{}, err
 		}

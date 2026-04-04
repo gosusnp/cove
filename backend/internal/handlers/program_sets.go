@@ -26,6 +26,7 @@ func (h *ProgramSetHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /programs/{program_id}/sets", h.create)
 	mux.HandleFunc("GET /programs/{program_id}/sets/{id}", h.get)
 	mux.HandleFunc("PUT /programs/{program_id}/sets/{id}", h.update)
+	mux.HandleFunc("PATCH /programs/{program_id}/sets/{id}", h.patch)
 	mux.HandleFunc("DELETE /programs/{program_id}/sets/{id}", h.delete)
 }
 
@@ -117,6 +118,39 @@ func (h *ProgramSetHandler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ps, err := h.svc.UpdateSet(r.Context(), programID, id, req.UpdatedAt, req.Name, req.Rounds, req.IntraSetRestSeconds)
+	if errors.Is(err, service.ErrConflict) {
+		current, err := h.svc.GetSet(r.Context(), programID, id)
+		if err != nil {
+			handleServiceError(w, r, err, "program set not found")
+			return
+		}
+		jsonResponse(w, current, http.StatusConflict)
+		return
+	}
+	if err != nil {
+		handleServiceError(w, r, err, "program set not found")
+		return
+	}
+	jsonOK(w, ps)
+}
+
+func (h *ProgramSetHandler) patch(w http.ResponseWriter, r *http.Request) {
+	programID, err := pathID[domain.ProgramID](r, "program_id")
+	if err != nil {
+		jsonError(w, "invalid program id", http.StatusBadRequest)
+		return
+	}
+	id, err := pathID[int64](r, "id")
+	if err != nil {
+		jsonError(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	var patch service.ProgramSetPatch
+	if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	ps, err := h.svc.PatchSet(r.Context(), programID, id, patch)
 	if errors.Is(err, service.ErrConflict) {
 		current, err := h.svc.GetSet(r.Context(), programID, id)
 		if err != nil {

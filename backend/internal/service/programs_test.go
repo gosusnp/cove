@@ -498,6 +498,143 @@ func TestProgramService_NameResolution(t *testing.T) {
 	})
 }
 
+func TestProgramService_PatchSet(t *testing.T) {
+	setup := func(t *testing.T) (*ProgramService, context.Context, *store.ProgramSet) {
+		t.Helper()
+		svc, ctx := newTestProgramService(t)
+		p, _ := svc.Create(ctx, "Test", nil, nil, true)
+		name := "A"
+		ps, _ := svc.CreateSet(ctx, p.ID, &name, 3, nil)
+		return svc, ctx, ps
+	}
+
+	t.Run("patches only provided fields", func(t *testing.T) {
+		svc, ctx, ps := setup(t)
+
+		// Patch only rounds — name should be preserved.
+		updated, err := svc.PatchSet(ctx, ps.ProgramID, ps.ID, ProgramSetPatch{
+			Rounds: domain.Optional[int]{Value: 5, Set: true},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if updated.Rounds != 5 {
+			t.Errorf("got rounds %d, want 5", updated.Rounds)
+		}
+		if updated.Name == nil || *updated.Name != "A" {
+			t.Errorf("got name %v, want A", updated.Name)
+		}
+	})
+
+	t.Run("defaults rounds to 1 when patched to zero", func(t *testing.T) {
+		svc, ctx, ps := setup(t)
+
+		updated, err := svc.PatchSet(ctx, ps.ProgramID, ps.ID, ProgramSetPatch{
+			Rounds: domain.Optional[int]{Value: 0, Set: true},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if updated.Rounds != 1 {
+			t.Errorf("got rounds %d, want 1", updated.Rounds)
+		}
+	})
+
+	t.Run("not found returns ErrNotFound", func(t *testing.T) {
+		svc, ctx, ps := setup(t)
+
+		_, err := svc.PatchSet(ctx, ps.ProgramID, 999, ProgramSetPatch{})
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func TestProgramService_PatchExercise(t *testing.T) {
+	type exerciseFixture struct {
+		svc        *ProgramService
+		ctx        context.Context
+		programID  domain.ProgramID
+		setID      int64
+		pe         *store.ProgramExercise
+		exerciseID domain.ExerciseID
+	}
+	setup := func(t *testing.T) exerciseFixture {
+		t.Helper()
+		svc, ctx := newTestProgramService(t)
+		exSvc := NewExerciseService(svc.db, store.NewExerciseStore())
+		e, _ := exSvc.Create(ctx, "Squat", nil, nil, true)
+		p, _ := svc.Create(ctx, "Test", nil, nil, true)
+		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
+		reps := 5
+		pe, _ := svc.CreateExercise(ctx, p.ID, ps.ID, e.ID, nil, &reps, nil, nil, nil)
+		return exerciseFixture{svc: svc, ctx: ctx, programID: p.ID, setID: ps.ID, pe: pe, exerciseID: e.ID}
+	}
+
+	t.Run("patches only provided fields", func(t *testing.T) {
+		f := setup(t)
+
+		newReps := 10
+		updated, err := f.svc.PatchExercise(f.ctx, f.programID, f.setID, f.pe.ID, ProgramExercisePatch{
+			TargetReps: domain.Optional[*int]{Value: &newReps, Set: true},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if updated.TargetReps == nil || *updated.TargetReps != 10 {
+			t.Errorf("got reps %v, want 10", updated.TargetReps)
+		}
+		// ExerciseID should be preserved.
+		if updated.ExerciseID != f.exerciseID {
+			t.Errorf("exercise_id changed unexpectedly")
+		}
+	})
+
+	t.Run("weight without unit returns ValidationError", func(t *testing.T) {
+		f := setup(t)
+
+		w := 80.0
+		_, err := f.svc.PatchExercise(f.ctx, f.programID, f.setID, f.pe.ID, ProgramExercisePatch{
+			TargetWeight: domain.Optional[*float64]{Value: &w, Set: true},
+		})
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("got %v, want ValidationError", err)
+		}
+	})
+
+	t.Run("patching only unit when weight already set is valid", func(t *testing.T) {
+		svc, ctx := newTestProgramService(t)
+		exSvc := NewExerciseService(svc.db, store.NewExerciseStore())
+		e, _ := exSvc.Create(ctx, "Deadlift", nil, nil, true)
+		p, _ := svc.Create(ctx, "Test", nil, nil, true)
+		ps, _ := svc.CreateSet(ctx, p.ID, nil, 1, nil)
+		w := 80.0
+		u := domain.UnitKilogram
+		pe, _ := svc.CreateExercise(ctx, p.ID, ps.ID, e.ID, nil, nil, nil, &w, &u)
+
+		newUnit := domain.UnitPound
+		updated, err := svc.PatchExercise(ctx, p.ID, ps.ID, pe.ID, ProgramExercisePatch{
+			WeightUnit: domain.Optional[*domain.Unit]{Value: &newUnit, Set: true},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if updated.WeightUnit == nil || *updated.WeightUnit != domain.UnitPound {
+			t.Errorf("got unit %v, want lb", updated.WeightUnit)
+		}
+	})
+
+	t.Run("not found returns ErrNotFound", func(t *testing.T) {
+		f := setup(t)
+
+		_, err := f.svc.PatchExercise(f.ctx, f.programID, f.setID, 999, ProgramExercisePatch{})
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+}
+
 func TestProgramService_Normalization(t *testing.T) {
 	t.Run("Create normalizes name", func(t *testing.T) {
 		svc, ctx := newTestProgramService(t)

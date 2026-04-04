@@ -26,6 +26,7 @@ func (h *ProgramExerciseHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /programs/{program_id}/sets/{set_id}/exercises", h.create)
 	mux.HandleFunc("GET /programs/{program_id}/sets/{set_id}/exercises/{id}", h.get)
 	mux.HandleFunc("PUT /programs/{program_id}/sets/{set_id}/exercises/{id}", h.update)
+	mux.HandleFunc("PATCH /programs/{program_id}/sets/{set_id}/exercises/{id}", h.patch)
 	mux.HandleFunc("DELETE /programs/{program_id}/sets/{set_id}/exercises/{id}", h.delete)
 }
 
@@ -145,6 +146,49 @@ func (h *ProgramExerciseHandler) update(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	pe, err := h.svc.UpdateExercise(r.Context(), programID, setID, id, req.UpdatedAt, req.ExerciseID, req.Laterality, req.TargetReps, req.TargetDurationSeconds, req.TargetWeight, req.WeightUnit)
+	var ve *service.ValidationError
+	if errors.As(err, &ve) {
+		jsonError(w, ve.Msg, http.StatusBadRequest)
+		return
+	}
+	if errors.Is(err, service.ErrConflict) {
+		current, err := h.svc.GetExercise(r.Context(), programID, setID, id)
+		if err != nil {
+			handleServiceError(w, r, err, "program exercise not found")
+			return
+		}
+		jsonResponse(w, current, http.StatusConflict)
+		return
+	}
+	if err != nil {
+		handleServiceError(w, r, err, "program exercise not found")
+		return
+	}
+	jsonOK(w, pe)
+}
+
+func (h *ProgramExerciseHandler) patch(w http.ResponseWriter, r *http.Request) {
+	programID, err := pathID[domain.ProgramID](r, "program_id")
+	if err != nil {
+		jsonError(w, "invalid program id", http.StatusBadRequest)
+		return
+	}
+	setID, err := pathID[int64](r, "set_id")
+	if err != nil {
+		jsonError(w, "invalid set id", http.StatusBadRequest)
+		return
+	}
+	id, err := pathID[int64](r, "id")
+	if err != nil {
+		jsonError(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	var patch service.ProgramExercisePatch
+	if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	pe, err := h.svc.PatchExercise(r.Context(), programID, setID, id, patch)
 	var ve *service.ValidationError
 	if errors.As(err, &ve) {
 		jsonError(w, ve.Msg, http.StatusBadRequest)

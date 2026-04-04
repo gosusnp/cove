@@ -244,6 +244,96 @@ func TestProgramExerciseHandler_Update(t *testing.T) {
 	})
 }
 
+func TestProgramExerciseHandler_Patch(t *testing.T) {
+	t.Run("patches only provided fields", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
+		e := app.SeedExercise("Pull-up", nil)
+		pe := app.SeedProgramExercise(p.ID, ps.ID, e.ID)
+
+		body := `{"reps": 12}`
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/%d", p.ID, ps.ID, pe.ID)
+		r := httptest.NewRequest(http.MethodPatch, url, strings.NewReader(body))
+		w := app.DoRaw(r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
+		}
+		ctx := domain.NewContext(context.Background(), app.programOwners[p.ID])
+		got, _ := app.Programs.GetExercise(ctx, p.ID, ps.ID, pe.ID)
+		if got.TargetReps == nil || *got.TargetReps != 12 {
+			t.Errorf("got reps %v, want 12", got.TargetReps)
+		}
+		// exercise_id should be unchanged
+		if got.ExerciseID != e.ID {
+			t.Errorf("exercise_id changed unexpectedly")
+		}
+	})
+
+	t.Run("weight without unit returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
+		e := app.SeedExercise("Squat", nil)
+		pe := app.SeedProgramExercise(p.ID, ps.ID, e.ID)
+
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/%d", p.ID, ps.ID, pe.ID)
+		r := httptest.NewRequest(http.MethodPatch, url, strings.NewReader(`{"weight": 80}`))
+		w := app.DoRaw(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/999", p.ID, ps.ID)
+		r := httptest.NewRequest(http.MethodPatch, url, strings.NewReader(`{"reps": 5}`))
+		w := app.DoRaw(r)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("invalid body", func(t *testing.T) {
+		app := NewTestApp(t)
+		p := app.SeedProgram("Test")
+		ps := app.SeedProgramSet(p.ID, 1)
+		e := app.SeedExercise("Pull-up", nil)
+		pe := app.SeedProgramExercise(p.ID, ps.ID, e.ID)
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/%d", p.ID, ps.ID, pe.ID)
+		r := httptest.NewRequest(http.MethodPatch, url, strings.NewReader(`not json`))
+		w := app.DoRaw(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("cannot patch another org's exercise", func(t *testing.T) {
+		app := NewTestApp(t)
+		ownerID, ownerOrgID := app.SeedUserWithOrg("owner@test.com", "owner-sub")
+		p := app.SeedProgramForUser(context.Background(), "Private Program", ownerID, ownerOrgID)
+		ps := app.SeedProgramSet(p.ID, 1)
+		e := app.SeedExercise("Pull-up", nil)
+		pe := app.SeedProgramExercise(p.ID, ps.ID, e.ID)
+
+		attackerID, _ := app.SeedUserWithOrg("attacker@test.com", "attacker-sub")
+		url := fmt.Sprintf("/programs/%d/sets/%d/exercises/%d", p.ID, ps.ID, pe.ID)
+		r := app.AuthRequest(http.MethodPatch, url, strings.NewReader(`{"reps": 1}`), attackerID)
+		w := app.DoRaw(r)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+}
+
 func TestProgramExerciseHandler_Delete(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		app := NewTestApp(t)

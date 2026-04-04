@@ -375,6 +375,139 @@ func (s *ProgramService) DeleteExercise(ctx context.Context, programID domain.Pr
 	return err
 }
 
+// ProgramSetPatch contains the fields that may be changed via a partial update
+// of a program set. Only fields where Optional.Set == true are applied.
+type ProgramSetPatch struct {
+	UpdatedAt           *time.Time               `json:"updated_at,omitempty"`
+	Name                domain.Optional[*string] `json:"name"`
+	Rounds              domain.Optional[int]     `json:"rounds"`
+	IntraSetRestSeconds domain.Optional[*int]    `json:"rest_s"`
+}
+
+// ProgramExercisePatch contains the fields that may be changed via a partial
+// update of a program exercise. Only fields where Optional.Set == true are applied.
+type ProgramExercisePatch struct {
+	UpdatedAt             *time.Time                         `json:"updated_at,omitempty"`
+	ExerciseID            domain.Optional[domain.ExerciseID] `json:"exercise_id"`
+	Laterality            domain.Optional[*string]           `json:"laterality"`
+	TargetReps            domain.Optional[*int]              `json:"reps"`
+	TargetDurationSeconds domain.Optional[*int]              `json:"duration_s"`
+	TargetWeight          domain.Optional[*float64]          `json:"weight"`
+	WeightUnit            domain.Optional[*domain.Unit]      `json:"weight_unit"`
+}
+
+// PatchSet applies a partial update to a program set. Fields with Optional.Set == false
+// retain their current values. The optimistic lock token (UpdatedAt) is forwarded to
+// the store; omit it for last-write-wins behaviour.
+func (s *ProgramService) PatchSet(ctx context.Context, programID domain.ProgramID, id int64, patch ProgramSetPatch) (*store.ProgramSet, error) {
+	var ps *store.ProgramSet
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		idInfo, ok := domain.IdentityFromContext(ctx)
+		if !ok {
+			return ErrUnauthorized
+		}
+		cur, err := s.store.GetSet(ctx, q, idInfo.OrgID, programID, id)
+		if err != nil {
+			return err
+		}
+
+		name := cur.Name
+		rounds := cur.Rounds
+		rest := cur.IntraSetRestSeconds
+
+		if patch.Name.Set {
+			name = patch.Name.Value
+		}
+		if patch.Rounds.Set {
+			rounds = patch.Rounds.Value
+		}
+		if patch.IntraSetRestSeconds.Set {
+			rest = patch.IntraSetRestSeconds.Value
+		}
+		if rounds < 1 {
+			rounds = 1
+		}
+
+		ps, err = s.store.UpdateSet(ctx, q, idInfo.OrgID, programID, id, name, rounds, rest, patch.UpdatedAt)
+		return err
+	})
+	if errors.Is(err, store.ErrConflict) {
+		return nil, ErrConflict
+	}
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return ps, err
+}
+
+// PatchExercise applies a partial update to a program exercise. Fields with
+// Optional.Set == false retain their current values. Weight and unit are validated
+// after merging with the current values, so patching only one of the pair is
+// accepted when the other is already set.
+func (s *ProgramService) PatchExercise(ctx context.Context, programID domain.ProgramID, setID, id int64, patch ProgramExercisePatch) (*store.ProgramExercise, error) {
+	var pe *store.ProgramExercise
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		idInfo, ok := domain.IdentityFromContext(ctx)
+		if !ok {
+			return ErrUnauthorized
+		}
+		cur, err := s.store.GetExercise(ctx, q, idInfo.OrgID, programID, setID, id)
+		if err != nil {
+			return err
+		}
+
+		exerciseID := cur.ExerciseID
+		laterality := cur.Laterality
+		targetReps := cur.TargetReps
+		targetDurationSeconds := cur.TargetDurationSeconds
+		targetWeight := cur.TargetWeight
+		weightUnit := cur.WeightUnit
+
+		if patch.ExerciseID.Set {
+			exerciseID = patch.ExerciseID.Value
+		}
+		if patch.Laterality.Set {
+			laterality = patch.Laterality.Value
+		}
+		if patch.TargetReps.Set {
+			targetReps = patch.TargetReps.Value
+		}
+		if patch.TargetDurationSeconds.Set {
+			targetDurationSeconds = patch.TargetDurationSeconds.Value
+		}
+		if patch.TargetWeight.Set {
+			targetWeight = patch.TargetWeight.Value
+		}
+		if patch.WeightUnit.Set {
+			weightUnit = patch.WeightUnit.Value
+		}
+
+		if err := validateWeightUnit(targetWeight, weightUnit); err != nil {
+			return err
+		}
+
+		if patch.ExerciseID.Set {
+			_, missing, err := s.exStore.GetByIDs(ctx, q, idInfo.OrgID, []domain.ExerciseID{exerciseID})
+			if err != nil {
+				return fmt.Errorf("validate exercise: %w", err)
+			}
+			if len(missing) > 0 {
+				return ErrNotFound
+			}
+		}
+
+		pe, err = s.store.UpdateExercise(ctx, q, idInfo.OrgID, programID, setID, id, exerciseID, laterality, targetReps, targetDurationSeconds, targetWeight, weightUnit, patch.UpdatedAt)
+		return err
+	})
+	if errors.Is(err, store.ErrConflict) {
+		return nil, ErrConflict
+	}
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrNotFound
+	}
+	return pe, err
+}
+
 // StructureEntry describes one set and its ordered exercises for ReorderStructure.
 type StructureEntry struct {
 	SetID       int64   `json:"set_id"`
