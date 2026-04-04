@@ -5,12 +5,14 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
+	"github.com/gosusnp/cove/backend/internal/store"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -62,11 +64,62 @@ func registerProgramSetTools(server *mcp.Server, svc *service.ProgramService) {
 		if err != nil {
 			return nil, struct{}{}, err
 		}
-		b, err := json.Marshal(ps)
-		if err != nil {
-			return nil, struct{}{}, err
-		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, struct{}{}, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: formatProgramSet(ps)}}}, struct{}{}, nil
 	})
 
+}
+
+// formatProgramSet formats a store.ProgramSet as a confirmation one-liner.
+func formatProgramSet(ps *store.ProgramSet) string {
+	label := fmt.Sprintf("Set %d", ps.ID)
+	if ps.Name != nil && *ps.Name != "" {
+		label = *ps.Name
+	}
+	rounds := "1 round"
+	if ps.Rounds != 1 {
+		rounds = fmt.Sprintf("%d rounds", ps.Rounds)
+	}
+	detail := rounds
+	if ps.IntraSetRestSeconds != nil && *ps.IntraSetRestSeconds > 0 {
+		detail += fmt.Sprintf(" · %ds rest", *ps.IntraSetRestSeconds)
+	}
+	return fmt.Sprintf("Set updated: **%s** (id %d, program %d) — %s\n", label, ps.ID, ps.ProgramID, detail)
+}
+
+// formatProgramExercise formats a store.ProgramExercise as a confirmation one-liner.
+func formatProgramExercise(pe *store.ProgramExercise) string {
+	var details []string
+	if pe.Laterality != nil {
+		details = append(details, *pe.Laterality)
+	}
+	if pe.TargetReps != nil {
+		details = append(details, fmt.Sprintf("%d reps", *pe.TargetReps))
+	}
+	if pe.TargetDurationSeconds != nil {
+		details = append(details, fmt.Sprintf("%ds", *pe.TargetDurationSeconds))
+	}
+	if w := formatWeight(pe.TargetWeight, pe.WeightUnit); w != "" {
+		details = append(details, w)
+	}
+
+	line := fmt.Sprintf("Exercise updated: id %d (set %d, exercise id %d)", pe.ID, pe.ProgramSetID, pe.ExerciseID)
+	if len(details) > 0 {
+		line += " — " + strings.Join(details, " · ")
+	}
+	return line + "\n"
+}
+
+// formatWeight returns a human-readable weight string, or empty for bodyweight.
+func formatWeight(weight *float64, unit *domain.Unit) string {
+	if weight == nil || *weight == 0 {
+		return ""
+	}
+	u := domain.UnitKilogram
+	if unit != nil {
+		u = *unit
+	}
+	if *weight > 0 {
+		return fmt.Sprintf("+%g%s", *weight, u)
+	}
+	return fmt.Sprintf("%g%s (assisted)", *weight, u)
 }

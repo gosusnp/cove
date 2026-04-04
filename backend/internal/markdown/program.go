@@ -11,6 +11,50 @@ import (
 	"github.com/gosusnp/cove/backend/internal/domain"
 )
 
+// ProgramLiteResult formats a domain.ProgramLite as a brief confirmation line.
+func ProgramLiteResult(p *domain.ProgramLite) string {
+	meta := []string{visibilityLabel(p.IsPublic)}
+	if p.Activity != nil && *p.Activity != "" {
+		meta = append(meta, *p.Activity)
+	}
+	return fmt.Sprintf("**%s** (id %d) — %s\n", p.Name, p.ID, strings.Join(meta, " · "))
+}
+
+// ProgramFull renders a complete program overview: name, metadata header, then sets and exercises.
+func ProgramFull(p *domain.Program) string {
+	var b strings.Builder
+
+	fmt.Fprintf(&b, "# %s (id %d) — %s", p.Name, p.ID, visibilityLabel(p.IsPublic))
+	if p.Activity != nil && *p.Activity != "" {
+		fmt.Fprintf(&b, " · %s", *p.Activity)
+	}
+	b.WriteString("\n")
+	if p.Description != nil && *p.Description != "" {
+		fmt.Fprintf(&b, "%s\n", *p.Description)
+	}
+	if len(p.Sets) > 0 {
+		b.WriteString("\n")
+		b.WriteString(Program(p))
+	}
+	return b.String()
+}
+
+// ProgramList converts a slice of domain.ProgramLite to a Markdown list.
+func ProgramList(ps []domain.ProgramLite) string {
+	if len(ps) == 0 {
+		return "No programs found.\n"
+	}
+	var b strings.Builder
+	for _, p := range ps {
+		meta := []string{visibilityLabel(p.IsPublic)}
+		if p.Activity != nil && *p.Activity != "" {
+			meta = append(meta, *p.Activity)
+		}
+		fmt.Fprintf(&b, "- **%s** (id %d) — %s\n", p.Name, p.ID, strings.Join(meta, " · "))
+	}
+	return b.String()
+}
+
 // Program converts a domain.Program to a human-readable Markdown string
 // covering sets (name, rounds, rest) and exercises
 // (name, laterality, reps, duration, weight).
@@ -69,6 +113,14 @@ func exerciseLine(e domain.ProgramExercise) string {
 		return e.Name
 	}
 	return e.Name + " — " + strings.Join(details, " · ")
+}
+
+// visibilityLabel returns "public" or "private".
+func visibilityLabel(isPublic bool) string {
+	if isPublic {
+		return "public"
+	}
+	return "private"
 }
 
 // roundsLabel returns a human-readable round count, e.g. "1 round" or "3 rounds".

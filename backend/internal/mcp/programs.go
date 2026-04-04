@@ -5,11 +5,11 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/gosusnp/cove/backend/internal/domain"
+	"github.com/gosusnp/cove/backend/internal/markdown"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -203,11 +203,7 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 		if err != nil {
 			return nil, struct{}{}, err
 		}
-		b, err := json.Marshal(list)
-		if err != nil {
-			return nil, struct{}{}, err
-		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, struct{}{}, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: markdown.ProgramList(list)}}}, struct{}{}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -220,11 +216,7 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 		if err != nil {
 			return nil, struct{}{}, err
 		}
-		b, err := json.Marshal(program)
-		if err != nil {
-			return nil, struct{}{}, err
-		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, struct{}{}, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: markdown.ProgramFull(program.Program)}}}, struct{}{}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -249,11 +241,7 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 		if err != nil {
 			return nil, struct{}{}, err
 		}
-		b, err := json.Marshal(program)
-		if err != nil {
-			return nil, struct{}{}, err
-		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, struct{}{}, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: markdown.ProgramLiteResult(program)}}}, struct{}{}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -283,11 +271,7 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 		if err != nil {
 			return nil, struct{}{}, err
 		}
-		b, err := json.Marshal(program)
-		if err != nil {
-			return nil, struct{}{}, err
-		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, struct{}{}, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: markdown.ProgramLiteResult(program)}}}, struct{}{}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -302,11 +286,7 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 		if err != nil {
 			return nil, struct{}{}, err
 		}
-		b, err := json.Marshal(program)
-		if err != nil {
-			return nil, struct{}{}, err
-		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, struct{}{}, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: markdown.ProgramFull(program.Program)}}}, struct{}{}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -321,10 +301,6 @@ func registerProgramTools(server *mcp.Server, programs *service.ProgramService) 
 		if err != nil {
 			return nil, struct{}{}, err
 		}
-		b, err := json.Marshal(program)
-		if err != nil {
-			return nil, struct{}{}, err
-		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, struct{}{}, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: markdown.ProgramFull(program.Program)}}}, struct{}{}, nil
 	})
 }

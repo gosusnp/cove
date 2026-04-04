@@ -13,6 +13,95 @@ import (
 
 func ptr[T any](v T) *T { return &v }
 
+func TestProgramLiteResult_PrivateNoActivity(t *testing.T) {
+	p := &domain.ProgramLite{ID: domain.ProgramID(5), Name: "Push Day", IsPublic: false}
+	got := markdown.ProgramLiteResult(p)
+	if !strings.Contains(got, "Push Day") {
+		t.Errorf("expected name in output, got: %q", got)
+	}
+	if !strings.Contains(got, "5") {
+		t.Errorf("expected id in output, got: %q", got)
+	}
+	if !strings.Contains(got, "private") {
+		t.Errorf("expected private visibility, got: %q", got)
+	}
+}
+
+func TestProgramLiteResult_PublicWithActivity(t *testing.T) {
+	p := &domain.ProgramLite{ID: domain.ProgramID(7), Name: "Strength", IsPublic: true, Activity: ptr("weightlifting")}
+	got := markdown.ProgramLiteResult(p)
+	if !strings.Contains(got, "public") {
+		t.Errorf("expected public visibility, got: %q", got)
+	}
+	if !strings.Contains(got, "weightlifting") {
+		t.Errorf("expected activity in output, got: %q", got)
+	}
+}
+
+func TestProgramFull_HeaderAndStructure(t *testing.T) {
+	p := &domain.Program{
+		ID:       domain.ProgramID(1),
+		Name:     "Full Body",
+		IsPublic: false,
+		Sets: []domain.ProgramSet{
+			{ID: 1, Name: ptr("A"), Rounds: 3,
+				Exercises: []domain.ProgramExercise{{Name: "Squat", TargetReps: ptr(5)}},
+			},
+		},
+	}
+	got := markdown.ProgramFull(p)
+	if !strings.Contains(got, "# Full Body") {
+		t.Errorf("expected h1 header, got: %q", got)
+	}
+	if !strings.Contains(got, "private") {
+		t.Errorf("expected visibility, got: %q", got)
+	}
+	if !strings.Contains(got, "## A") {
+		t.Errorf("expected set heading, got: %q", got)
+	}
+	if !strings.Contains(got, "Squat") {
+		t.Errorf("expected exercise, got: %q", got)
+	}
+}
+
+func TestProgramFull_WithDescriptionAndActivity(t *testing.T) {
+	p := &domain.Program{
+		ID:          domain.ProgramID(2),
+		Name:        "Cardio",
+		IsPublic:    true,
+		Activity:    ptr("running"),
+		Description: ptr("Aerobic base building"),
+	}
+	got := markdown.ProgramFull(p)
+	if !strings.Contains(got, "running") {
+		t.Errorf("expected activity, got: %q", got)
+	}
+	if !strings.Contains(got, "Aerobic base building") {
+		t.Errorf("expected description, got: %q", got)
+	}
+}
+
+func TestProgramList_Empty(t *testing.T) {
+	got := markdown.ProgramList(nil)
+	if !strings.Contains(got, "No programs found") {
+		t.Errorf("expected empty message, got: %q", got)
+	}
+}
+
+func TestProgramList_Multiple(t *testing.T) {
+	ps := []domain.ProgramLite{
+		{ID: domain.ProgramID(1), Name: "Push", IsPublic: false},
+		{ID: domain.ProgramID(2), Name: "Pull", IsPublic: true, Activity: ptr("strength")},
+	}
+	got := markdown.ProgramList(ps)
+	if !strings.Contains(got, "Push") || !strings.Contains(got, "Pull") {
+		t.Errorf("expected both programs, got: %q", got)
+	}
+	if !strings.Contains(got, "strength") {
+		t.Errorf("expected activity for Pull, got: %q", got)
+	}
+}
+
 func TestProgram_NoSets(t *testing.T) {
 	p := &domain.Program{Name: "Rest Day"}
 	got := markdown.Program(p)

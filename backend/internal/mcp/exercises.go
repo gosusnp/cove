@@ -5,10 +5,10 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
+	"github.com/gosusnp/cove/backend/internal/markdown"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -22,11 +22,7 @@ func registerExerciseTools(server *mcp.Server, exercises *service.ExerciseServic
 		if err != nil {
 			return nil, struct{}{}, err
 		}
-		b, err := json.Marshal(list)
-		if err != nil {
-			return nil, struct{}{}, err
-		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, struct{}{}, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: markdown.ExerciseList(list)}}}, struct{}{}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -39,11 +35,7 @@ func registerExerciseTools(server *mcp.Server, exercises *service.ExerciseServic
 		if err != nil {
 			return nil, struct{}{}, err
 		}
-		b, err := json.Marshal(exercise)
-		if err != nil {
-			return nil, struct{}{}, err
-		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, struct{}{}, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: markdown.Exercise(exercise)}}}, struct{}{}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -59,11 +51,7 @@ func registerExerciseTools(server *mcp.Server, exercises *service.ExerciseServic
 		if err != nil {
 			return nil, struct{}{}, err
 		}
-		b, err := json.Marshal(exercise)
-		if err != nil {
-			return nil, struct{}{}, err
-		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, struct{}{}, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: markdown.Exercise(exercise)}}}, struct{}{}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -81,11 +69,7 @@ func registerExerciseTools(server *mcp.Server, exercises *service.ExerciseServic
 		if err != nil {
 			return nil, struct{}{}, err
 		}
-		b, err := json.Marshal(exercise)
-		if err != nil {
-			return nil, struct{}{}, err
-		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, struct{}{}, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: markdown.Exercise(exercise)}}}, struct{}{}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{

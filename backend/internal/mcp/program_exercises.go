@@ -5,7 +5,6 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -79,11 +78,7 @@ func registerProgramExerciseTools(server *mcp.Server, svc *service.ProgramServic
 		if err != nil {
 			return nil, struct{}{}, err
 		}
-		b, err := json.Marshal(pe)
-		if err != nil {
-			return nil, struct{}{}, err
-		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, struct{}{}, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: formatProgramExercise(pe)}}}, struct{}{}, nil
 	})
 
 }
