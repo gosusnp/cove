@@ -100,8 +100,6 @@ func (h *ExerciseHandler) RegisterRoutes(mux *http.ServeMux) {
 }
 ```
 
-- **DO** register all routes in a `RegisterRoutes(*http.ServeMux)` method.
-- **DO** use Go 1.22 method-path syntax in `HandleFunc`: `"GET /exercises"`, `"POST /exercises/{id}"`.
 - **DO** use `jsonOK`, `jsonError`, `jsonResponse`, and `internalError` from `handlers/helpers.go` for all responses.
 - **DO** use `pathID[Type](r, "id")` from `handlers/helpers.go` to parse path parameters.
 - **DO** map `service.ErrUnauthorized` → `401 Unauthorized` and `service.ErrNotFound` → `404 Not Found` in the handler's error helper.
@@ -172,8 +170,6 @@ func (s *ExerciseService) Create(ctx context.Context, name string, progression *
 }
 ```
 
-- **DO** normalize inputs (trim whitespace, lowercase) before validating.
-- **DO** return `*ValidationError` for user-caused failures so handlers can map them to `400`.
 - **DO** translate store sentinel errors at the service boundary so handlers never import the `store` package for error checks. Two acceptable forms:
   - Wrap into a typed error (e.g. `*ValidationError`) when the error maps to a user-facing message.
   - Alias the sentinel (`var ErrNotFound = store.ErrNotFound`) when no additional context is needed — `errors.Is` resolves through aliases correctly.
@@ -319,10 +315,7 @@ func (s *ExerciseStore) List(ctx context.Context, q Querier) ([]Exercise, error)
 ```
 
 - **DO** use positional parameters `$1`, `$2`, ... for all query arguments.
-- **DO** wrap errors with `fmt.Errorf("operation name: %w", err)`.
-- **DO** call `defer rows.Close()` immediately after a successful `Query` call.
 - **DO** initialize result slices as `[]T{}` (not `nil`) so empty results serialize as `[]` not `null`.
-- **DO** return `rows.Err()` as the final error from any row iteration.
 - **DON'T** use string formatting to build queries — always use parameterized queries.
 
 ---
@@ -377,8 +370,6 @@ type User struct {
 
 - **DO** define full types (e.g., `Exercise`, `Program`) and lite types (e.g., `ExerciseLite`, `ProgramLite`) separately when a trimmed projection is needed — e.g. for list endpoints that don't need the full hierarchy.
 - **DO** use `*T` pointer fields with `omitempty` for nullable columns.
-- **DO** use hardened `ID[T]` or `IntID[T]` for primary keys on all new tables — see the Type-Safe Identifiers section for which to choose.
-- **DO** use `ID[T]` (UUID) for identity tables (users, orgs, sessions, API keys) and `IntID[T]` (int64) for resource tables (exercises, programs, sessions).
 - **DO** use `time.Time` for all timestamp columns (`created_at`, `updated_at`) — never `string`.
 - **DON'T** add computed or presentation fields to domain types — those belong in a service or handler response struct.
 - **DON'T** define domain types inside handler or service files.
@@ -525,7 +516,7 @@ Some domain fields contain user-private data (e.g. session notes, perceived effo
 - **The service injects the encryptor; it never decrypts for output.** This keeps the plaintext lifetime as short as possible. **Exception — read-modify-write:** a service `Patch` method may call `UseSensitiveData` internally to merge existing encrypted state with the incoming patch before re-encrypting. This is the only sanctioned case for decryption in the service layer.
 - **The store is a pure byte pass-through.** It has no knowledge of encryption — it scans and writes raw `[]byte`.
 - **User ID is bound into every ciphertext via GCM additional data.** `UseSensitiveData` passes `ws.UserID.UUID[:]` as AAD; decryption will fail if the stored user_id does not match, preventing row-swapping attacks.
-- **Empty sensitive data is stored as NULL.** `[Entity]SensitiveData` must implement `IsEmpty() bool`; the service skips encryption and writes `NULL` when it returns true, avoiding spurious ciphertext for empty payloads.
+- **Empty sensitive data is stored as NULL.** The service checks `IsEmpty() bool` and writes `NULL` rather than encrypting an empty struct.
 
 ### Naming Conventions
 
@@ -631,7 +622,7 @@ func (h *WorkoutSessionHandler) get(w http.ResponseWriter, r *http.Request) {
 
 - **DO** define a `[Entity]SensitiveData` struct for each entity with sensitive fields.
 - **DO** use `*crypto.SensitiveString` (not `*string`) for all string fields in `[Entity]SensitiveData` — `[]byte`-backed for reliable zeroing.
-- **DO** implement `IsEmpty() bool` on every `[Entity]SensitiveData` struct, enumerating all fields. The service calls this to skip encryption and write `NULL` when no sensitive data is set.
+- **DO** implement `IsEmpty() bool` on every `[Entity]SensitiveData` struct, enumerating all fields.
 - **DO** keep `sensitiveData` unexported on the domain entity — expose only `UseSensitiveData` and `SetEncryptor`.
 - **DO** use `sensitive_data BYTEA` (nullable) as the DB column — `NULL` means no sensitive data was set.
 - **DO** inject `crypto.Encryptor` into the service constructor; wire from `SESSION_ENCRYPTION_KEY` env var in `main.go`.
@@ -792,6 +783,59 @@ The MCP server is an alternative interface to the same service layer used by HTT
 - **DO** group MCP tools by resource in `register[Resource]Tools` functions.
 - **DO** call the same service methods that HTTP handlers call — no direct store access from MCP tools.
 - **DON'T** duplicate business logic between the MCP layer and HTTP handlers.
+
+### Response Format
+
+MCP tools return human-readable **Markdown strings**, not JSON. HTTP handlers return JSON. LLMs parse prose more reliably than raw data structures, so this asymmetry is intentional.
+
+All Markdown renderers live in `internal/markdown/`. That package imports only `domain` — renderers that need `store` types (e.g. set/exercise confirmation one-liners after a patch) live as private helpers in the `mcp` package itself.
+
+- **DO** use `markdown.ProgramFull`, `markdown.ExerciseList`, etc. for tool responses.
+- **DON'T** use `json.Marshal` as a response — returning a JSON blob defeats the purpose.
+
+### Patch Semantics
+
+MCP update tools use patch semantics: callers send only the fields they want to change, and omitted fields retain their current values. This is the correct model for LLM callers, which should not need to read-then-rewrite an entire resource to change one field.
+
+Tools with patch semantics: `update_program`, `update_program_set`, `update_program_exercise`.
+
+### InputSchema for Update Tools
+
+MCP update tools use a named params struct with `*T` pointer fields and an explicit `InputSchema`. This is the correct pattern for any tool where fields are optional — `nil` means the caller omitted the field.
+
+1. Declare the schema explicitly via `mcp.Tool.InputSchema` with plain primitive types.
+2. Declare a named params struct with `*T` pointer fields.
+3. Build the `[Entity]Patch` by nil-checking each pointer.
+
+```go
+// Step 1 — explicit schema
+func updateProgramSchema() *jsonschema.Schema {
+    return &jsonschema.Schema{
+        Type:     "object",
+        Required: []string{"id"},
+        Properties: map[string]*jsonschema.Schema{
+            "id":        {Type: "integer"},
+            "name":      {Type: "string"},  // omit = leave unchanged
+            "is_public": {Type: "boolean"}, // omit = leave unchanged
+        },
+    }
+}
+
+// Step 2 — named params struct with pointer fields
+type updateProgramParams struct {
+    ID       int64   `json:"id"`
+    Name     *string `json:"name"`
+    IsPublic *bool   `json:"is_public"`
+}
+
+// Step 3 — manual patch construction
+patch := service.ProgramPatch{}
+if params.Name != nil {
+    patch.Name = domain.Optional[string]{Value: *params.Name, Set: true}
+}
+```
+
+Note: `jsonschema-go` auto-generates `domain.Optional[T]` fields as `{"Value": ..., "Set": ...}` objects rather than plain primitives, which is why the explicit `InputSchema` is required. See `update_program`, `update_program_set`, and `update_program_exercise` for the full pattern.
 
 ---
 
