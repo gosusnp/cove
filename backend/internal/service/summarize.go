@@ -35,7 +35,7 @@ func NewSummarizeService(c llm.Client) *SummarizeService {
 func (s *SummarizeService) PreviewSession(w io.Writer, ws *domain.WorkoutSession, sd domain.SessionSensitiveData) error {
 	req, err := prompts.SessionSummary(ws, sd)
 	if err != nil {
-		return err
+		return fmt.Errorf("build session summary prompt: %w", err)
 	}
 	sep := strings.Repeat("─", 60)
 	for _, m := range req.Messages {
