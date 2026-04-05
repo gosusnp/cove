@@ -123,6 +123,9 @@ func buildBody(base openAIChatRequest, extra map[string]any) ([]byte, error) {
 // Complete sends the request to the configured chat completions endpoint and
 // returns the assistant message content.
 func (c *openAICompatClient) Complete(ctx context.Context, req CompletionRequest) (string, error) {
+	if c.cfg.BaseURL == "" {
+		return "", fmt.Errorf("llm: BaseURL not configured")
+	}
 	model := req.Model
 	if model == "" {
 		model = c.cfg.Model

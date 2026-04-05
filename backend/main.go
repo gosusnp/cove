@@ -131,6 +131,13 @@ func main() {
 	recipeSvc := service.NewRecipeService(database, store.NewRecipeStore())
 	prepSvc := service.NewPreparationService(database, store.NewPreparationStore())
 	oauthSvc := service.NewOAuthService(database, store.NewOAuthStore(), userStore)
+	llmRouter := llm.NewStaticRouter(llm.NewOpenAICompatClient(llm.Config{
+		BaseURL: getSecret("LLM_BASE_URL"),
+		APIKey:  getSecret("LLM_API_KEY"),
+		Model:   getSecret("LLM_MODEL"),
+	}))
+	summarizeSvc := service.NewSummarizeService(llmRouter)
+
 	mcpSvcs := covemcp.Services{
 		Exercises: exSvc,
 		Programs:  pSvc,
@@ -195,12 +202,6 @@ func main() {
 		if os.Getenv("HATCHET_CLIENT_TOKEN") == "" {
 			log.Fatal("HATCHET_CLIENT_TOKEN is required when COVE_WORKER_ENABLED=true")
 		}
-		llmClient := llm.NewOpenAICompatClient(llm.Config{
-			BaseURL: getSecret("LLM_BASE_URL"),
-			APIKey:  getSecret("LLM_API_KEY"),
-			Model:   getSecret("LLM_MODEL"),
-		})
-		summarizeSvc := service.NewSummarizeService(llmClient)
 		adapter := workers.NewLocalWorkoutSessionAdapter(wsSvc)
 		workerCtx, workerStop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer workerStop()

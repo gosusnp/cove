@@ -54,12 +54,12 @@ func (m *mockPort) PatchSummary(_ context.Context, _ domain.WorkoutSessionID, p 
 	return m.patchErr
 }
 
-type fakeLLM struct {
+type fakeRouter struct {
 	resp string
 	err  error
 }
 
-func (f *fakeLLM) Complete(_ context.Context, _ llm.CompletionRequest) (string, error) {
+func (f *fakeRouter) Complete(_ context.Context, _ llm.TaskType, _ llm.Request) (string, error) {
 	return f.resp, f.err
 }
 
@@ -70,7 +70,7 @@ func TestSessionSummaryWorker_Run_WiresSummaryAndUpdatedAt(t *testing.T) {
 	ws := newTestSession(updatedAt)
 
 	port := &mockPort{ws: ws}
-	worker := workers.NewSessionSummaryWorker(port, service.NewSummarizeService(&fakeLLM{resp: "great session"}))
+	worker := workers.NewSessionSummaryWorker(port, service.NewSummarizeService(&fakeRouter{resp: "great session"}))
 
 	if err := worker.Run(context.Background(), ws.ID); err != nil {
 		t.Fatalf("Run: %v", err)
@@ -90,7 +90,7 @@ func TestSessionSummaryWorker_Run_WiresSummaryAndUpdatedAt(t *testing.T) {
 
 func TestSessionSummaryWorker_Run_PropagatesGetError(t *testing.T) {
 	port := &mockPort{getErr: errors.New("db unavailable")}
-	worker := workers.NewSessionSummaryWorker(port, service.NewSummarizeService(&fakeLLM{}))
+	worker := workers.NewSessionSummaryWorker(port, service.NewSummarizeService(&fakeRouter{}))
 
 	if err := worker.Run(context.Background(), 1); err == nil {
 		t.Fatal("want error from Get, got nil")
@@ -103,7 +103,7 @@ func TestSessionSummaryWorker_Run_PropagatesGetError(t *testing.T) {
 func TestSessionSummaryWorker_Run_PropagatesSummarizeError(t *testing.T) {
 	ws := newTestSession(time.Now())
 	port := &mockPort{ws: ws}
-	worker := workers.NewSessionSummaryWorker(port, service.NewSummarizeService(&fakeLLM{err: errors.New("rate limited")}))
+	worker := workers.NewSessionSummaryWorker(port, service.NewSummarizeService(&fakeRouter{err: errors.New("rate limited")}))
 
 	if err := worker.Run(context.Background(), ws.ID); err == nil {
 		t.Fatal("want error from SummarizeSession, got nil")
@@ -116,7 +116,7 @@ func TestSessionSummaryWorker_Run_PropagatesSummarizeError(t *testing.T) {
 func TestSessionSummaryWorker_Run_PropagatesConflict(t *testing.T) {
 	ws := newTestSession(time.Now())
 	port := &mockPort{ws: ws, patchErr: service.ErrConflict}
-	worker := workers.NewSessionSummaryWorker(port, service.NewSummarizeService(&fakeLLM{resp: "ok"}))
+	worker := workers.NewSessionSummaryWorker(port, service.NewSummarizeService(&fakeRouter{resp: "ok"}))
 
 	err := worker.Run(context.Background(), ws.ID)
 	if !errors.Is(err, service.ErrConflict) {

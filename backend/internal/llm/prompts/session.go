@@ -33,12 +33,13 @@ type sessionSummaryData struct {
 	Sensitive domain.SessionSensitiveData
 }
 
-// SessionSummary builds a CompletionRequest that asks the LLM to produce a
-// markdown summary of a single workout session.
+// SessionSummary builds a Request that asks the LLM to produce a markdown
+// summary of a single workout session. Task-level parameters (temperature,
+// thinking mode) are applied by the router, not here.
 //
 // Must be called inside a WorkoutSession.UseSensitiveData callback so that
 // sensitive fields in sd are zeroed immediately after the call returns.
-func SessionSummary(ws *domain.WorkoutSession, sd domain.SessionSensitiveData) (llm.CompletionRequest, error) {
+func SessionSummary(ws *domain.WorkoutSession, sd domain.SessionSensitiveData) (llm.Request, error) {
 	data := sessionSummaryData{
 		Activity:  orDefault(ws.Activity, "unspecified"),
 		StartedAt: ws.StartedAt,
@@ -47,13 +48,9 @@ func SessionSummary(ws *domain.WorkoutSession, sd domain.SessionSensitiveData) (
 	}
 	var buf bytes.Buffer
 	if err := sessionSummaryUserTemplate.Execute(&buf, data); err != nil {
-		return llm.CompletionRequest{}, fmt.Errorf("render session summary user prompt: %w", err)
+		return llm.Request{}, fmt.Errorf("render session summary user prompt: %w", err)
 	}
-	return llm.CompletionRequest{
-		Temperature: llm.Ptr(0.1),
-		ExtraBody: map[string]any{
-			"enable_thinking": false,
-		},
+	return llm.Request{
 		Messages: []llm.Message{
 			{Role: "system", Content: fitnessCoachSystem},
 			{Role: "user", Content: buf.String()},

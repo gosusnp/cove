@@ -71,12 +71,12 @@ func main() {
 	if *preview {
 		summarizeSvc = service.NewSummarizeService(nil)
 	} else {
-		summarizeSvc = service.NewSummarizeService(llm.NewOpenAICompatClient(llm.Config{
+		summarizeSvc = service.NewSummarizeService(llm.NewStaticRouter(llm.NewOpenAICompatClient(llm.Config{
 			BaseURL: mustEnv("LLM_BASE_URL"),
 			APIKey:  os.Getenv("LLM_API_KEY"),
 			Model:   mustEnv("LLM_MODEL"),
 			Debug:   os.Getenv("LLM_DEBUG") != "",
-		}))
+		})))
 	}
 
 	worker := workers.NewSessionSummaryWorker(adapter, summarizeSvc)

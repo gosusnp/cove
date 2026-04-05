@@ -106,19 +106,6 @@ func TestSessionSummary_nilSensitiveFieldsOmitted(t *testing.T) {
 	}
 }
 
-func TestSessionSummary_temperature(t *testing.T) {
-	req, err := SessionSummary(newTestSession("running"), domain.SessionSensitiveData{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if req.Temperature == nil {
-		t.Fatal("expected Temperature to be set")
-	}
-	if *req.Temperature != 0.1 {
-		t.Errorf("Temperature = %v, want 0.1", *req.Temperature)
-	}
-}
-
 func TestSessionSummary_nilDurationOmitted(t *testing.T) {
 	ws := &domain.WorkoutSession{}
 	req, err := SessionSummary(ws, domain.SessionSensitiveData{})

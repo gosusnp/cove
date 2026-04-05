@@ -14,13 +14,13 @@ import (
 	"github.com/gosusnp/cove/backend/internal/llm"
 )
 
-// mockLLMClient is a test double for llm.Client.
-type mockLLMClient struct {
+// mockRouter is a test double for llm.Router.
+type mockRouter struct {
 	response string
 	err      error
 }
 
-func (m *mockLLMClient) Complete(_ context.Context, _ llm.CompletionRequest) (string, error) {
+func (m *mockRouter) Complete(_ context.Context, _ llm.TaskType, _ llm.Request) (string, error) {
 	return m.response, m.err
 }
 
@@ -28,16 +28,16 @@ func newTestWorkoutSession(activity string) *domain.WorkoutSession {
 	return &domain.WorkoutSession{Activity: &activity}
 }
 
-func TestSummarizeService_SummarizeSession_nilClient(t *testing.T) {
+func TestSummarizeService_SummarizeSession_nilRouter(t *testing.T) {
 	svc := NewSummarizeService(nil)
 	_, err := svc.SummarizeSession(context.Background(), newTestWorkoutSession("running"), domain.SessionSensitiveData{})
 	if err == nil {
-		t.Fatal("expected error for nil client, got nil")
+		t.Fatal("expected error for nil router, got nil")
 	}
 }
 
 func TestSummarizeService_SummarizeSession_success(t *testing.T) {
-	svc := NewSummarizeService(&mockLLMClient{response: "**Overview** Solid run."})
+	svc := NewSummarizeService(&mockRouter{response: "**Overview** Solid run."})
 	result, err := svc.SummarizeSession(context.Background(), newTestWorkoutSession("running"), domain.SessionSensitiveData{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -47,8 +47,8 @@ func TestSummarizeService_SummarizeSession_success(t *testing.T) {
 	}
 }
 
-func TestSummarizeService_SummarizeSession_clientError(t *testing.T) {
-	svc := NewSummarizeService(&mockLLMClient{err: errors.New("timeout")})
+func TestSummarizeService_SummarizeSession_routerError(t *testing.T) {
+	svc := NewSummarizeService(&mockRouter{err: errors.New("timeout")})
 	_, err := svc.SummarizeSession(context.Background(), newTestWorkoutSession("running"), domain.SessionSensitiveData{})
 	if err == nil {
 		t.Fatal("expected error from client, got nil")

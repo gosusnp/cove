@@ -21,13 +21,13 @@ type SessionSummary struct {
 
 // SummarizeService calls an LLM to generate summaries for fitness data.
 type SummarizeService struct {
-	llm llm.Client
+	router llm.Router
 }
 
-// NewSummarizeService returns a SummarizeService backed by the given LLM client.
+// NewSummarizeService returns a SummarizeService backed by the given Router.
 // Pass nil to create a preview-only service.
-func NewSummarizeService(c llm.Client) *SummarizeService {
-	return &SummarizeService{llm: c}
+func NewSummarizeService(r llm.Router) *SummarizeService {
+	return &SummarizeService{router: r}
 }
 
 // PreviewSession renders the prompt that would be sent to the LLM and writes
@@ -53,14 +53,14 @@ func (s *SummarizeService) PreviewSession(w io.Writer, ws *domain.WorkoutSession
 // Returns an error if the service was constructed without an LLM client (e.g.
 // preview-only mode via NewSummarizeService(nil)).
 func (s *SummarizeService) SummarizeSession(ctx context.Context, ws *domain.WorkoutSession, sd domain.SessionSensitiveData) (*SessionSummary, error) {
-	if s.llm == nil {
-		return nil, fmt.Errorf("summarize session: no LLM client configured")
+	if s.router == nil {
+		return nil, fmt.Errorf("summarize session: no LLM router configured")
 	}
 	req, err := prompts.SessionSummary(ws, sd)
 	if err != nil {
 		return nil, fmt.Errorf("build session summary prompt: %w", err)
 	}
-	text, err := s.llm.Complete(ctx, req)
+	text, err := s.router.Complete(ctx, llm.TaskSummarize, req)
 	if err != nil {
 		return nil, fmt.Errorf("summarize session: %w", err)
 	}
