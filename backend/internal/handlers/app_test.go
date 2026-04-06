@@ -51,16 +51,23 @@ type TestApp struct {
 // NewTestApp creates a fully wired application with a fresh, migrated database.
 func NewTestApp(t *testing.T) *TestApp {
 	t.Helper()
-	return newTestApp(t, nil)
+	return newTestApp(t, nil, nil)
 }
 
 // NewTestAppWithFDC creates a fully wired application with the given FDC client.
 func NewTestAppWithFDC(t *testing.T, fdcClient *fdc.Client) *TestApp {
 	t.Helper()
-	return newTestApp(t, fdcClient)
+	return newTestApp(t, fdcClient, nil)
 }
 
-func newTestApp(t *testing.T, fdcClient *fdc.Client) *TestApp {
+// NewTestAppWithJobClient creates a fully wired application with the given
+// SummaryJobClient, allowing tests to exercise the summarize endpoints.
+func NewTestAppWithJobClient(t *testing.T, d SummaryJobClient) *TestApp {
+	t.Helper()
+	return newTestApp(t, nil, d)
+}
+
+func newTestApp(t *testing.T, fdcClient *fdc.Client, jobClient SummaryJobClient) *TestApp {
 	t.Helper()
 
 	database := testutil.NewDB(t)
@@ -103,7 +110,7 @@ func newTestApp(t *testing.T, fdcClient *fdc.Client) *TestApp {
 	NewProgramSetHandler(pSvc).RegisterRoutes(apiMux)
 	NewProgramExerciseHandler(pSvc).RegisterRoutes(apiMux)
 	NewUserHandler(uSvc, false).RegisterRoutes(apiMux)
-	NewWorkoutSessionHandler(wsSvc).RegisterRoutes(apiMux)
+	NewWorkoutSessionHandler(wsSvc, jobClient).RegisterRoutes(apiMux)
 	NewTrainingProfileHandler(tpSvc).RegisterRoutes(apiMux)
 
 	adminMux := http.NewServeMux()

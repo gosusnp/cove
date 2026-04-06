@@ -4,6 +4,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -13,14 +14,22 @@ import (
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
 	"github.com/gosusnp/cove/backend/internal/store"
+	"github.com/gosusnp/cove/backend/internal/workers"
 )
 
-type WorkoutSessionHandler struct {
-	svc *service.WorkoutSessionService
+// SummaryJobClient enqueues and queries session summary background jobs.
+type SummaryJobClient interface {
+	RequestSummary(ctx context.Context, sessionID int64, orgID, userID string) (string, error)
+	GetSessionSummaryStatus(ctx context.Context, runID string, expectedSessionID int64) (string, error)
 }
 
-func NewWorkoutSessionHandler(s *service.WorkoutSessionService) *WorkoutSessionHandler {
-	return &WorkoutSessionHandler{svc: s}
+type WorkoutSessionHandler struct {
+	svc       *service.WorkoutSessionService
+	jobClient SummaryJobClient // nil when Hatchet is not configured
+}
+
+func NewWorkoutSessionHandler(s *service.WorkoutSessionService, d SummaryJobClient) *WorkoutSessionHandler {
+	return &WorkoutSessionHandler{svc: s, jobClient: d}
 }
 
 func (h *WorkoutSessionHandler) RegisterRoutes(mux *http.ServeMux) {
@@ -30,6 +39,8 @@ func (h *WorkoutSessionHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /sessions/{id}", h.replace)
 	mux.HandleFunc("PATCH /sessions/{id}", h.patch)
 	mux.HandleFunc("DELETE /sessions/{id}", h.delete)
+	mux.HandleFunc("POST /sessions/{id}/summarize", h.triggerSummary)
+	mux.HandleFunc("GET /sessions/{id}/summarize", h.getSummaryStatus)
 }
 
 type workoutSessionRequest struct {
@@ -106,6 +117,14 @@ type workoutSessionResponse struct {
 	ProgramName      *string `json:"program_name,omitempty"`
 	ProgramStructure *string `json:"program_structure,omitempty"`
 	Summary          *string `json:"summary,omitempty"`
+}
+
+type summarizeResponse struct {
+	RunID string `json:"run_id"`
+}
+
+type summaryStatusResponse struct {
+	Status string `json:"status"`
 }
 
 func toResponse(r *http.Request, ws *domain.WorkoutSession) (*workoutSessionResponse, error) {
@@ -303,4 +322,58 @@ func (h *WorkoutSessionHandler) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *WorkoutSessionHandler) triggerSummary(w http.ResponseWriter, r *http.Request) {
+	if h.jobClient == nil {
+		jsonError(w, "summarize not available", http.StatusServiceUnavailable)
+		return
+	}
+	id, err := pathID[domain.WorkoutSessionID](r, "id")
+	if err != nil {
+		jsonError(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	ws, err := h.svc.Get(r.Context(), id)
+	if err != nil {
+		handleServiceError(w, r, err, "session not found")
+		return
+	}
+	runID, err := h.jobClient.RequestSummary(r.Context(), int64(ws.ID), ws.OrgID.String(), ws.UserID.String())
+	if err != nil {
+		internalError(w, r, err)
+		return
+	}
+	jsonResponse(w, summarizeResponse{RunID: runID}, http.StatusAccepted)
+}
+
+func (h *WorkoutSessionHandler) getSummaryStatus(w http.ResponseWriter, r *http.Request) {
+	if h.jobClient == nil {
+		jsonError(w, "summarize not available", http.StatusServiceUnavailable)
+		return
+	}
+	id, err := pathID[domain.WorkoutSessionID](r, "id")
+	if err != nil {
+		jsonError(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	runID := r.URL.Query().Get("run_id")
+	if runID == "" {
+		jsonError(w, "run_id is required", http.StatusBadRequest)
+		return
+	}
+	status, err := h.jobClient.GetSessionSummaryStatus(r.Context(), runID, int64(id))
+	if errors.Is(err, workers.ErrRunNotFound) {
+		jsonError(w, "run not found", http.StatusNotFound)
+		return
+	}
+	if errors.Is(err, workers.ErrRunSessionMismatch) {
+		jsonError(w, "run does not belong to session", http.StatusForbidden)
+		return
+	}
+	if err != nil {
+		internalError(w, r, err)
+		return
+	}
+	jsonOK(w, summaryStatusResponse{Status: status})
 }

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,7 +16,22 @@ import (
 
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
+	"github.com/gosusnp/cove/backend/internal/workers"
 )
+
+// mockJobClient is a test stub for SummaryJobClient.
+type mockJobClient struct {
+	dispatchFn func(ctx context.Context, sessionID int64, orgID, userID string) (string, error)
+	statusFn   func(ctx context.Context, runID string, expectedSessionID int64) (string, error)
+}
+
+func (m *mockJobClient) RequestSummary(ctx context.Context, sessionID int64, orgID, userID string) (string, error) {
+	return m.dispatchFn(ctx, sessionID, orgID, userID)
+}
+
+func (m *mockJobClient) GetSessionSummaryStatus(ctx context.Context, runID string, expectedSessionID int64) (string, error) {
+	return m.statusFn(ctx, runID, expectedSessionID)
+}
 
 // sessionResp is used to decode workout session JSON responses in tests.
 type sessionResp struct {
@@ -544,4 +560,201 @@ func mustJSON(t *testing.T, v any) *bytes.Buffer {
 		t.Fatalf("marshal: %v", err)
 	}
 	return bytes.NewBuffer(b)
+}
+
+func TestWorkoutSessionHandler_TriggerSummary(t *testing.T) {
+	t.Run("job client not configured returns 503", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+
+		r := app.AuthRequest(http.MethodPost, fmt.Sprintf("/api/sessions/%d/summarize", ws.ID), nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("got %d, want %d", w.Code, http.StatusServiceUnavailable)
+		}
+	})
+
+	t.Run("invalid id returns 400", func(t *testing.T) {
+		app := NewTestAppWithJobClient(t, &mockJobClient{})
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+
+		r := app.AuthRequest(http.MethodPost, "/api/sessions/not-an-id/summarize", nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("session not found returns 404", func(t *testing.T) {
+		app := NewTestAppWithJobClient(t, &mockJobClient{})
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+
+		r := app.AuthRequest(http.MethodPost, "/api/sessions/99999/summarize", nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("got %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("job client error returns 500", func(t *testing.T) {
+		d := &mockJobClient{
+			dispatchFn: func(_ context.Context, _ int64, _, _ string) (string, error) {
+				return "", errors.New("hatchet unavailable")
+			},
+		}
+		app := NewTestAppWithJobClient(t, d)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+
+		r := app.AuthRequest(http.MethodPost, fmt.Sprintf("/api/sessions/%d/summarize", ws.ID), nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("got %d, want %d", w.Code, http.StatusInternalServerError)
+		}
+	})
+
+	t.Run("happy path returns 202 with run_id", func(t *testing.T) {
+		d := &mockJobClient{
+			dispatchFn: func(_ context.Context, _ int64, _, _ string) (string, error) {
+				return "run-abc-123", nil
+			},
+		}
+		app := NewTestAppWithJobClient(t, d)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+
+		r := app.AuthRequest(http.MethodPost, fmt.Sprintf("/api/sessions/%d/summarize", ws.ID), nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusAccepted {
+			t.Errorf("got %d, want %d", w.Code, http.StatusAccepted)
+		}
+		var got summarizeResponse
+		DecodeJSON(t, w, &got)
+		if got.RunID != "run-abc-123" {
+			t.Errorf("got run_id %q, want %q", got.RunID, "run-abc-123")
+		}
+	})
+}
+
+func TestWorkoutSessionHandler_GetSummaryStatus(t *testing.T) {
+	t.Run("job client not configured returns 503", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+
+		r := app.AuthRequest(http.MethodGet, fmt.Sprintf("/api/sessions/%d/summarize?run_id=abc", ws.ID), nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("got %d, want %d", w.Code, http.StatusServiceUnavailable)
+		}
+	})
+
+	t.Run("invalid id returns 400", func(t *testing.T) {
+		app := NewTestAppWithJobClient(t, &mockJobClient{})
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+
+		r := app.AuthRequest(http.MethodGet, "/api/sessions/not-an-id/summarize?run_id=abc", nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("missing run_id returns 400", func(t *testing.T) {
+		app := NewTestAppWithJobClient(t, &mockJobClient{})
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+
+		r := app.AuthRequest(http.MethodGet, fmt.Sprintf("/api/sessions/%d/summarize", ws.ID), nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("run not found returns 404", func(t *testing.T) {
+		d := &mockJobClient{
+			statusFn: func(_ context.Context, _ string, _ int64) (string, error) {
+				return "", workers.ErrRunNotFound
+			},
+		}
+		app := NewTestAppWithJobClient(t, d)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+
+		r := app.AuthRequest(http.MethodGet, fmt.Sprintf("/api/sessions/%d/summarize?run_id=gone", ws.ID), nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("got %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("run session mismatch returns 403", func(t *testing.T) {
+		d := &mockJobClient{
+			statusFn: func(_ context.Context, _ string, _ int64) (string, error) {
+				return "", workers.ErrRunSessionMismatch
+			},
+		}
+		app := NewTestAppWithJobClient(t, d)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+
+		r := app.AuthRequest(http.MethodGet, fmt.Sprintf("/api/sessions/%d/summarize?run_id=other", ws.ID), nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusForbidden {
+			t.Errorf("got %d, want %d", w.Code, http.StatusForbidden)
+		}
+	})
+
+	t.Run("job client error returns 500", func(t *testing.T) {
+		d := &mockJobClient{
+			statusFn: func(_ context.Context, _ string, _ int64) (string, error) {
+				return "", errors.New("hatchet unavailable")
+			},
+		}
+		app := NewTestAppWithJobClient(t, d)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+
+		r := app.AuthRequest(http.MethodGet, fmt.Sprintf("/api/sessions/%d/summarize?run_id=abc", ws.ID), nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("got %d, want %d", w.Code, http.StatusInternalServerError)
+		}
+	})
+
+	t.Run("happy path returns 200 with status", func(t *testing.T) {
+		d := &mockJobClient{
+			statusFn: func(_ context.Context, _ string, _ int64) (string, error) {
+				return "RUNNING", nil
+			},
+		}
+		app := NewTestAppWithJobClient(t, d)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+
+		r := app.AuthRequest(http.MethodGet, fmt.Sprintf("/api/sessions/%d/summarize?run_id=run-abc-123", ws.ID), nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("got %d, want %d", w.Code, http.StatusOK)
+		}
+		var got summaryStatusResponse
+		DecodeJSON(t, w, &got)
+		if got.Status != "RUNNING" {
+			t.Errorf("got status %q, want %q", got.Status, "RUNNING")
+		}
+	})
 }

@@ -198,17 +198,22 @@ func main() {
 	outer.Handle("/mcp/", mux)
 	outer.Handle("/", spaHandler)
 
-	if os.Getenv("COVE_WORKER_ENABLED") == "true" {
-		if os.Getenv("HATCHET_CLIENT_TOKEN") == "" {
-			log.Fatal("HATCHET_CLIENT_TOKEN is required when COVE_WORKER_ENABLED=true")
+	if os.Getenv("HATCHET_CLIENT_TOKEN") != "" {
+		hatchetClient, err := workers.NewHatchetClient()
+		if err != nil {
+			log.Fatalf("create hatchet client: %v", err)
 		}
-		adapter := workers.NewLocalWorkoutSessionAdapter(wsSvc)
-		workerCtx, workerStop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer workerStop()
-		if err := workers.StartWorker(workerCtx, adapter, summarizeSvc); err != nil {
-			log.Fatalf("start hatchet worker: %v", err)
+		apiSvcs.HatchetClient = hatchetClient
+
+		if os.Getenv("COVE_WORKER_ENABLED") == "true" {
+			adapter := workers.NewLocalWorkoutSessionAdapter(wsSvc)
+			workerCtx, workerStop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer workerStop()
+			if err := workers.StartWorker(workerCtx, hatchetClient, adapter, summarizeSvc); err != nil {
+				log.Fatalf("start hatchet worker: %v", err)
+			}
+			log.Printf("hatchet worker started")
 		}
-		log.Printf("hatchet worker started")
 	}
 
 	port := getSecret("COVE_PORT")

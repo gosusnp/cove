@@ -13,17 +13,11 @@ import (
 	"github.com/gosusnp/cove/backend/internal/service"
 )
 
-// StartWorker creates a Hatchet client, registers the session-summary workflow,
-// and starts the worker in a background goroutine. It returns an error if
+// StartWorker registers the session-summary workflow on the provided Dispatcher's
+// client and starts the worker in a background goroutine. It returns an error if
 // initialization fails; once started the worker runs until ctx is cancelled.
-//
-// HATCHET_CLIENT_TOKEN must be set in the environment before calling. Callers
-// should validate its presence before invoking this function.
-func StartWorker(ctx context.Context, sessions WorkoutSessionPort, summarize *service.SummarizeService) error {
-	client, err := hatchet.NewClient()
-	if err != nil {
-		return fmt.Errorf("create hatchet client: %w", err)
-	}
+func StartWorker(ctx context.Context, h *HatchetClient, sessions WorkoutSessionPort, summarize *service.SummarizeService) error {
+	client := h.client
 
 	summaryWorker := NewSessionSummaryWorker(sessions, summarize)
 	task := newSessionSummaryTask(client, summaryWorker)

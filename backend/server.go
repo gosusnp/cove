@@ -23,6 +23,7 @@ type Services struct {
 	Recipes          *service.RecipeService
 	Preparations     *service.PreparationService
 	FDCClient        *fdc.Client
+	HatchetClient    handlers.SummaryJobClient // nil when Hatchet is not configured
 }
 
 // NewAPIHandler assembles the API sub-mux and returns a handler that serves
@@ -35,7 +36,7 @@ func NewAPIHandler(svcs Services, secureCookies bool) http.Handler {
 	handlers.NewProgramSetHandler(svcs.Programs).RegisterRoutes(apiMux)
 	handlers.NewProgramExerciseHandler(svcs.Programs).RegisterRoutes(apiMux)
 	handlers.NewUserHandler(svcs.Users, secureCookies).RegisterRoutes(apiMux)
-	handlers.NewWorkoutSessionHandler(svcs.WorkoutSessions).RegisterRoutes(apiMux)
+	handlers.NewWorkoutSessionHandler(svcs.WorkoutSessions, svcs.HatchetClient).RegisterRoutes(apiMux)
 	handlers.NewTrainingProfileHandler(svcs.TrainingProfiles).RegisterRoutes(apiMux)
 	handlers.NewIngredientHandler(svcs.Ingredients).RegisterRoutes(apiMux)
 	handlers.NewFDCHandler(svcs.FDCClient).RegisterRoutes(apiMux)
