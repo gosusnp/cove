@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
@@ -19,8 +20,14 @@ type HatchetClient struct {
 }
 
 // NewHatchetClient creates a Hatchet client and returns a HatchetClient ready
-// to enqueue jobs. HATCHET_CLIENT_TOKEN must be set in the environment.
-func NewHatchetClient() (*HatchetClient, error) {
+// to enqueue jobs. token is the Hatchet API token (from HATCHET_CLIENT_TOKEN).
+func NewHatchetClient(token string) (*HatchetClient, error) {
+	// The Hatchet SDK reads HATCHET_CLIENT_TOKEN via viper env binding. The
+	// v0 WithToken opt is deprecated, so we set the env var explicitly to
+	// ensure the SDK sees the value resolved by getSecret in main.go.
+	if err := os.Setenv("HATCHET_CLIENT_TOKEN", token); err != nil {
+		return nil, fmt.Errorf("set hatchet token: %w", err)
+	}
 	client, err := hatchet.NewClient()
 	if err != nil {
 		return nil, fmt.Errorf("create hatchet client: %w", err)

@@ -198,14 +198,14 @@ func main() {
 	outer.Handle("/mcp/", mux)
 	outer.Handle("/", spaHandler)
 
-	if os.Getenv("HATCHET_CLIENT_TOKEN") != "" {
-		hatchetClient, err := workers.NewHatchetClient()
+	if hatchetToken := getSecret("HATCHET_CLIENT_TOKEN"); hatchetToken != "" {
+		hatchetClient, err := workers.NewHatchetClient(hatchetToken)
 		if err != nil {
 			log.Fatalf("create hatchet client: %v", err)
 		}
 		apiSvcs.HatchetClient = hatchetClient
 
-		if os.Getenv("COVE_WORKER_ENABLED") == "true" {
+		if getSecret("COVE_WORKER_ENABLED") == "true" {
 			adapter := workers.NewLocalWorkoutSessionAdapter(wsSvc)
 			workerCtx, workerStop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer workerStop()
