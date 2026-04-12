@@ -57,6 +57,27 @@ type workoutSessionRequest struct {
 	CompletedAt      *time.Time `json:"completed_at,omitempty"`
 }
 
+func parseSessionFilter(r *http.Request) (service.SessionFilter, string) {
+	var f service.SessionFilter
+	if v := r.URL.Query().Get("from"); v != "" {
+		t, err := time.ParseInLocation("2006-01-02", v, time.UTC)
+		if err != nil {
+			return f, "invalid from date: use YYYY-MM-DD"
+		}
+		f.From = &t
+	}
+	if v := r.URL.Query().Get("to"); v != "" {
+		t, err := time.ParseInLocation("2006-01-02", v, time.UTC)
+		if err != nil {
+			return f, "invalid to date: use YYYY-MM-DD"
+		}
+		// exclusive start of next day so the query can use started_at < $4
+		t = t.AddDate(0, 0, 1)
+		f.To = &t
+	}
+	return f, ""
+}
+
 func sensitiveStringPtr(s *string) *crypto.SensitiveString {
 	if s == nil {
 		return nil
@@ -254,7 +275,12 @@ func (h *WorkoutSessionHandler) patch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkoutSessionHandler) list(w http.ResponseWriter, r *http.Request) {
-	sessions, err := h.svc.List(r.Context())
+	f, errMsg := parseSessionFilter(r)
+	if errMsg != "" {
+		jsonError(w, errMsg, http.StatusBadRequest)
+		return
+	}
+	sessions, err := h.svc.List(r.Context(), f)
 	if errors.Is(err, service.ErrUnauthorized) {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
 		return

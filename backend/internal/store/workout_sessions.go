@@ -65,13 +65,15 @@ func (s *WorkoutSessionStore) get(ctx context.Context, q Querier, orgID domain.O
 	return ws, nil
 }
 
-func (s *WorkoutSessionStore) List(ctx context.Context, q Querier, orgID domain.OrgID, userID domain.UserID) ([]*domain.WorkoutSession, error) {
+func (s *WorkoutSessionStore) List(ctx context.Context, q Querier, orgID domain.OrgID, userID domain.UserID, from, to *time.Time) ([]*domain.WorkoutSession, error) {
 	rows, err := q.QueryContext(ctx, `
 		SELECT`+workoutSessionColumns+`
 		FROM cove.workout_sessions
 		WHERE org_id = $1 AND user_id = $2
+		  AND ($3::timestamptz IS NULL OR started_at >= $3)
+		  AND ($4::timestamptz IS NULL OR started_at < $4)
 		ORDER BY COALESCE(started_at, created_at) DESC
-	`, orgID, userID)
+	`, orgID, userID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("list workout sessions: %w", err)
 	}

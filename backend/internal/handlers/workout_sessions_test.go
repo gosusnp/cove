@@ -107,6 +107,52 @@ func TestWorkoutSessionHandler_List(t *testing.T) {
 		}
 	})
 
+	t.Run("filters by date range", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		activity := "Run"
+		jan := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+		feb := time.Date(2026, 2, 15, 10, 0, 0, 0, time.UTC)
+		app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{Activity: &activity, StartedAt: &jan})
+		app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{Activity: &activity, StartedAt: &feb})
+
+		r := app.AuthRequest(http.MethodGet, "/api/sessions?from=2026-02-01&to=2026-02-28", nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
+		}
+		var got []sessionResp
+		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if len(got) != 1 {
+			t.Errorf("got %d sessions, want 1", len(got))
+		}
+	})
+
+	t.Run("invalid from date returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+		r := app.AuthRequest(http.MethodGet, "/api/sessions?from=not-a-date", nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("invalid to date returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+		r := app.AuthRequest(http.MethodGet, "/api/sessions?to=not-a-date", nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
 	t.Run("unauthorized", func(t *testing.T) {
 		app := NewTestApp(t)
 		r := httptest.NewRequest(http.MethodGet, "/api/sessions", nil)

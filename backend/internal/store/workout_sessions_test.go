@@ -59,7 +59,7 @@ func TestWorkoutSessionStore_List(t *testing.T) {
 		s, q, ctx := newTestWorkoutSessionStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
 
-		sessions, err := s.List(ctx, q, id.OrgID, id.UserID)
+		sessions, err := s.List(ctx, q, id.OrgID, id.UserID, nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -102,7 +102,7 @@ func TestWorkoutSessionStore_List(t *testing.T) {
 		}
 		_ = tx1.Commit()
 
-		sessions, err := s.List(ctx2, q2, oID, uID2)
+		sessions, err := s.List(ctx2, q2, oID, uID2, nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

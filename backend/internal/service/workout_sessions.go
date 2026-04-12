@@ -80,7 +80,15 @@ func newSensitiveStringPtr(s *string) *crypto.SensitiveString {
 	return &ss
 }
 
-func (s *WorkoutSessionService) List(ctx context.Context) ([]*domain.WorkoutSession, error) {
+// SessionFilter holds optional date range bounds for listing sessions.
+// From is an inclusive lower bound; To is an exclusive upper bound on started_at.
+// Sessions with a null started_at are excluded when either bound is set.
+type SessionFilter struct {
+	From *time.Time
+	To   *time.Time
+}
+
+func (s *WorkoutSessionService) List(ctx context.Context, f SessionFilter) ([]*domain.WorkoutSession, error) {
 	id, ok := domain.IdentityFromContext(ctx)
 	if !ok {
 		return nil, ErrUnauthorized
@@ -89,7 +97,7 @@ func (s *WorkoutSessionService) List(ctx context.Context) ([]*domain.WorkoutSess
 	var list []*domain.WorkoutSession
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var err error
-		list, err = s.store.List(ctx, q, id.OrgID, id.UserID)
+		list, err = s.store.List(ctx, q, id.OrgID, id.UserID, f.From, f.To)
 		return err
 	})
 	if err != nil {

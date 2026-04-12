@@ -52,7 +52,7 @@ func TestWorkoutSessionService_List(t *testing.T) {
 		activity := "Run"
 		_, _ = wsSvc.Create(ctx1, store.WorkoutSessionParams{Activity: &activity})
 
-		list, err := wsSvc.List(ctx2)
+		list, err := wsSvc.List(ctx2, SessionFilter{})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -67,7 +67,7 @@ func TestWorkoutSessionService_List(t *testing.T) {
 		_, _ = svc.Create(ctx, store.WorkoutSessionParams{Activity: &activity1})
 		_, _ = svc.Create(ctx, store.WorkoutSessionParams{Activity: &activity2})
 
-		list, err := svc.List(ctx)
+		list, err := svc.List(ctx, SessionFilter{})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
