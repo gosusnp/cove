@@ -5,6 +5,7 @@ package workers
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/google/uuid"
 
@@ -16,9 +17,10 @@ import (
 
 // SessionSummaryInput is the payload dispatched to the session-summary workflow.
 // OrgID and UserID are required to build the identity context for RLS-gated
-// service calls.
+// service calls. SessionID is a string so it remains opaque to the workflow
+// engine and the concurrency key expression requires no type cast.
 type SessionSummaryInput struct {
-	SessionID int64  `json:"session_id"`
+	SessionID string `json:"session_id"`
 	OrgID     string `json:"org_id"`
 	UserID    string `json:"user_id"`
 }
@@ -34,6 +36,10 @@ func newSessionSummaryTask(client *hatchet.Client, w *SessionSummaryWorker) *hat
 	return client.NewStandaloneTask(
 		"session-summary",
 		func(ctx hatchet.Context, input SessionSummaryInput) (any, error) {
+			sessionID, err := strconv.ParseInt(input.SessionID, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("parse session_id: %w", err)
+			}
 			orgID, err := uuid.Parse(input.OrgID)
 			if err != nil {
 				return nil, fmt.Errorf("parse org_id: %w", err)
@@ -49,7 +55,7 @@ func newSessionSummaryTask(client *hatchet.Client, w *SessionSummaryWorker) *hat
 			}
 			idCtx := domain.NewContext(ctx.GetContext(), identity)
 
-			return nil, w.Run(idCtx, domain.WorkoutSessionID(input.SessionID))
+			return nil, w.Run(idCtx, domain.WorkoutSessionID(sessionID))
 		},
 		hatchet.WithWorkflowConcurrency(types.Concurrency{
 			Expression:    "input.session_id",

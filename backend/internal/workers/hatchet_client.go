@@ -38,12 +38,13 @@ func NewHatchetClient(token string) (*HatchetClient, error) {
 // RequestSummary enqueues a session-summary job and returns the
 // Hatchet run ID so the caller can poll for status.
 func (h *HatchetClient) RequestSummary(ctx context.Context, sessionID int64, orgID, userID string) (string, error) {
+	sid := strconv.FormatInt(sessionID, 10)
 	ref, err := h.client.RunNoWait(ctx, "session-summary", SessionSummaryInput{
-		SessionID: sessionID,
+		SessionID: sid,
 		OrgID:     orgID,
 		UserID:    userID,
 	}, hatchet.WithRunMetadata(map[string]string{
-		"session_id": strconv.FormatInt(sessionID, 10),
+		"session_id": sid,
 	}))
 	if err != nil {
 		return "", fmt.Errorf("dispatch session summary: %w", err)
@@ -79,9 +80,8 @@ func (h *HatchetClient) GetSessionSummaryStatus(ctx context.Context, runID strin
 	if !ok {
 		return "", fmt.Errorf("get run details: session_id missing from input")
 	}
-	// JSON numbers unmarshal into interface{} as float64.
-	sessionIDFloat, ok := sessionIDVal.(float64)
-	if !ok || int64(sessionIDFloat) != expectedSessionID {
+	sessionIDStr, ok := sessionIDVal.(string)
+	if !ok || sessionIDStr != strconv.FormatInt(expectedSessionID, 10) {
 		return "", ErrRunSessionMismatch
 	}
 	return string(task.Status), nil
