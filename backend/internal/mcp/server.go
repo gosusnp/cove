@@ -14,6 +14,7 @@ type Services struct {
 	Exercises *service.ExerciseService
 	Programs  *service.ProgramService
 	Profiles  *service.TrainingProfileService
+	Sessions  *service.WorkoutSessionService
 }
 
 func NewServer(svcs Services) *mcp.Server {
@@ -23,6 +24,7 @@ func NewServer(svcs Services) *mcp.Server {
 	registerProgramSetTools(server, svcs.Programs)
 	registerProgramExerciseTools(server, svcs.Programs)
 	registerTrainingProfileTools(server, svcs.Profiles)
+	registerSessionTools(server, svcs.Sessions)
 	registerPrompts(server, svcs.Profiles)
 	return server
 }

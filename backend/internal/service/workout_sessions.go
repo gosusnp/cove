@@ -88,6 +88,28 @@ type SessionFilter struct {
 	To   *time.Time
 }
 
+// NewSessionFilter parses optional YYYY-MM-DD date strings into a SessionFilter.
+// from is an inclusive lower bound; to is converted to an exclusive next-day upper bound.
+func NewSessionFilter(from, to *string) (SessionFilter, error) {
+	var f SessionFilter
+	if from != nil {
+		t, err := time.ParseInLocation("2006-01-02", *from, time.UTC)
+		if err != nil {
+			return f, errors.New("invalid from date: use YYYY-MM-DD")
+		}
+		f.From = &t
+	}
+	if to != nil {
+		t, err := time.ParseInLocation("2006-01-02", *to, time.UTC)
+		if err != nil {
+			return f, errors.New("invalid to date: use YYYY-MM-DD")
+		}
+		t = t.AddDate(0, 0, 1)
+		f.To = &t
+	}
+	return f, nil
+}
+
 func (s *WorkoutSessionService) List(ctx context.Context, f SessionFilter) ([]*domain.WorkoutSession, error) {
 	id, ok := domain.IdentityFromContext(ctx)
 	if !ok {

@@ -57,25 +57,15 @@ type workoutSessionRequest struct {
 	CompletedAt      *time.Time `json:"completed_at,omitempty"`
 }
 
-func parseSessionFilter(r *http.Request) (service.SessionFilter, string) {
-	var f service.SessionFilter
+func parseSessionFilter(r *http.Request) (service.SessionFilter, error) {
+	var from, to *string
 	if v := r.URL.Query().Get("from"); v != "" {
-		t, err := time.ParseInLocation("2006-01-02", v, time.UTC)
-		if err != nil {
-			return f, "invalid from date: use YYYY-MM-DD"
-		}
-		f.From = &t
+		from = &v
 	}
 	if v := r.URL.Query().Get("to"); v != "" {
-		t, err := time.ParseInLocation("2006-01-02", v, time.UTC)
-		if err != nil {
-			return f, "invalid to date: use YYYY-MM-DD"
-		}
-		// exclusive start of next day so the query can use started_at < $4
-		t = t.AddDate(0, 0, 1)
-		f.To = &t
+		to = &v
 	}
-	return f, ""
+	return service.NewSessionFilter(from, to)
 }
 
 func sensitiveStringPtr(s *string) *crypto.SensitiveString {
@@ -275,9 +265,9 @@ func (h *WorkoutSessionHandler) patch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkoutSessionHandler) list(w http.ResponseWriter, r *http.Request) {
-	f, errMsg := parseSessionFilter(r)
-	if errMsg != "" {
-		jsonError(w, errMsg, http.StatusBadRequest)
+	f, err := parseSessionFilter(r)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	sessions, err := h.svc.List(r.Context(), f)

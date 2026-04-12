@@ -142,6 +142,7 @@ func main() {
 		Exercises: exSvc,
 		Programs:  pSvc,
 		Profiles:  tpSvc,
+		Sessions:  wsSvc,
 	}
 
 	apiSvcs := Services{
