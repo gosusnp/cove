@@ -774,6 +774,162 @@ The workflow code depends only on `WorkoutSessionPort`. The local adapter is a t
 
 Workers call `ws.UseSensitiveData(ctx, fn)` the same way handlers do — it is the only sanctioned way to access sensitive fields regardless of call site. Sensitive data never appears in job payloads; job inputs carry only opaque identifiers `(session_id, org_id, user_id)`.
 
+### Hatchet — Workflow Engine
+
+Cove uses [Hatchet](https://hatchet.run) as the workflow orchestration engine. Workers are registered as Hatchet `StandaloneTask`s and run in a background goroutine sharing the same process and database connection pool as the HTTP server.
+
+**Activation** (wired in `main.go`):
+
+| Env var | Purpose |
+|---|---|
+| `HATCHET_CLIENT_TOKEN` | Hatchet API token. If absent, worker is disabled. |
+| `COVE_WORKER_ENABLED` | Must be `true` to start the worker goroutine. |
+
+**`HatchetClient`** (`internal/workers/hatchet_client.go`) wraps the Hatchet SDK and exposes two operations:
+- `RequestSummary` — enqueues a `session-summary` job via `client.RunNoWait` and returns the Hatchet run ID.
+- `GetSessionSummaryStatus` — polls run status via `client.Runs().Get` and validates that the run's `session_id` matches the expected value.
+
+**Task registration** (`newSessionSummaryTask` in `session_summary_workflow.go`):
+
+```go
+client.NewStandaloneTask(
+    "session-summary",
+    func(ctx hatchet.Context, input SessionSummaryInput) (any, error) { ... },
+    hatchet.WithWorkflowConcurrency(types.Concurrency{
+        Expression:    "input.session_id",  // one run per session
+        MaxRuns:       &maxRuns,            // = 1
+        LimitStrategy: &strategy,           // = CANCEL_NEWEST
+    }),
+    hatchet.WithExecutionTimeout(heartbeatTimeout), // 30s
+)
+```
+
+The concurrency key `input.session_id` with `CANCEL_NEWEST` ensures that duplicate summary requests for the same session drop the newer run and keep the one already in flight.
+
+**`SessionSummaryInput`** carries string-typed IDs so they remain opaque to Hatchet and require no type cast in concurrency key expressions:
+
+```go
+type SessionSummaryInput struct {
+    SessionID string `json:"session_id"`
+    OrgID     string `json:"org_id"`
+    UserID    string `json:"user_id"`
+}
+```
+
+**Heartbeat mechanism**: LLM calls can take far longer than Hatchet's default execution timeout. The task starts a background goroutine (`startHeartbeat`) that calls `ctx.RefreshTimeout` every 20 seconds (`heartbeatInterval`), extending the deadline by 30 seconds (`heartbeatTimeout`) on each tick. If the worker process crashes, the heartbeat stops and Hatchet marks the task failed within `heartbeatTimeout`, bounding crash detection latency.
+
+```
+heartbeatInterval = 20s   must be shorter than heartbeatTimeout
+heartbeatTimeout  = 30s   execution timeout and per-refresh extension
+```
+
+- **DO** start the heartbeat immediately after entering the Hatchet task function, before any async work.
+- **DO** `defer stop()` the heartbeat so it is cancelled whether the task succeeds or fails.
+- **DON'T** pass sensitive data in job payloads — inputs carry only `(session_id, org_id, user_id)`.
+
+---
+
+## LLM
+
+The `internal/llm` package provides a provider-agnostic interface for calling large language models. Any endpoint that speaks the OpenAI chat completions API (OpenAI, KubeAI, Anthropic compatibility layer, etc.) works with the same client.
+
+### Client
+
+```go
+type Client interface {
+    Complete(ctx context.Context, req CompletionRequest) (string, error)
+}
+```
+
+`NewOpenAICompatClient(cfg Config)` returns the concrete implementation. `Config` fields:
+
+| Field | Purpose |
+|---|---|
+| `BaseURL` | Root of the chat completions API, e.g. `https://api.openai.com/v1` |
+| `APIKey` | Sent as `Bearer` token. May be empty for unauthenticated endpoints. |
+| `Model` | Default model name; overridden per-request by `CompletionRequest.Model`. |
+| `Debug` | Writes raw response body to stderr. Useful for inspecting provider-specific fields. |
+
+`CompletionRequest.ExtraBody` is a `map[string]any` that is merged into the JSON request body last, allowing provider-specific parameters (e.g. Anthropic thinking blocks, `top_p`, stop sequences) without breaking the generic interface. Keys in `ExtraBody` override any field already set by the client.
+
+### Router
+
+Callers never call `Client` directly. All requests go through `Router`:
+
+```go
+type Router interface {
+    Complete(ctx context.Context, task TaskType, req Request) (string, error)
+}
+```
+
+`StaticRouter` is the default implementation. It wraps a single `Client` and applies per-task defaults before dispatching:
+
+```go
+func NewStaticRouter(c Client) Router
+```
+
+The `Request` type (`llm.Request`) is the caller's view — it carries semantic fields (`Messages`, `Thinking`, `Temperature`) without any provider details. The router translates these into a `CompletionRequest` and injects provider-specific parameters via `ExtraBody`.
+
+### TaskType
+
+`TaskType` identifies the kind of LLM call and drives default parameters:
+
+| TaskType | Default temperature | Notes |
+|---|---|---|
+| `TaskSummarize` | `0.1` | Low temperature for factual, consistent summaries |
+| `TaskPlan` | provider default | Planning tasks may benefit from higher variance |
+
+- **DO** pass the correct `TaskType` so the router can apply the right defaults.
+- **DON'T** set `Temperature` in `Request` unless you need to override the task default.
+
+### Prompt Builders (`internal/llm/prompts/`)
+
+Prompts live in `internal/llm/prompts/` as Go functions backed by embedded templates. Each builder returns an `llm.Request` ready to pass to `Router.Complete`.
+
+| Builder | File | Description |
+|---|---|---|
+| `SessionSummary(ws, sd)` | `prompts/session.go` | Workout session summary; uses embedded `fitness_coach_system.md` + `session_summary_user.tmpl` |
+| `TrainingProfile(...)` | `prompts/training_profile.go` | User training profile builder |
+
+Template helpers shared across prompts live in `prompts/funcs.go` and are registered on every template via `template.FuncMap`.
+
+**Sensitive data in prompts**: builders that need sensitive fields must be called inside a `UseSensitiveData` callback. The `SessionSummary` builder accepts the decrypted `domain.SessionSensitiveData` directly so the caller can pass it from within the callback — the struct is zeroed by the callback after the builder returns.
+
+```go
+err = ws.UseSensitiveData(ctx, func(sd domain.SessionSensitiveData) error {
+    req, err := prompts.SessionSummary(ws, sd)
+    if err != nil { return err }
+    summary, err = router.Complete(ctx, llm.TaskSummarize, req)
+    return err
+})
+```
+
+- **DO** keep prompt templates in `internal/llm/prompts/` as embedded files (`.md` / `.tmpl`).
+- **DO** pass `TaskType` from the builder's call site, not from inside the builder.
+- **DON'T** call `Router.Complete` outside a `UseSensitiveData` callback when the prompt includes sensitive fields.
+
+### `cmd/llm` — Prompt Development CLI
+
+`backend/cmd/llm/` is a standalone CLI for iterating on LLM prompts without starting the full HTTP server. It reuses the exact same prompt builders and `SummarizeService` as production.
+
+```sh
+# Call the LLM and print the summary
+go run ./cmd/llm session <session_id>
+
+# Render the prompt without calling the LLM (fast iteration)
+go run ./cmd/llm --preview session <session_id>
+```
+
+The `--preview` flag calls `SummarizeService.PreviewSession`, which renders the prompt template and prints it to stdout without making an API call. Use this when iterating on template wording before burning tokens.
+
+### Configuration
+
+| Env var | Purpose |
+|---|---|
+| `LLM_BASE_URL` | OpenAI-compatible endpoint root |
+| `LLM_API_KEY` | Bearer token for the endpoint |
+| `LLM_MODEL` | Default model name |
+
 ---
 
 ## MCP Integration
