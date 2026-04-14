@@ -142,7 +142,8 @@ func (s *PreparationStore) Delete(ctx context.Context, q Querier, orgID domain.O
 // listIngredients fetches all ingredients for a preparation, including ingredient density.
 func (s *PreparationStore) listIngredients(ctx context.Context, q Querier, orgID domain.OrgID, preparationID domain.PreparationID) ([]domain.PreparationIngredient, error) {
 	rows, err := q.QueryContext(ctx, `
-		SELECT pi.id, pi.preparation_id, pi.ingredient_id, pi.name, pi.amount, pi.unit, pi.prep,
+		SELECT pi.id, pi.preparation_id, pi.ingredient_id, pi.preparation_ref_id,
+		       pi.name, pi.amount, pi.unit, pi.prep,
 		       ing.density_g_per_ml
 		FROM cove.preparation_ingredients pi
 		LEFT JOIN cove.ingredients ing ON ing.id = pi.ingredient_id
@@ -157,7 +158,8 @@ func (s *PreparationStore) listIngredients(ctx context.Context, q Querier, orgID
 	list := []domain.PreparationIngredient{}
 	for rows.Next() {
 		var i domain.PreparationIngredient
-		if err := rows.Scan(&i.ID, &i.PreparationID, &i.IngredientID, &i.Name, &i.Amount, &i.Unit, &i.Prep, &i.DensityGPerMl); err != nil {
+		if err := rows.Scan(&i.ID, &i.PreparationID, &i.IngredientID, &i.PreparationRefID,
+			&i.Name, &i.Amount, &i.Unit, &i.Prep, &i.DensityGPerMl); err != nil {
 			return nil, fmt.Errorf("scan preparation ingredient: %w", err)
 		}
 		list = append(list, i)
@@ -169,12 +171,14 @@ func (s *PreparationStore) listIngredients(ctx context.Context, q Querier, orgID
 func (s *PreparationStore) getIngredient(ctx context.Context, q Querier, orgID domain.OrgID, id domain.PreparationIngredientID) (*domain.PreparationIngredient, error) {
 	var i domain.PreparationIngredient
 	err := q.QueryRowContext(ctx, `
-		SELECT pi.id, pi.preparation_id, pi.ingredient_id, pi.name, pi.amount, pi.unit, pi.prep,
+		SELECT pi.id, pi.preparation_id, pi.ingredient_id, pi.preparation_ref_id,
+		       pi.name, pi.amount, pi.unit, pi.prep,
 		       ing.density_g_per_ml
 		FROM cove.preparation_ingredients pi
 		LEFT JOIN cove.ingredients ing ON ing.id = pi.ingredient_id
 		WHERE pi.id = $1 AND pi.org_id = $2
-	`, id, orgID).Scan(&i.ID, &i.PreparationID, &i.IngredientID, &i.Name, &i.Amount, &i.Unit, &i.Prep, &i.DensityGPerMl)
+	`, id, orgID).Scan(&i.ID, &i.PreparationID, &i.IngredientID, &i.PreparationRefID,
+		&i.Name, &i.Amount, &i.Unit, &i.Prep, &i.DensityGPerMl)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -184,15 +188,16 @@ func (s *PreparationStore) getIngredient(ctx context.Context, q Querier, orgID d
 	return &i, nil
 }
 
-// AddIngredient inserts an ingredient into a preparation. Verifies preparation ownership via subquery.
+// AddIngredient inserts an ingredient (or sub-preparation ref) into a preparation.
+// Verifies preparation ownership via subquery. Exactly one of p.IngredientID or p.PreparationRefID must be non-nil.
 func (s *PreparationStore) AddIngredient(ctx context.Context, q Querier, orgID domain.OrgID, preparationID domain.PreparationID, p domain.PreparationIngredientParams) (*domain.PreparationIngredient, error) {
 	var id domain.PreparationIngredientID
 	err := q.QueryRowContext(ctx, `
-		INSERT INTO cove.preparation_ingredients (preparation_id, ingredient_id, name, amount, unit, prep)
-		SELECT $1, $2, $3, $4, $5, $6
-		WHERE EXISTS (SELECT 1 FROM cove.preparations WHERE id = $1 AND org_id = $7)
+		INSERT INTO cove.preparation_ingredients (preparation_id, ingredient_id, preparation_ref_id, name, amount, unit, prep)
+		SELECT $1, $2, $3, $4, $5, $6, $7
+		WHERE EXISTS (SELECT 1 FROM cove.preparations WHERE id = $1 AND org_id = $8)
 		RETURNING id
-	`, preparationID, p.IngredientID, p.Name, p.Amount, p.Unit, p.Prep, orgID).Scan(&id)
+	`, preparationID, p.IngredientID, p.PreparationRefID, p.Name, p.Amount, p.Unit, p.Prep, orgID).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -202,13 +207,41 @@ func (s *PreparationStore) AddIngredient(ctx context.Context, q Querier, orgID d
 	return s.getIngredient(ctx, q, orgID, id)
 }
 
+// HasCircularRef reports whether adding an edge fromPrepID → toPrepID would create a cycle.
+// It traverses the existing sub-preparation graph starting from toPrepID and checks if
+// fromPrepID is reachable.
+func (s *PreparationStore) HasCircularRef(ctx context.Context, q Querier, fromPrepID, toPrepID domain.PreparationID) (bool, error) {
+	if fromPrepID == toPrepID {
+		return true, nil
+	}
+	var exists bool
+	err := q.QueryRowContext(ctx, `
+		WITH RECURSIVE deps(id) AS (
+			SELECT preparation_ref_id AS id
+			FROM cove.preparation_ingredients
+			WHERE preparation_id = $2 AND preparation_ref_id IS NOT NULL
+			UNION
+			SELECT pi.preparation_ref_id
+			FROM cove.preparation_ingredients pi
+			JOIN deps d ON pi.preparation_id = d.id
+			WHERE pi.preparation_ref_id IS NOT NULL
+		)
+		SELECT EXISTS(SELECT 1 FROM deps WHERE id = $1)
+	`, fromPrepID, toPrepID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("has circular ref: %w", err)
+	}
+	return exists, nil
+}
+
 // UpdateIngredient modifies a preparation ingredient, filtering by preparation_id and org_id for defense-in-depth.
 func (s *PreparationStore) UpdateIngredient(ctx context.Context, q Querier, orgID domain.OrgID, preparationID domain.PreparationID, id domain.PreparationIngredientID, p domain.PreparationIngredientParams) (*domain.PreparationIngredient, error) {
 	res, err := q.ExecContext(ctx, `
 		UPDATE cove.preparation_ingredients
-		SET name = $1, amount = $2, unit = $3, prep = $4
-		WHERE id = $5 AND preparation_id = $6 AND org_id = $7
-	`, p.Name, p.Amount, p.Unit, p.Prep, id, preparationID, orgID)
+		SET name = $1, amount = $2, unit = $3, prep = $4,
+		    ingredient_id = $5, preparation_ref_id = $6
+		WHERE id = $7 AND preparation_id = $8 AND org_id = $9
+	`, p.Name, p.Amount, p.Unit, p.Prep, p.IngredientID, p.PreparationRefID, id, preparationID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("update preparation ingredient: %w", err)
 	}

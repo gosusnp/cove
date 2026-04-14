@@ -44,11 +44,12 @@ type preparationRequest struct {
 }
 
 type preparationIngredientRequest struct {
-	IngredientID int64       `json:"ingredient_id"`
-	Name         string      `json:"name"`
-	Amount       float64     `json:"amount"`
-	Unit         domain.Unit `json:"unit"`
-	Prep         *string     `json:"prep,omitempty"`
+	IngredientID     *int64      `json:"ingredient_id,omitempty"`
+	PreparationRefID *int64      `json:"preparation_ref_id,omitempty"`
+	Name             string      `json:"name"`
+	Amount           float64     `json:"amount"`
+	Unit             domain.Unit `json:"unit"`
+	Prep             *string     `json:"prep,omitempty"`
 }
 
 func (h *PreparationHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -153,13 +154,21 @@ func (h *PreparationHandler) addIngredient(w http.ResponseWriter, r *http.Reques
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	ingredient, err := h.svc.AddIngredient(r.Context(), prepID, domain.PreparationIngredientParams{
-		IngredientID: domain.IngredientID(req.IngredientID),
-		Name:         req.Name,
-		Amount:       req.Amount,
-		Unit:         req.Unit,
-		Prep:         req.Prep,
-	})
+	params := domain.PreparationIngredientParams{
+		Name:   req.Name,
+		Amount: req.Amount,
+		Unit:   req.Unit,
+		Prep:   req.Prep,
+	}
+	if req.IngredientID != nil {
+		id := domain.IngredientID(*req.IngredientID)
+		params.IngredientID = &id
+	}
+	if req.PreparationRefID != nil {
+		id := domain.PreparationID(*req.PreparationRefID)
+		params.PreparationRefID = &id
+	}
+	ingredient, err := h.svc.AddIngredient(r.Context(), prepID, params)
 	if err != nil {
 		handleServiceError(w, r, err, "preparation not found")
 		return
@@ -183,13 +192,21 @@ func (h *PreparationHandler) updateIngredient(w http.ResponseWriter, r *http.Req
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	ingredient, err := h.svc.UpdateIngredient(r.Context(), prepID, ingID, domain.PreparationIngredientParams{
-		IngredientID: domain.IngredientID(req.IngredientID),
-		Name:         req.Name,
-		Amount:       req.Amount,
-		Unit:         req.Unit,
-		Prep:         req.Prep,
-	})
+	params := domain.PreparationIngredientParams{
+		Name:   req.Name,
+		Amount: req.Amount,
+		Unit:   req.Unit,
+		Prep:   req.Prep,
+	}
+	if req.IngredientID != nil {
+		id := domain.IngredientID(*req.IngredientID)
+		params.IngredientID = &id
+	}
+	if req.PreparationRefID != nil {
+		id := domain.PreparationID(*req.PreparationRefID)
+		params.PreparationRefID = &id
+	}
+	ingredient, err := h.svc.UpdateIngredient(r.Context(), prepID, ingID, params)
 	if err != nil {
 		handleServiceError(w, r, err, "preparation not found")
 		return

@@ -288,7 +288,7 @@ func TestPreparationStore_ServiceAccountRLS(t *testing.T) {
 			t.Fatalf("seed preparation: %v", err)
 		}
 		pi, err := s.AddIngredient(f.userCtx, q, f.oID, prep.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID, Name: "Oats", Amount: 100, Unit: "g",
+			IngredientID: &ing.ID, Name: "Oats", Amount: 100, Unit: "g",
 		})
 		if err != nil {
 			t.Fatalf("seed preparation ingredient: %v", err)
@@ -322,7 +322,7 @@ func TestPreparationStore_ServiceAccountRLS(t *testing.T) {
 	t.Run("service account can UPDATE preparation_ingredients", func(t *testing.T) {
 		q := f.newSvcTx(t)
 		if _, err := s.UpdateIngredient(f.svcCtx, q, f.oID, prep.ID, prepIngID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID, Name: "Rolled Oats", Amount: 80, Unit: "g",
+			IngredientID: &ing.ID, Name: "Rolled Oats", Amount: 80, Unit: "g",
 		}); err != nil {
 			t.Fatalf("expected preparation_ingredient UPDATE to succeed, got: %v", err)
 		}

@@ -54,15 +54,17 @@ type PreparationStep struct {
 }
 
 // PreparationIngredient is an ingredient used in a preparation.
+// Exactly one of IngredientID or PreparationRefID is set.
 type PreparationIngredient struct {
-	ID            PreparationIngredientID `json:"id"`
-	PreparationID PreparationID           `json:"preparation_id"`
-	IngredientID  IngredientID            `json:"ingredient_id"`
-	Name          string                  `json:"name"`
-	Amount        float64                 `json:"amount"`
-	Unit          Unit                    `json:"unit"`
-	Prep          *string                 `json:"prep,omitempty"`
-	DensityGPerMl *float64                `json:"density_g_per_ml,omitempty"`
+	ID               PreparationIngredientID `json:"id"`
+	PreparationID    PreparationID           `json:"preparation_id"`
+	IngredientID     *IngredientID           `json:"ingredient_id,omitempty"`
+	PreparationRefID *PreparationID          `json:"preparation_ref_id,omitempty"`
+	Name             string                  `json:"name"`
+	Amount           float64                 `json:"amount"`
+	Unit             Unit                    `json:"unit"`
+	Prep             *string                 `json:"prep,omitempty"`
+	DensityGPerMl    *float64                `json:"density_g_per_ml,omitempty"`
 }
 
 // PreparationParams holds the mutable fields for creating or updating a preparation.
@@ -76,12 +78,14 @@ type PreparationParams struct {
 }
 
 // PreparationIngredientParams holds the mutable fields for creating or updating a preparation ingredient.
+// Exactly one of IngredientID or PreparationRefID must be set.
 type PreparationIngredientParams struct {
-	IngredientID IngredientID
-	Name         string
-	Amount       float64
-	Unit         Unit
-	Prep         *string
+	IngredientID     *IngredientID
+	PreparationRefID *PreparationID
+	Name             string
+	Amount           float64
+	Unit             Unit
+	Prep             *string
 }
 
 // PreparationLite is a trimmed projection used for list endpoints.

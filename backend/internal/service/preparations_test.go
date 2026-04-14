@@ -125,7 +125,7 @@ func TestPreparationService_Get(t *testing.T) {
 		p, _ := svc.Create(ctx, basePrep())
 		ing := seedIngredient(t, ingSvc, ctx)
 		_, _ = svc.AddIngredient(ctx, p.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "flour",
 			Amount:       100,
 			Unit:         "g",
@@ -148,7 +148,7 @@ func TestPreparationService_Get(t *testing.T) {
 		p, _ := svc.Create(ctx, basePrep())
 		ing := seedIngredientWithDensity(t, ingSvc, ctx)
 		_, _ = svc.AddIngredient(ctx, p.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "whole milk",
 			Amount:       240,
 			Unit:         "ml",
@@ -334,7 +334,7 @@ func TestPreparationService_Delete(t *testing.T) {
 		p, _ := svc.Create(ctx, basePrep())
 		ing := seedIngredient(t, ingSvc, ctx)
 		_, _ = svc.AddIngredient(ctx, p.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "flour",
 			Amount:       100,
 			Unit:         "g",
@@ -365,7 +365,7 @@ func TestPreparationService_AddIngredient(t *testing.T) {
 		ing := seedIngredient(t, ingSvc, ctx)
 
 		got, err := svc.AddIngredient(ctx, p.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "flour",
 			Amount:       150,
 			Unit:         "g",
@@ -383,7 +383,7 @@ func TestPreparationService_AddIngredient(t *testing.T) {
 		ing := seedIngredient(t, ingSvc, ctx)
 
 		_, err := svc.AddIngredient(ctx, domain.PreparationID(999), domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "flour",
 			Amount:       100,
 			Unit:         "g",
@@ -400,7 +400,7 @@ func TestPreparationService_AddIngredient(t *testing.T) {
 		ing := seedIngredient(t, ingSvc1, ctx1)
 
 		_, err := svc1.AddIngredient(ctx1, p.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "flour",
 			Amount:       100,
 			Unit:         "g",
@@ -416,7 +416,7 @@ func TestPreparationService_AddIngredient(t *testing.T) {
 		ing := seedIngredient(t, ingSvc, ctx)
 
 		_, err := svc.AddIngredient(ctx, p.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Amount:       100,
 			Unit:         "g",
 		})
@@ -432,7 +432,7 @@ func TestPreparationService_AddIngredient(t *testing.T) {
 		ing := seedIngredient(t, ingSvc, ctx)
 
 		_, err := svc.AddIngredient(ctx, p.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "flour",
 			Amount:       100,
 			Unit:         "handful",
@@ -449,7 +449,7 @@ func TestPreparationService_AddIngredient(t *testing.T) {
 		ing := seedIngredient(t, ingSvc, ctx)
 
 		got, err := svc.AddIngredient(ctx, p.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "egg",
 			Amount:       1,
 			Unit:         domain.UnitEach,
@@ -468,7 +468,7 @@ func TestPreparationService_AddIngredient(t *testing.T) {
 		ing := seedIngredientWithDensity(t, ingSvc, ctx)
 
 		got, err := svc.AddIngredient(ctx, p.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "whole milk",
 			Amount:       240,
 			Unit:         "ml",
@@ -491,14 +491,14 @@ func TestPreparationService_UpdateIngredient(t *testing.T) {
 		p, _ := svc.Create(ctx, basePrep())
 		ing := seedIngredient(t, ingSvc, ctx)
 		added, _ := svc.AddIngredient(ctx, p.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "flour",
 			Amount:       100,
 			Unit:         "g",
 		})
 
 		updated, err := svc.UpdateIngredient(ctx, p.ID, added.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "bread flour",
 			Amount:       200,
 			Unit:         "g",
@@ -523,7 +523,7 @@ func TestPreparationService_UpdateIngredient(t *testing.T) {
 		ing := seedIngredient(t, ingSvc, ctx)
 		// Add ingredient to p2 only
 		added, _ := svc.AddIngredient(ctx, p2r.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "flour",
 			Amount:       100,
 			Unit:         "g",
@@ -531,7 +531,7 @@ func TestPreparationService_UpdateIngredient(t *testing.T) {
 
 		// Try to update it via p1 — should fail
 		_, err := svc.UpdateIngredient(ctx, p1.ID, added.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "flour",
 			Amount:       200,
 			Unit:         "g",
@@ -547,7 +547,7 @@ func TestPreparationService_UpdateIngredient(t *testing.T) {
 		ing := seedIngredient(t, ingSvc, ctx)
 
 		_, err := svc.UpdateIngredient(ctx, p.ID, domain.PreparationIngredientID(999), domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "flour",
 			Amount:       100,
 			Unit:         "g",
@@ -562,14 +562,14 @@ func TestPreparationService_UpdateIngredient(t *testing.T) {
 		p, _ := svc.Create(ctx, basePrep())
 		ing := seedIngredient(t, ingSvc, ctx)
 		added, _ := svc.AddIngredient(ctx, p.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "egg",
 			Amount:       1,
 			Unit:         domain.UnitEach,
 		})
 
 		updated, err := svc.UpdateIngredient(ctx, p.ID, added.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "egg",
 			Amount:       2,
 			Unit:         domain.UnitEach,
@@ -589,7 +589,7 @@ func TestPreparationService_DeleteIngredient(t *testing.T) {
 		p, _ := svc.Create(ctx, basePrep())
 		ing := seedIngredient(t, ingSvc, ctx)
 		added, _ := svc.AddIngredient(ctx, p.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "flour",
 			Amount:       100,
 			Unit:         "g",
@@ -613,7 +613,7 @@ func TestPreparationService_DeleteIngredient(t *testing.T) {
 		ing := seedIngredient(t, ingSvc, ctx)
 		// Add ingredient to p2 only
 		added, _ := svc.AddIngredient(ctx, p2r.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "flour",
 			Amount:       100,
 			Unit:         "g",
@@ -637,6 +637,136 @@ func TestPreparationService_DeleteIngredient(t *testing.T) {
 		err := svc.DeleteIngredient(ctx, p.ID, domain.PreparationIngredientID(999))
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func TestPreparationService_SubPreparation(t *testing.T) {
+	t.Run("add sub-prep reference succeeds", func(t *testing.T) {
+		svc, _, ctx := newTestPreparationService(t)
+		parent, _ := svc.Create(ctx, basePrep())
+		child := basePrep()
+		child.Name = "Biga"
+		childPrep, _ := svc.Create(ctx, child)
+		childID := childPrep.ID
+
+		got, err := svc.AddIngredient(ctx, parent.ID, domain.PreparationIngredientParams{
+			PreparationRefID: &childID,
+			Name:             "biga",
+			Amount:           200,
+			Unit:             "g",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.PreparationRefID == nil {
+			t.Fatal("expected preparation_ref_id to be set, got nil")
+		}
+		if *got.PreparationRefID != childID {
+			t.Errorf("got preparation_ref_id %v, want %v", *got.PreparationRefID, childID)
+		}
+		if got.IngredientID != nil {
+			t.Errorf("expected ingredient_id to be nil, got %v", *got.IngredientID)
+		}
+	})
+
+	t.Run("both refs set returns ValidationError", func(t *testing.T) {
+		svc, ingSvc, ctx := newTestPreparationService(t)
+		parent, _ := svc.Create(ctx, basePrep())
+		ing := seedIngredient(t, ingSvc, ctx)
+		child := basePrep()
+		child.Name = "Child"
+		childPrep, _ := svc.Create(ctx, child)
+		childID := childPrep.ID
+
+		_, err := svc.AddIngredient(ctx, parent.ID, domain.PreparationIngredientParams{
+			IngredientID:     &ing.ID,
+			PreparationRefID: &childID,
+			Name:             "both",
+			Amount:           100,
+			Unit:             "g",
+		})
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("got %v, want ValidationError", err)
+		}
+	})
+
+	t.Run("neither ref set returns ValidationError", func(t *testing.T) {
+		svc, _, ctx := newTestPreparationService(t)
+		parent, _ := svc.Create(ctx, basePrep())
+
+		_, err := svc.AddIngredient(ctx, parent.ID, domain.PreparationIngredientParams{
+			Name:   "nothing",
+			Amount: 100,
+			Unit:   "g",
+		})
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("got %v, want ValidationError", err)
+		}
+	})
+
+	t.Run("direct cycle detected", func(t *testing.T) {
+		svc, _, ctx := newTestPreparationService(t)
+		p, _ := svc.Create(ctx, basePrep())
+		pID := p.ID
+
+		_, err := svc.AddIngredient(ctx, p.ID, domain.PreparationIngredientParams{
+			PreparationRefID: &pID,
+			Name:             "self",
+			Amount:           100,
+			Unit:             "g",
+		})
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("got %v, want ValidationError (self-ref cycle)", err)
+		}
+	})
+
+	t.Run("indirect cycle detected", func(t *testing.T) {
+		svc, _, ctx := newTestPreparationService(t)
+		// A → B → C; adding C → A should be rejected
+		a, _ := svc.Create(ctx, domain.PreparationParams{Name: "A", YieldAmount: 100, YieldUnit: "g"})
+		b, _ := svc.Create(ctx, domain.PreparationParams{Name: "B", YieldAmount: 100, YieldUnit: "g"})
+		c, _ := svc.Create(ctx, domain.PreparationParams{Name: "C", YieldAmount: 100, YieldUnit: "g"})
+
+		bID := b.ID
+		_, _ = svc.AddIngredient(ctx, a.ID, domain.PreparationIngredientParams{
+			PreparationRefID: &bID,
+			Name:             "b", Amount: 100, Unit: "g",
+		})
+		cID := c.ID
+		_, _ = svc.AddIngredient(ctx, b.ID, domain.PreparationIngredientParams{
+			PreparationRefID: &cID,
+			Name:             "c", Amount: 100, Unit: "g",
+		})
+
+		aID := a.ID
+		_, err := svc.AddIngredient(ctx, c.ID, domain.PreparationIngredientParams{
+			PreparationRefID: &aID,
+			Name:             "a", Amount: 100, Unit: "g",
+		})
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("got %v, want ValidationError (indirect cycle)", err)
+		}
+	})
+
+	t.Run("referenced prep not found returns ValidationError", func(t *testing.T) {
+		svc, _, ctx := newTestPreparationService(t)
+		parent, _ := svc.Create(ctx, basePrep())
+		nonExistentID := domain.PreparationID(99999)
+
+		_, err := svc.AddIngredient(ctx, parent.ID, domain.PreparationIngredientParams{
+			PreparationRefID: &nonExistentID,
+			Name:             "ghost",
+			Amount:           100,
+			Unit:             "g",
+		})
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("got %v, want ValidationError (not found)", err)
 		}
 	})
 }

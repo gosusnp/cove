@@ -55,18 +55,28 @@ function IngredientRow({ ingredient, prepId, onUpdated, onDeleted }) {
 		saving.value = true;
 		error.value = "";
 		try {
+			const body =
+				ingredient.preparation_ref_id != null
+					? {
+							preparation_ref_id: ingredient.preparation_ref_id,
+							name: name.value.trim() || ingredient.name,
+							amount: parseFloat(amount.value) || ingredient.amount,
+							unit: unit.value.trim(),
+							prep: prep.value.trim() || undefined,
+						}
+					: {
+							ingredient_id: ingredient.ingredient_id,
+							name: name.value.trim() || ingredient.name,
+							amount: parseFloat(amount.value) || ingredient.amount,
+							unit: unit.value.trim(),
+							prep: prep.value.trim() || undefined,
+						};
 			const r = await apiFetch(
 				`/api/preparations/${prepId}/ingredients/${ingredient.id}`,
 				{
 					method: "PUT",
 					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						ingredient_id: ingredient.ingredient_id,
-						name: name.value.trim() || ingredient.name,
-						amount: parseFloat(amount.value) || ingredient.amount,
-						unit: unit.value.trim(),
-						prep: prep.value.trim() || undefined,
-					}),
+					body: JSON.stringify(body),
 				},
 			);
 			if (!r.ok) {
@@ -238,7 +248,8 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 	const { cookingMassUnit } = useUnitPreferences();
 
 	const ingredients = useSignal([]);
-	const selectedId = useSignal("");
+	const preparations = useSignal([]);
+	const selectedKey = useSignal(""); // "ing:<id>" or "prep:<id>"
 	const fdcQuery = useSignal("");
 	const selectedFDC = useSignal(null);
 	const name = useSignal("");
@@ -256,16 +267,29 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 			.then((data) => {
 				ingredients.value = data;
 			});
+		apiFetch("/api/preparations")
+			.then((r) => r.json())
+			.then((data) => {
+				preparations.value = data;
+			});
 	}, []);
 
 	const handleIngredientChange = (val) => {
-		if (val.startsWith("existing:")) {
-			const id = val.slice("existing:".length);
-			selectedId.value = id;
+		if (val.startsWith("ing:")) {
+			const id = val.slice("ing:".length);
+			selectedKey.value = val;
 			const found = ingredients.value.find((i) => String(i.id) === id);
 			if (found) {
 				name.value = found.name;
 				density.value = found.density_g_per_ml ?? null;
+			}
+		} else if (val.startsWith("prep:")) {
+			const id = val.slice("prep:".length);
+			selectedKey.value = val;
+			const found = preparations.value.find((p) => String(p.id) === id);
+			if (found) {
+				name.value = found.name;
+				density.value = null;
 			}
 		} else {
 			// Freeform "Create '...' from FDC" was selected
@@ -282,16 +306,26 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 
 	const handleSave = async (e) => {
 		e.preventDefault();
-		if (mode.value === "select" && !selectedId.value) {
-			error.value = "Select an ingredient first";
+		if (mode.value === "select" && !selectedKey.value) {
+			error.value = "Select an ingredient or preparation first";
 			return;
 		}
 		saving.value = true;
 		error.value = "";
 		try {
-			let ingredientId = Number(selectedId.value);
-
-			if (mode.value === "confirm") {
+			let refField;
+			if (mode.value === "select") {
+				if (selectedKey.value.startsWith("ing:")) {
+					refField = {
+						ingredient_id: Number(selectedKey.value.slice("ing:".length)),
+					};
+				} else if (selectedKey.value.startsWith("prep:")) {
+					refField = {
+						preparation_ref_id: Number(selectedKey.value.slice("prep:".length)),
+					};
+				}
+			} else {
+				// confirm mode — create the FDC ingredient first, then use its id
 				const f = selectedFDC.value;
 				const r = await apiFetch("/api/ingredients", {
 					method: "POST",
@@ -311,7 +345,7 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 					throw new Error(d.error || "Failed to create ingredient");
 				}
 				const created = await r.json();
-				ingredientId = created.id;
+				refField = { ingredient_id: created.id };
 				density.value = created.density_g_per_ml ?? null;
 			}
 
@@ -319,7 +353,7 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					ingredient_id: ingredientId,
+					...refField,
 					name: name.value.trim(),
 					amount: parseFloat(amount.value) || 1,
 					unit: unit.value.trim(),
@@ -338,13 +372,22 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 		}
 	};
 
-	const options = ingredients.value.map((i) => ({
-		value: `existing:${i.id}`,
-		label: i.name,
-	}));
+	const options = [
+		...ingredients.value.map((i) => ({
+			value: `ing:${i.id}`,
+			label: i.name,
+		})),
+		...preparations.value
+			.filter((p) => String(p.id) !== String(prepId))
+			.map((p) => ({
+				value: `prep:${p.id}`,
+				label: `↳ ${p.name}`,
+			})),
+	];
 
 	const showPrepFields =
-		mode.value === "confirm" || (mode.value === "select" && !!selectedId.value);
+		mode.value === "confirm" ||
+		(mode.value === "select" && !!selectedKey.value);
 
 	return (
 		<form
@@ -355,8 +398,8 @@ function AddIngredientForm({ prepId, onAdded, onCancel }) {
 			{mode.value === "select" && (
 				<Combobox
 					autoFocus
-					label="Ingredient"
-					value={selectedId.value ? `existing:${selectedId.value}` : ""}
+					label="Ingredient or sub-preparation"
+					value={selectedKey.value}
 					onChange={handleIngredientChange}
 					options={options}
 					placeholder="Search ingredients…"

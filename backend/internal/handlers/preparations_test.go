@@ -522,7 +522,7 @@ func TestPreparationHandler_UpdateIngredient(t *testing.T) {
 		prep := app.SeedPreparationForUser(context.Background(), defaultPrepParams(), u1, o1)
 		ing := app.SeedIngredientForUser(context.Background(), defaultIngredientParams(), u1, o1)
 		prepIng := app.SeedPreparationIngredientForUser(context.Background(), prep.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID,
+			IngredientID: &ing.ID,
 			Name:         "Flour",
 			Amount:       100,
 			Unit:         "g",
@@ -550,7 +550,7 @@ func TestPreparationHandler_UpdateIngredient(t *testing.T) {
 		prep := app.SeedPreparationForUser(context.Background(), defaultPrepParams(), u1, o1)
 		ing := app.SeedIngredientForUser(context.Background(), defaultIngredientParams(), u1, o1)
 		prepIng := app.SeedPreparationIngredientForUser(context.Background(), prep.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID, Name: "Flour", Amount: 100, Unit: "g",
+			IngredientID: &ing.ID, Name: "Flour", Amount: 100, Unit: "g",
 		}, u1, o1)
 
 		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/preparations/%d/ingredients/%d", prep.ID, prepIng.ID), strings.NewReader(`not json`), u1)
@@ -571,7 +571,7 @@ func TestPreparationHandler_UpdateIngredient(t *testing.T) {
 		ing := app.SeedIngredientForUser(context.Background(), defaultIngredientParams(), u1, o1)
 		// Ingredient belongs to p2
 		prepIng := app.SeedPreparationIngredientForUser(context.Background(), p2.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID, Name: "Flour", Amount: 100, Unit: "g",
+			IngredientID: &ing.ID, Name: "Flour", Amount: 100, Unit: "g",
 		}, u1, o1)
 
 		// Try to update it via p1
@@ -625,7 +625,7 @@ func TestPreparationHandler_DeleteIngredient(t *testing.T) {
 		prep := app.SeedPreparationForUser(context.Background(), defaultPrepParams(), u1, o1)
 		ing := app.SeedIngredientForUser(context.Background(), defaultIngredientParams(), u1, o1)
 		prepIng := app.SeedPreparationIngredientForUser(context.Background(), prep.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID, Name: "Flour", Amount: 100, Unit: "g",
+			IngredientID: &ing.ID, Name: "Flour", Amount: 100, Unit: "g",
 		}, u1, o1)
 
 		r := app.AuthRequest(http.MethodDelete, fmt.Sprintf("/api/preparations/%d/ingredients/%d", prep.ID, prepIng.ID), nil, u1)
@@ -656,7 +656,7 @@ func TestPreparationHandler_DeleteIngredient(t *testing.T) {
 		p2 := app.SeedPreparationForUser(context.Background(), p2params, u1, o1)
 		ing := app.SeedIngredientForUser(context.Background(), defaultIngredientParams(), u1, o1)
 		prepIng := app.SeedPreparationIngredientForUser(context.Background(), p2.ID, domain.PreparationIngredientParams{
-			IngredientID: ing.ID, Name: "Flour", Amount: 100, Unit: "g",
+			IngredientID: &ing.ID, Name: "Flour", Amount: 100, Unit: "g",
 		}, u1, o1)
 
 		// Try to delete via p1
@@ -698,6 +698,78 @@ func TestPreparationHandler_DeleteIngredient(t *testing.T) {
 
 		if w.Code != http.StatusUnauthorized {
 			t.Errorf("got %d, want %d", w.Code, http.StatusUnauthorized)
+		}
+	})
+}
+
+func TestPreparationHandler_AddIngredient_SubPrep(t *testing.T) {
+	t.Run("add sub-prep reference succeeds", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		parent := app.SeedPreparationForUser(context.Background(), defaultPrepParams(), u1, o1)
+		childParams := defaultPrepParams()
+		childParams.Name = "Biga"
+		child := app.SeedPreparationForUser(context.Background(), childParams, u1, o1)
+
+		body := fmt.Sprintf(`{"preparation_ref_id":%d,"name":"biga","amount":200,"unit":"g"}`, child.ID)
+		r := app.AuthRequest(http.MethodPost, fmt.Sprintf("/api/preparations/%d/ingredients", parent.ID), strings.NewReader(body), u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusCreated {
+			t.Errorf("got %d, want %d: %s", w.Code, http.StatusCreated, w.Body)
+		}
+		var got domain.PreparationIngredient
+		if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if got.PreparationRefID == nil {
+			t.Fatal("expected preparation_ref_id to be set")
+		}
+	})
+
+	t.Run("both refs returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		parent := app.SeedPreparationForUser(context.Background(), defaultPrepParams(), u1, o1)
+		ing := app.SeedIngredientForUser(context.Background(), defaultIngredientParams(), u1, o1)
+		childParams := defaultPrepParams()
+		childParams.Name = "Child"
+		child := app.SeedPreparationForUser(context.Background(), childParams, u1, o1)
+
+		body := fmt.Sprintf(`{"ingredient_id":%d,"preparation_ref_id":%d,"name":"x","amount":1,"unit":"g"}`, ing.ID, child.ID)
+		r := app.AuthRequest(http.MethodPost, fmt.Sprintf("/api/preparations/%d/ingredients", parent.ID), strings.NewReader(body), u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("neither ref returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		parent := app.SeedPreparationForUser(context.Background(), defaultPrepParams(), u1, o1)
+
+		body := `{"name":"nothing","amount":1,"unit":"g"}`
+		r := app.AuthRequest(http.MethodPost, fmt.Sprintf("/api/preparations/%d/ingredients", parent.ID), strings.NewReader(body), u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("cycle detection returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		p := app.SeedPreparationForUser(context.Background(), defaultPrepParams(), u1, o1)
+
+		body := fmt.Sprintf(`{"preparation_ref_id":%d,"name":"self","amount":100,"unit":"g"}`, p.ID)
+		r := app.AuthRequest(http.MethodPost, fmt.Sprintf("/api/preparations/%d/ingredients", p.ID), strings.NewReader(body), u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got %d, want %d (self-reference cycle)", w.Code, http.StatusBadRequest)
 		}
 	})
 }

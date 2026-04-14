@@ -784,7 +784,7 @@ describe("RecipeDetail — AddIngredientForm", () => {
 
 		await waitFor(() =>
 			expect(
-				screen.getByText("Select an ingredient first"),
+				screen.getByText("Select an ingredient or preparation first"),
 			).toBeInTheDocument(),
 		);
 	});
@@ -800,7 +800,7 @@ describe("RecipeDetail — AddIngredientForm", () => {
 		await openAddIngredientForm();
 
 		const combobox = screen.getByTestId("mock-combobox-freeform");
-		fireEvent.input(combobox, { target: { value: "existing:42" } });
+		fireEvent.input(combobox, { target: { value: "ing:42" } });
 
 		// Amount and unit fields should appear
 		await waitFor(() =>
@@ -909,7 +909,7 @@ describe("RecipeDetail — AddIngredientForm", () => {
 		await openAddIngredientForm();
 
 		fireEvent.input(screen.getByTestId("mock-combobox-freeform"), {
-			target: { value: "existing:42" },
+			target: { value: "ing:42" },
 		});
 		await waitFor(() =>
 			expect(screen.getByLabelText("Amount")).toBeInTheDocument(),
@@ -935,6 +935,89 @@ describe("RecipeDetail — AddIngredientForm", () => {
 			expect(body.ingredient_id).toBe(42);
 			expect(body.amount).toBe(2);
 			expect(body.unit).toBe("cup");
+		});
+	});
+
+	it("saving with a sub-preparation sends preparation_ref_id in POST body", async () => {
+		// Use a preparation with id=20 (different from prepId=10 so it is not filtered out)
+		const BIGA_PREP = {
+			id: 20,
+			name: "Biga",
+			yield_amount: 500,
+			yield_unit: "g",
+		};
+		vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+			if (url === `/api/recipes/1` && !opts?.method) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_RECIPE_WITH_PREP),
+				});
+			}
+			if (url === `/api/preparations/10` && !opts?.method) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_PREP),
+				});
+			}
+			if (url === "/api/preparations" && !opts?.method) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve([MOCK_PREP, BIGA_PREP]),
+				});
+			}
+			if (url === "/api/ingredients" && !opts?.method) {
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_INGREDIENTS),
+				});
+			}
+			if (
+				url.startsWith("/api/preparations/") &&
+				url.endsWith("/ingredients") &&
+				opts?.method === "POST"
+			) {
+				return Promise.resolve({
+					ok: true,
+					json: () =>
+						Promise.resolve({
+							id: 5,
+							preparation_ref_id: 20,
+							name: "Biga",
+							amount: 200,
+							unit: "g",
+						}),
+				});
+			}
+			return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+		});
+
+		await openAddIngredientForm();
+
+		// Select the sub-preparation (prep:20)
+		fireEvent.input(screen.getByTestId("mock-combobox-freeform"), {
+			target: { value: "prep:20" },
+		});
+		await waitFor(() =>
+			expect(screen.getByLabelText("Amount")).toBeInTheDocument(),
+		);
+
+		fireEvent.input(screen.getByLabelText("Amount"), {
+			target: { value: "200" },
+		});
+
+		fireEvent.click(screen.getByTestId("add-ingredient-submit"));
+
+		await waitFor(() => {
+			const calls = global.fetch.mock.calls;
+			const prepCall = calls.find(
+				([url, opts]) =>
+					url === "/api/preparations/10/ingredients" && opts?.method === "POST",
+			);
+			expect(prepCall).toBeDefined();
+			const body = JSON.parse(prepCall[1].body);
+			expect(body.preparation_ref_id).toBe(20);
+			expect(body.ingredient_id).toBeUndefined();
+			expect(body.amount).toBe(200);
 		});
 	});
 
@@ -989,7 +1072,7 @@ describe("RecipeDetail — AddIngredientForm", () => {
 		await openAddIngredientForm();
 
 		fireEvent.input(screen.getByTestId("mock-combobox-freeform"), {
-			target: { value: "existing:42" },
+			target: { value: "ing:42" },
 		});
 		await waitFor(() =>
 			expect(screen.getByLabelText("Amount")).toBeInTheDocument(),
@@ -1062,7 +1145,7 @@ describe("RecipeDetail — AddIngredientForm", () => {
 		);
 
 		fireEvent.input(screen.getByTestId("mock-combobox-freeform"), {
-			target: { value: "existing:42" },
+			target: { value: "ing:42" },
 		});
 		await waitFor(() =>
 			expect(screen.getByLabelText("Amount")).toBeInTheDocument(),

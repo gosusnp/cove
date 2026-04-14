@@ -129,11 +129,14 @@ func (s *PreparationService) Delete(ctx context.Context, id domain.PreparationID
 	return err
 }
 
-// AddIngredient adds an ingredient to a preparation.
+// AddIngredient adds an ingredient or sub-preparation reference to a preparation.
 func (s *PreparationService) AddIngredient(ctx context.Context, preparationID domain.PreparationID, p domain.PreparationIngredientParams) (*domain.PreparationIngredient, error) {
 	identity, ok := domain.IdentityFromContext(ctx)
 	if !ok {
 		return nil, ErrUnauthorized
+	}
+	if (p.IngredientID == nil) == (p.PreparationRefID == nil) {
+		return nil, &ValidationError{Msg: "exactly one of ingredient_id or preparation_ref_id must be set"}
 	}
 	if strings.TrimSpace(p.Name) == "" {
 		return nil, &ValidationError{Msg: "name is required"}
@@ -146,6 +149,23 @@ func (s *PreparationService) AddIngredient(ctx context.Context, preparationID do
 	}
 	var ingredient *domain.PreparationIngredient
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		if p.PreparationRefID != nil {
+			// Verify the referenced preparation is accessible.
+			if _, err := s.store.Get(ctx, q, identity.OrgID, *p.PreparationRefID); err != nil {
+				if errors.Is(err, store.ErrNotFound) {
+					return &ValidationError{Msg: "referenced preparation not found"}
+				}
+				return err
+			}
+			// Guard against circular references.
+			circular, err := s.store.HasCircularRef(ctx, q, preparationID, *p.PreparationRefID)
+			if err != nil {
+				return err
+			}
+			if circular {
+				return &ValidationError{Msg: "adding this sub-preparation would create a circular reference"}
+			}
+		}
 		var err error
 		ingredient, err = s.store.AddIngredient(ctx, q, identity.OrgID, preparationID, p)
 		return err
@@ -162,6 +182,9 @@ func (s *PreparationService) UpdateIngredient(ctx context.Context, preparationID
 	if !ok {
 		return nil, ErrUnauthorized
 	}
+	if (p.IngredientID == nil) == (p.PreparationRefID == nil) {
+		return nil, &ValidationError{Msg: "exactly one of ingredient_id or preparation_ref_id must be set"}
+	}
 	if strings.TrimSpace(p.Name) == "" {
 		return nil, &ValidationError{Msg: "name is required"}
 	}
@@ -173,6 +196,21 @@ func (s *PreparationService) UpdateIngredient(ctx context.Context, preparationID
 	}
 	var ingredient *domain.PreparationIngredient
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		if p.PreparationRefID != nil {
+			if _, err := s.store.Get(ctx, q, identity.OrgID, *p.PreparationRefID); err != nil {
+				if errors.Is(err, store.ErrNotFound) {
+					return &ValidationError{Msg: "referenced preparation not found"}
+				}
+				return err
+			}
+			circular, err := s.store.HasCircularRef(ctx, q, preparationID, *p.PreparationRefID)
+			if err != nil {
+				return err
+			}
+			if circular {
+				return &ValidationError{Msg: "adding this sub-preparation would create a circular reference"}
+			}
+		}
 		var err error
 		ingredient, err = s.store.UpdateIngredient(ctx, q, identity.OrgID, preparationID, id, p)
 		return err
