@@ -87,6 +87,66 @@ describe("AccordionItem", () => {
 		).toBeInTheDocument();
 	});
 
+	it("does not toggle when space is pressed in a nested input with stopPropagation", () => {
+		render(
+			<Accordion>
+				<AccordionItem value="a">
+					<AccordionTrigger>
+						<input
+							data-testid="nested-input"
+							onKeyDown={(e) => {
+								if (e.key === " ") e.stopPropagation();
+							}}
+							onKeyUp={(e) => {
+								if (e.key === " ") e.stopPropagation();
+							}}
+						/>
+					</AccordionTrigger>
+					<AccordionContent>Hidden content</AccordionContent>
+				</AccordionItem>
+			</Accordion>,
+		);
+
+		const input = screen.getByTestId("nested-input");
+		input.focus();
+		fireEvent.keyDown(input, { key: " ", code: "Space", keyCode: 32 });
+		fireEvent.keyUp(input, { key: " ", code: "Space", keyCode: 32 });
+
+		// Should stay closed
+		const contentContainer = screen
+			.queryByText("Hidden content")
+			?.closest("[data-state]");
+		if (contentContainer) {
+			expect(contentContainer).toHaveAttribute("data-state", "closed");
+		} else {
+			expect(screen.queryByText("Hidden content")).not.toBeInTheDocument();
+		}
+	});
+
+	it("toggles when space is pressed in a nested input without stopPropagation", () => {
+		render(
+			<Accordion>
+				<AccordionItem value="a">
+					<AccordionTrigger>
+						<input data-testid="nested-input-bubbling" />
+					</AccordionTrigger>
+					<AccordionContent>Hidden content</AccordionContent>
+				</AccordionItem>
+			</Accordion>,
+		);
+
+		const input = screen.getByTestId("nested-input-bubbling");
+		input.focus();
+		fireEvent.keyDown(input, { key: " ", code: "Space", keyCode: 32 });
+		fireEvent.keyUp(input, { key: " ", code: "Space", keyCode: 32 });
+
+		// Should toggle open on keyUp Space if bubbling up to Trigger
+		const contentContainer = screen
+			.getByText("Hidden content")
+			.closest("[data-state]");
+		expect(contentContainer).toHaveAttribute("data-state", "open");
+	});
+
 	it("renders with a sortable id without throwing", () => {
 		render(
 			<Accordion>

@@ -57,7 +57,14 @@ export function Header({ children, asChild }) {
 	return <div>{children}</div>;
 }
 
-export function Trigger({ children, className, onClick, ...props }) {
+export function Trigger({
+	children,
+	className,
+	onClick,
+	onKeyDown,
+	onKeyUp,
+	...props
+}) {
 	const { open, toggle } = useContext(RootCtx);
 	const { value } = useContext(ItemCtx);
 	const isOpen = open.has(value);
@@ -69,6 +76,18 @@ export function Trigger({ children, className, onClick, ...props }) {
 			onClick={(e) => {
 				toggle(value);
 				onClick?.(e);
+			}}
+			onKeyDown={(e) => {
+				if (e.key === "Enter") {
+					toggle(value);
+				}
+				onKeyDown?.(e);
+			}}
+			onKeyUp={(e) => {
+				if (e.key === " ") {
+					toggle(value);
+				}
+				onKeyUp?.(e);
 			}}
 			{...props}
 		>

@@ -3,7 +3,7 @@
 
 import { useSignal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
-import { Plus, Trash2, X } from "lucide-preact";
+import { Pencil, Plus, Trash2, X } from "lucide-preact";
 import {
 	Accordion,
 	AccordionContent,
@@ -764,34 +764,61 @@ function PreparationSection({
 	return (
 		<>
 			<AccordionItem value={String(initialLink.id)}>
-				<AccordionTrigger>
-					<div class="flex flex-1 items-center gap-2 min-w-0">
-						{editingName.value ? (
-							<TextField
-								inline
-								inputRef={nameRef}
-								containerClass="flex-1 min-w-0"
-								class="text-sm font-semibold"
-								value={nameValue.value}
-								onInput={(e) => {
-									nameValue.value = e.target.value;
+				{editingName.value ? (
+					<div class="flex w-full items-center gap-3 px-4 py-3 bg-(--color-bg)">
+						<TextField
+							inline
+							inputRef={nameRef}
+							containerClass="flex-1 min-w-0"
+							class="text-sm font-semibold"
+							value={nameValue.value}
+							onInput={(e) => {
+								nameValue.value = e.target.value;
+							}}
+							onKeyDown={(e) => {
+								if (e.key === "Enter") saveName();
+								if (e.key === "Escape") {
+									nameValue.value = prep.value.name;
+									editingName.value = false;
+								}
+							}}
+						/>
+						<div class="flex gap-1 shrink-0">
+							<Button size="sm" type="button" onClick={saveName}>
+								Save
+							</Button>
+							<Button
+								variant="outline"
+								size="sm"
+								type="button"
+								onClick={() => {
+									nameValue.value = prep.value.name;
+									editingName.value = false;
 								}}
-								onBlur={saveName}
-								onKeyDown={(e) => {
-									if (e.key === "Enter") saveName();
-									if (e.key === "Escape") {
-										nameValue.value = prep.value.name;
-										editingName.value = false;
-									}
-								}}
-								onClick={(e) => e.stopPropagation()}
-							/>
-						) : (
+							>
+								Cancel
+							</Button>
+						</div>
+					</div>
+				) : (
+					<AccordionTrigger>
+						<div class="group flex flex-1 items-center gap-2 min-w-0">
 							<Button
 								variant="unstyled"
 								type="button"
-								class="text-sm font-semibold truncate cursor-text"
-								style={{ color: "var(--color-text)" }}
+								class="truncate cursor-text"
+								onClick={(e) => {
+									e.stopPropagation();
+									editingName.value = true;
+								}}
+							>
+								{prep.value.name}
+							</Button>
+							<Button
+								variant="ghost"
+								size="icon"
+								type="button"
+								class="opacity-0 group-hover:opacity-30 transition-opacity cursor-pointer shrink-0"
 								onClick={(e) => {
 									e.stopPropagation();
 									editingName.value = true;
@@ -802,35 +829,41 @@ function PreparationSection({
 										editingName.value = true;
 									}
 								}}
+								aria-label="Edit preparation name"
 							>
-								{prep.value.name}
+								<Pencil
+									size={12}
+									style={{ color: "var(--color-muted)" }}
+									aria-hidden="true"
+								/>
 							</Button>
-						)}
-						{prep.value.yield_amount > 0 && (
-							<span
-								class="text-xs shrink-0"
+							{prep.value.yield_amount > 0 && (
+								<span
+									class="text-xs shrink-0 ml-auto"
+									style={{ color: "var(--color-muted)" }}
+								>
+									{prep.value.yield_amount} {prep.value.yield_unit}
+								</span>
+							)}
+						</div>
+						<Button
+							variant="ghost"
+							size="icon"
+							type="button"
+							class="ml-2"
+							onClick={(e) => {
+								e.stopPropagation();
+								removeDialog.show();
+							}}
+						>
+							<Trash2
+								size={14}
+								aria-hidden="true"
 								style={{ color: "var(--color-muted)" }}
-							>
-								{prep.value.yield_amount} {prep.value.yield_unit}
-							</span>
-						)}
-					</div>
-					<Button
-						variant="ghost"
-						size="icon"
-						type="button"
-						onClick={(e) => {
-							e.stopPropagation();
-							removeDialog.show();
-						}}
-					>
-						<Trash2
-							size={14}
-							aria-hidden="true"
-							style={{ color: "var(--color-muted)" }}
-						/>
-					</Button>
-				</AccordionTrigger>
+							/>
+						</Button>
+					</AccordionTrigger>
+				)}
 				<AccordionContent>
 					<div class="flex flex-col gap-5 px-4 py-3">
 						{/* Description */}
