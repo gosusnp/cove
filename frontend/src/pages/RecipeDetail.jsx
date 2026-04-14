@@ -1068,7 +1068,7 @@ function AddComponentForm({ recipeId, position, onAdded, onCancel }) {
 					body: JSON.stringify({
 						name: val,
 						yield_amount: 1,
-						yield_unit: "serving",
+						yield_unit: "unit",
 					}),
 				});
 				if (!cr.ok) {
@@ -1087,7 +1087,7 @@ function AddComponentForm({ recipeId, position, onAdded, onCancel }) {
 					preparation_id: preparationId,
 					position,
 					amount: 1,
-					unit: "serving",
+					unit: "unit",
 				}),
 			});
 			if (!lr.ok) {

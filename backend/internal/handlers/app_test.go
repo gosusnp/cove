@@ -34,6 +34,7 @@ type TestApp struct {
 	Ingredients      *service.IngredientService
 	Preparations     *service.PreparationService
 	Programs         *service.ProgramService
+	Recipes          *service.RecipeService
 	TrainingProfiles *service.TrainingProfileService
 	Users            *service.UserService
 	WorkoutSessions  *service.WorkoutSessionService
@@ -76,6 +77,7 @@ func newTestApp(t *testing.T, fdcClient *fdc.Client, jobClient SummaryJobClient)
 	exStore := store.NewExerciseStore()
 	ingStore := store.NewIngredientStore()
 	prepStore := store.NewPreparationStore()
+	recipeStore := store.NewRecipeStore()
 	uStore := store.NewUserStore()
 	oStore := store.NewOrgStore()
 	wsStore := store.NewWorkoutSessionStore()
@@ -85,6 +87,7 @@ func newTestApp(t *testing.T, fdcClient *fdc.Client, jobClient SummaryJobClient)
 	exSvc := service.NewExerciseService(database, exStore)
 	ingSvc := service.NewIngredientService(database, ingStore, fdcClient)
 	prepSvc := service.NewPreparationService(database, prepStore)
+	recipeSvc := service.NewRecipeService(database, recipeStore)
 	pSvc := service.NewProgramService(database, exStore)
 	uSvc := service.NewUserService(database, uStore, oStore)
 	wsSvc := service.NewWorkoutSessionService(database, wsStore, crypto.NewTestEncryptor())
@@ -106,6 +109,7 @@ func newTestApp(t *testing.T, fdcClient *fdc.Client, jobClient SummaryJobClient)
 	NewExerciseHandler(exSvc).RegisterRoutes(apiMux)
 	NewIngredientHandler(ingSvc).RegisterRoutes(apiMux)
 	NewPreparationHandler(prepSvc).RegisterRoutes(apiMux)
+	NewRecipeHandler(recipeSvc).RegisterRoutes(apiMux)
 	NewProgramHandler(pSvc).RegisterRoutes(apiMux)
 	NewProgramSetHandler(pSvc).RegisterRoutes(apiMux)
 	NewProgramExerciseHandler(pSvc).RegisterRoutes(apiMux)
@@ -130,6 +134,7 @@ func newTestApp(t *testing.T, fdcClient *fdc.Client, jobClient SummaryJobClient)
 		Exercises:            exSvc,
 		Ingredients:          ingSvc,
 		Preparations:         prepSvc,
+		Recipes:              recipeSvc,
 		Programs:             pSvc,
 		TrainingProfiles:     tpSvc,
 		Users:                uSvc,
@@ -352,6 +357,18 @@ func DecodeJSON(t *testing.T, w *httptest.ResponseRecorder, v any) {
 	if err := json.NewDecoder(w.Body).Decode(v); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
+}
+
+// SeedRecipeForUser creates a recipe owned by the given user/org.
+func (a *TestApp) SeedRecipeForUser(ctx context.Context, p domain.RecipeParams, userID domain.UserID, orgID domain.OrgID) *domain.Recipe {
+	a.T.Helper()
+	id := &domain.Identity{UserID: userID, OrgID: orgID}
+	authCtx := domain.NewContext(ctx, id)
+	r, err := a.Recipes.Create(authCtx, p)
+	if err != nil {
+		a.T.Fatalf("seed recipe for user: %v", err)
+	}
+	return r
 }
 
 // SeedProgramExercise adds an exercise to a set.
