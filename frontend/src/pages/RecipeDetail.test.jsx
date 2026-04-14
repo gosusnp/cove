@@ -1158,3 +1158,43 @@ describe("RecipeDetail — AddIngredientForm", () => {
 		);
 	});
 });
+
+describe("RecipeDetail — ingredient display", () => {
+	it("shows amount and unit for a normal unit", async () => {
+		const prep = {
+			...MOCK_PREP,
+			ingredients: [{ id: 1, ingredient_id: 42, name: "Ground beef", amount: 2, unit: "cups", prep: null }],
+		};
+		vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+			if (url === "/api/recipes/1" && !opts?.method)
+				return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_RECIPE_WITH_PREP) });
+			if (url === "/api/preparations/10" && !opts?.method)
+				return Promise.resolve({ ok: true, json: () => Promise.resolve(prep) });
+			if (url === "/api/preparations" && !opts?.method)
+				return Promise.resolve({ ok: true, json: () => Promise.resolve([prep]) });
+			return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+		});
+		renderDetail(1);
+		await waitFor(() => expect(screen.getByText(/2 cups/)).toBeInTheDocument());
+		expect(screen.getByText(/Ground beef/)).toBeInTheDocument();
+	});
+
+	it("omits the word 'unit' when the unit is 'unit'", async () => {
+		const prep = {
+			...MOCK_PREP,
+			ingredients: [{ id: 1, ingredient_id: 42, name: "Egg", amount: 3, unit: "unit", prep: null }],
+		};
+		vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
+			if (url === "/api/recipes/1" && !opts?.method)
+				return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_RECIPE_WITH_PREP) });
+			if (url === "/api/preparations/10" && !opts?.method)
+				return Promise.resolve({ ok: true, json: () => Promise.resolve(prep) });
+			if (url === "/api/preparations" && !opts?.method)
+				return Promise.resolve({ ok: true, json: () => Promise.resolve([prep]) });
+			return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+		});
+		renderDetail(1);
+		await waitFor(() => expect(screen.getByText(/Egg/)).toBeInTheDocument());
+		expect(screen.queryByText(/unit/)).not.toBeInTheDocument();
+	});
+});

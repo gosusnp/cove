@@ -194,7 +194,7 @@ function IngredientRow({ ingredient, prepId, onUpdated, onDeleted }) {
 				<span class="flex-1 text-sm" style={{ color: "var(--color-text)" }}>
 					<span class="font-medium">
 						{ingredient.amount}
-						{ingredient.unit ? ` ${ingredient.unit}` : ""}
+						{ingredient.unit && ingredient.unit !== "unit" ? ` ${ingredient.unit}` : ""}
 					</span>{" "}
 					{ingredient.name}
 					{ingredient.prep && (
