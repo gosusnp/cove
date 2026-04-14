@@ -142,34 +142,6 @@ if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 
 Services own business logic: validation, normalization, orchestration, and transactions.
 
-```go
-type ExerciseService struct {
-    db    *sql.DB
-    store *store.ExerciseStore
-}
-
-func NewExerciseService(db *sql.DB, s *store.ExerciseStore) *ExerciseService {
-    return &ExerciseService{db: db, store: s}
-}
-
-func (s *ExerciseService) Create(ctx context.Context, name string, progression *string) (*domain.Exercise, error) {
-    name = normalizeName(name)
-    if name == "" {
-        return nil, &ValidationError{Msg: "name is required"}
-    }
-    var ex *domain.Exercise
-    err := withScopedTx(ctx, s.db, func(q store.Querier) error {
-        var err error
-        ex, err = s.store.Create(ctx, q, name, progression)
-        if errors.Is(err, store.ErrDuplicate) {
-            return &ValidationError{Msg: "exercise with this name already exists"}
-        }
-        return err
-    })
-    return ex, err
-}
-```
-
 - **DO** translate store sentinel errors at the service boundary so handlers never import the `store` package for error checks. Two acceptable forms:
   - Wrap into a typed error (e.g. `*ValidationError`) when the error maps to a user-facing message.
   - Alias the sentinel (`var ErrNotFound = store.ErrNotFound`) when no additional context is needed — `errors.Is` resolves through aliases correctly.
@@ -197,35 +169,7 @@ func (s *ExerciseService) Create(ctx context.Context, name string, ...) (*domain
 
 ### Plain Transactions (non-RLS operations)
 
-When a service operation spans multiple stores but does not require RLS, manage the transaction lifecycle directly:
-
-```go
-type UserService struct {
-    db    *sql.DB
-    users *store.UserStore
-    orgs  *store.OrgStore
-}
-
-func (s *UserService) GetOrCreate(ctx context.Context, email, googleSub string) (*store.User, bool, error) {
-    tx, err := s.db.Begin()
-    if err != nil {
-        return nil, false, fmt.Errorf("begin tx: %w", err)
-    }
-    defer func() { _ = tx.Rollback() }()
-
-    user, created, err := s.users.UpsertUser(ctx, tx, id, email, googleSub)
-    if err != nil {
-        return nil, false, err
-    }
-    if created {
-        if err := s.orgs.CreateOrg(ctx, tx, orgID, email); err != nil {
-            return nil, false, err
-        }
-    }
-
-    return user, created, tx.Commit()
-}
-```
+When a service operation spans multiple stores but does not require RLS, manage the transaction lifecycle directly (see `UserService` in `internal/service/user.go` for the canonical example).
 
 - **DO** hold `*sql.DB` on the service when it manages transactions.
 - **DO** call `defer func() { _ = tx.Rollback() }()` immediately after `tx.Begin()` — it is a no-op after `Commit`.
@@ -237,26 +181,7 @@ func (s *UserService) GetOrCreate(ctx context.Context, email, googleSub string) 
 
 Stores own data access: raw SQL, scanning rows, and database error translation.
 
-Stores are **stateless**. They do not hold a database connection or transaction. Instead, every method accepts a `context.Context` and a `Querier`.
-
-```go
-// store/base.go — shared by all stores
-type Querier interface {
-    QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-    ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-    QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-}
-```
-
-Concrete stores are empty structs:
-
-```go
-type ExerciseStore struct{}
-
-func NewExerciseStore() *ExerciseStore {
-    return &ExerciseStore{}
-}
-```
+Stores are **stateless**. They do not hold a database connection or transaction. Instead, every method accepts a `context.Context` and a `Querier` (defined in `store/base.go`: `QueryContext`, `ExecContext`, `QueryRowContext`). Concrete stores are empty structs with a `New[Type]Store()` constructor.
 
 - **DO** make stores stateless — they must not hold any internal state or connections.
 - **DO** accept `ctx context.Context` and `q Querier` as the first two arguments for every store method.
@@ -265,27 +190,11 @@ func NewExerciseStore() *ExerciseStore {
 
 Even with RLS enabled, stores **must** include explicit `org_id` and `is_public` filters in their SQL. This makes the access intent clear and provides a second layer of isolation.
 
-```go
-func (s *ExerciseStore) Get(ctx context.Context, q Querier, orgID domain.OrgID, id domain.ExerciseID) (*domain.Exercise, error) {
-    var e domain.Exercise
-    err := q.QueryRowContext(ctx, `
-        SELECT id, name, ... FROM exercises
-        WHERE id = $1 AND (org_id = $2 OR is_public = true)
-    `, id, orgID).Scan(...)
-    // ...
-}
-```
-
 - **DO** pass `orgID` explicitly to store methods that access tenant-owned data.
 - **DO** filter with `WHERE org_id = $N` (or `org_id = $N OR is_public = true` for readable resources).
 - **DON'T** rely solely on RLS policies for data isolation.
 
 ### Sentinel Errors
-
-```go
-var ErrNotFound  = errors.New("not found")
-var ErrDuplicate = errors.New("duplicate")
-```
 
 - **DO** declare `ErrNotFound` and `ErrDuplicate` in each store package that needs them.
 - **DO** return `ErrNotFound` when `RowsAffected() == 0` on UPDATE or DELETE.
@@ -293,26 +202,6 @@ var ErrDuplicate = errors.New("duplicate")
 - **DON'T** return raw `pgconn.PgError` values — translate them at the store boundary.
 
 ### Query Pattern
-
-```go
-func (s *ExerciseStore) List(ctx context.Context, q Querier) ([]Exercise, error) {
-    rows, err := q.QueryContext(ctx, `SELECT id, name FROM exercises ORDER BY name`)
-    if err != nil {
-        return nil, fmt.Errorf("list exercises: %w", err)
-    }
-    defer rows.Close()
-
-    exercises := []Exercise{}
-    for rows.Next() {
-        var e Exercise
-        if err := rows.Scan(&e.ID, &e.Name); err != nil {
-            return nil, fmt.Errorf("scan exercise: %w", err)
-        }
-        exercises = append(exercises, e)
-    }
-    return exercises, rows.Err()
-}
-```
 
 - **DO** use positional parameters `$1`, `$2`, ... for all query arguments.
 - **DO** initialize result slices as `[]T{}` (not `nil`) so empty results serialize as `[]` not `null`.
@@ -326,27 +215,7 @@ All domain entities and identifiers live in `backend/internal/domain/`.
 
 ### Type-Safe Identifiers
 
-To prevent logic errors (e.g., passing a `ProgramID` where an `ExerciseID` is required), we use generic wrapper types with phantom types. There are two variants depending on the underlying database column type:
-
-```go
-// internal/domain/types.go
-
-// ID[T] wraps uuid.UUID — use for identity tables (users, orgs, sessions, API keys).
-type ID[T any] struct {
-    uuid.UUID
-}
-
-type UserID ID[struct{ userID struct{} }]
-type OrgID  ID[struct{ orgID struct{} }]
-
-// IntID[T] wraps int64 — use for resource tables with BIGSERIAL primary keys.
-type IntID[T any] int64
-
-type ExerciseID IntID[struct{ exerciseID struct{} }]
-type ProgramID  IntID[struct{ programID struct{} }]
-```
-
-Choose the wrapper based on the SQL column type:
+To prevent logic errors (e.g., passing a `ProgramID` where an `ExerciseID` is required), we use generic wrapper types with phantom types (see `internal/domain/types.go`). Choose the wrapper based on the SQL column type:
 
 | SQL column | Go wrapper | When to use |
 |---|---|---|
@@ -359,14 +228,6 @@ Choose the wrapper based on the SQL column type:
 - **DO** use `IntID[T]` for `Scan`, `Value`, and `MarshalJSON` support on `BIGSERIAL` columns.
 
 ### Entities
-
-```go
-type User struct {
-    ID        UserID    `json:"id"`
-    Email     Email     `json:"email"`
-    CreatedAt time.Time `json:"created_at"`
-}
-```
 
 - **DO** define full types (e.g., `Exercise`, `Program`) and lite types (e.g., `ExerciseLite`, `ProgramLite`) separately when a trimmed projection is needed — e.g. for list endpoints that don't need the full hierarchy.
 - **DO** use `*T` pointer fields with `omitempty` for nullable columns.
@@ -428,25 +289,6 @@ Cove uses PostgreSQL Row Level Security to isolate tenant data.
 ## Middleware
 
 Middleware takes `http.Handler` and returns `http.Handler`.
-
-```go
-func OAuth(us *store.UserStore, next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        // Cookie-first: browser sessions use an HttpOnly cookie.
-        // Bearer fallback: MCP clients and API keys use the Authorization header.
-        var token string
-        if c, err := r.Cookie("cove_session"); err == nil {
-            token = c.Value
-        } else if t, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
-            token = t
-        }
-        if token == "" {
-            // respond 401 and return
-        }
-        next.ServeHTTP(w, r)
-    })
-}
-```
 
 - **DO** write middleware as functions that accept dependencies and `next http.Handler`.
 - **DON'T** use a global middleware registry or middleware structs with `ServeHTTP`.
@@ -537,86 +379,7 @@ Service        → encrypts on write; calls ws.SetEncryptor after store read; ma
 Store          → scans sensitive_data into ws.SensitiveDataScanner(); writes raw []byte
 ```
 
-### Domain Entity Pattern
-
-```go
-// String fields use *crypto.SensitiveString instead of *string so their backing
-// bytes can be explicitly zeroed after use.
-type SessionSensitiveData struct {
-    PerceivedEffort  *int                    `json:"perceived_effort,omitempty"`
-    SessionNotes     *crypto.SensitiveString `json:"session_notes,omitempty"`
-    // ...
-}
-
-// IsEmpty is the single source of truth for "no sensitive data set".
-// The service uses it to write NULL to the DB instead of encrypting {}.
-// Update this whenever a new field is added to the struct.
-func (s SessionSensitiveData) IsEmpty() bool {
-    return s.PerceivedEffort == nil && s.SessionNotes == nil // ...
-}
-
-type WorkoutSession struct {
-    // ... public fields ...
-    // sensitiveData contains a sync.Mutex; always use *WorkoutSession, never copy.
-    sensitiveData crypto.EncryptedField[SessionSensitiveData] `json:"-"`
-}
-
-// UseSensitiveData is the only way to access sensitive fields. fn receives a
-// *SessionSensitiveData; the struct is zeroed in place after fn returns,
-// wiping SensitiveString backing bytes. UserID is passed as GCM AAD.
-func (ws *WorkoutSession) UseSensitiveData(ctx context.Context, fn func(SessionSensitiveData) error) error {
-    return ws.sensitiveData.Use(ctx, func(p *SessionSensitiveData) error {
-        return fn(*p)
-    }, ws.UserID.UUID[:])
-}
-
-// SetEncryptor is called by the service after a store read.
-func (ws *WorkoutSession) SetEncryptor(enc crypto.Encryptor) {
-    ws.sensitiveData.SetEncryptor(enc)
-}
-```
-
-### Service Pattern
-
-```go
-func (s *WorkoutSessionService) Create(ctx context.Context, p store.WorkoutSessionParams) (*domain.WorkoutSession, error) {
-    sensitiveData, err := s.encryptSensitiveData(ctx, p)  // encrypt before store write
-    if err != nil { return nil, err }
-
-    var ws *domain.WorkoutSession
-    err = withScopedTx(ctx, s.db, func(q store.Querier) error {
-        ws, err = s.store.Create(ctx, q, p, sensitiveData)
-        return err
-    })
-    ws.SetEncryptor(s.enc)  // attach encryptor; do NOT decrypt
-    return ws, err
-}
-```
-
-### Handler Pattern
-
-The response DTO uses `*string` for JSON output. Convert `*SensitiveString` → `*string` inline inside the callback; the short-lived `string` copy is collected promptly by the GC.
-
-```go
-func (h *WorkoutSessionHandler) get(w http.ResponseWriter, r *http.Request) {
-    ws, err := h.svc.Get(r.Context(), id)
-    // ...
-
-    var resp workoutSessionResponse
-    // copy public fields from ws first ...
-    if err := ws.UseSensitiveData(r.Context(), func(s domain.SessionSensitiveData) error {
-        resp.PerceivedEffort  = s.PerceivedEffort
-        resp.SessionNotes     = stringPtr(s.SessionNotes)  // *SensitiveString → *string
-        // ... other sensitive fields ...
-        return nil
-    }); err != nil {
-        jsonError(w, "internal error", http.StatusInternalServerError)
-        return
-    }
-    // sensitive local s is zeroed; resp holds only short-lived *string copies
-    jsonOK(w, resp)
-}
-```
+See `internal/domain/workout_session.go` for the canonical domain entity pattern (`SessionSensitiveData`, `UseSensitiveData`, `SetEncryptor`) and `internal/handlers/workout_sessions.go` for the handler pattern. The response DTO uses `*string` for JSON output; convert `*SensitiveString` → `*string` via `stringPtr(s.Field)` inside the callback.
 
 ### Rules
 
@@ -662,20 +425,7 @@ The owning entity's `user_id` bytes are passed as GCM additional authenticated d
 
 `NewAESEncryptor(currentVersion byte, keys map[byte]string)` accepts multiple versioned keys. New rows are always encrypted with the `currentVersion` key. Old rows are decrypted using whichever key version was stored in the ciphertext prefix.
 
-**To rotate to a new key:**
-
-1. Generate a new key and assign it the next version byte (e.g. `1`).
-2. Update the env var / secret to include both keys and set `currentVersion` to the new version:
-   ```go
-   // main.go
-   enc, err := crypto.NewAESEncryptor(1, map[byte]string{
-       0: oldKey,
-       1: newKey,
-   })
-   ```
-3. Deploy. New writes use key `1`; existing rows with version `0` continue to decrypt correctly.
-4. Re-encrypt existing rows at your own pace (lazy rotation on read, or a background job).
-5. Once no rows with version `0` remain, remove the old key from the map and redeploy.
+**To rotate to a new key:** add a new version byte + key to `NewAESEncryptor`'s map and update `currentVersion`. New writes use the new key; old rows decrypt with whichever version is stored in their ciphertext prefix. Remove old keys once no rows reference them.
 
 ---
 
@@ -806,15 +556,7 @@ client.NewStandaloneTask(
 
 The concurrency key `input.session_id` with `CANCEL_NEWEST` ensures that duplicate summary requests for the same session drop the newer run and keep the one already in flight.
 
-**`SessionSummaryInput`** carries string-typed IDs so they remain opaque to Hatchet and require no type cast in concurrency key expressions:
-
-```go
-type SessionSummaryInput struct {
-    SessionID string `json:"session_id"`
-    OrgID     string `json:"org_id"`
-    UserID    string `json:"user_id"`
-}
-```
+**`SessionSummaryInput`** carries string-typed IDs (`session_id`, `org_id`, `user_id`) so they remain opaque to Hatchet and the concurrency key expression requires no type cast.
 
 **Heartbeat mechanism**: LLM calls can take far longer than Hatchet's default execution timeout. The task starts a background goroutine (`startHeartbeat`) that calls `ctx.RefreshTimeout` every 20 seconds (`heartbeatInterval`), extending the deadline by 30 seconds (`heartbeatTimeout`) on each tick. If the worker process crashes, the heartbeat stops and Hatchet marks the task failed within `heartbeatTimeout`, bounding crash detection latency.
 
