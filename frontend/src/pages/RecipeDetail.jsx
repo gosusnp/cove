@@ -13,7 +13,13 @@ import {
 import { Button } from "../components/ui/Button.jsx";
 import { Combobox } from "../components/ui/Combobox.jsx";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
+import {
+	Dialog,
+	DialogContent,
+	DialogTitle,
+} from "../components/ui/Dialog.jsx";
 import { EditableMarkdown } from "../components/ui/EditableMarkdown.jsx";
+import { Markdown } from "../components/ui/Markdown.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { FDCSearch } from "../components/shared/FDCSearch.jsx";
 import { useDialog } from "../hooks/useDialog.js";
@@ -42,7 +48,13 @@ const COOKING_UNIT_OPTIONS = [
 
 // ─── IngredientRow ────────────────────────────────────────────────────────────
 
-function IngredientRow({ ingredient, prepId, onUpdated, onDeleted }) {
+function IngredientRow({
+	ingredient,
+	prepId,
+	editable = true,
+	onUpdated,
+	onDeleted,
+}) {
 	const editing = useSignal(false);
 	const name = useSignal(ingredient.name);
 	const amount = useSignal(String(ingredient.amount));
@@ -194,7 +206,9 @@ function IngredientRow({ ingredient, prepId, onUpdated, onDeleted }) {
 				<span class="flex-1 text-sm" style={{ color: "var(--color-text)" }}>
 					<span class="font-medium">
 						{ingredient.amount}
-						{ingredient.unit && ingredient.unit !== "unit" ? ` ${ingredient.unit}` : ""}
+						{ingredient.unit && ingredient.unit !== "unit"
+							? ` ${ingredient.unit}`
+							: ""}
 					</span>{" "}
 					{ingredient.name}
 					{ingredient.prep && (
@@ -203,32 +217,36 @@ function IngredientRow({ ingredient, prepId, onUpdated, onDeleted }) {
 						</span>
 					)}
 				</span>
-				<Button
-					variant="ghost"
-					size="icon"
-					type="button"
-					class="opacity-0 group-hover:opacity-100"
-					onClick={() => {
-						editing.value = true;
-					}}
-				>
-					<span class="text-xs" style={{ color: "var(--color-muted)" }}>
-						Edit
-					</span>
-				</Button>
-				<Button
-					variant="ghost"
-					size="icon"
-					type="button"
-					class="opacity-0 group-hover:opacity-100"
-					onClick={handleDelete}
-				>
-					<X
-						size={14}
-						aria-hidden="true"
-						style={{ color: "var(--color-muted)" }}
-					/>
-				</Button>
+				{editable && (
+					<>
+						<Button
+							variant="ghost"
+							size="icon"
+							type="button"
+							class="opacity-0 group-hover:opacity-100"
+							onClick={() => {
+								editing.value = true;
+							}}
+						>
+							<span class="text-xs" style={{ color: "var(--color-muted)" }}>
+								Edit
+							</span>
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							type="button"
+							class="opacity-0 group-hover:opacity-100"
+							onClick={handleDelete}
+						>
+							<X
+								size={14}
+								aria-hidden="true"
+								style={{ color: "var(--color-muted)" }}
+							/>
+						</Button>
+					</>
+				)}
 			</div>
 			{error.value && (
 				<p class="text-xs px-1" style={{ color: "var(--color-error)" }}>
@@ -598,6 +616,351 @@ function StepRow({
 	);
 }
 
+// ─── PrepEditModal ─────────────────────────────────────────────────────────────
+
+function PrepEditModal({ prep: initialPrep, onSaved, onClose }) {
+	const prep = useSignal({
+		...initialPrep,
+		steps: (initialPrep.steps ?? []).map((s) => ({
+			...s,
+			_key: s._key,
+		})),
+		ingredients: initialPrep.ingredients ?? [],
+	});
+	const name = useSignal(initialPrep.name);
+	const yieldAmount = useSignal(String(initialPrep.yield_amount ?? ""));
+	const yieldUnit = useSignal(initialPrep.yield_unit ?? "");
+	const description = useSignal(initialPrep.description ?? "");
+
+	const stepsDirty = useSignal(false);
+	const saving = useSignal(false);
+	const modalError = useSignal("");
+	const showAddIngredient = useSignal(false);
+	const focusNextStepKey = useSignal(null);
+
+	const saveConfirmDialog = useDialog();
+	const cancelConfirmDialog = useDialog();
+
+	const isDirty = () => {
+		if (stepsDirty.value) return true;
+		if (name.value !== initialPrep.name) return true;
+		if (yieldAmount.value !== String(initialPrep.yield_amount ?? ""))
+			return true;
+		if (yieldUnit.value !== (initialPrep.yield_unit ?? "")) return true;
+		if (description.value !== (initialPrep.description ?? "")) return true;
+		return false;
+	};
+
+	const handleStepChange = (index, newDesc) => {
+		prep.value = {
+			...prep.value,
+			steps: prep.value.steps.map((s, i) =>
+				i === index ? { ...s, description: newDesc } : s,
+			),
+		};
+		stepsDirty.value = true;
+	};
+
+	const handleStepDelete = (index) => {
+		prep.value = {
+			...prep.value,
+			steps: prep.value.steps.filter((_, i) => i !== index),
+		};
+		stepsDirty.value = true;
+	};
+
+	const handleAddStep = () => {
+		const newKey = crypto.randomUUID();
+		focusNextStepKey.value = newKey;
+		prep.value = {
+			...prep.value,
+			steps: [...prep.value.steps, { description: "", _key: newKey }],
+		};
+		stepsDirty.value = true;
+	};
+
+	const handleIngredientAdded = (ing) => {
+		prep.value = {
+			...prep.value,
+			ingredients: [...prep.value.ingredients, ing],
+		};
+		showAddIngredient.value = false;
+	};
+
+	const handleIngredientUpdated = (updated) => {
+		prep.value = {
+			...prep.value,
+			ingredients: prep.value.ingredients.map((i) =>
+				i.id === updated.id ? updated : i,
+			),
+		};
+	};
+
+	const handleIngredientDeleted = (id) => {
+		prep.value = {
+			...prep.value,
+			ingredients: prep.value.ingredients.filter((i) => i.id !== id),
+		};
+	};
+
+	const doSave = async () => {
+		saving.value = true;
+		modalError.value = "";
+		try {
+			const r = await apiFetch(`/api/preparations/${prep.value.id}`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					name: name.value.trim() || initialPrep.name,
+					description: description.value || undefined,
+					yield_amount: parseFloat(yieldAmount.value) || 0,
+					yield_unit: yieldUnit.value.trim(),
+					// eslint-disable-next-line no-unused-vars
+					steps: prep.value.steps.map(({ _key, ...s }) => s),
+					is_public: prep.value.is_public,
+				}),
+			});
+			if (!r.ok) {
+				const d = await r.json();
+				throw new Error(d.error || "Failed to save preparation");
+			}
+			const updated = await r.json();
+			onSaved({ ...updated, ingredients: prep.value.ingredients });
+			onClose();
+		} catch (err) {
+			modalError.value = err.message;
+		} finally {
+			saving.value = false;
+		}
+	};
+
+	// Always propagate current ingredient state so the read-only view stays in
+	// sync even when ingredient changes were persisted but the modal is cancelled.
+	const syncAndClose = () => {
+		onSaved({ ...initialPrep, ingredients: prep.value.ingredients });
+		onClose();
+	};
+
+	const handleSave = () => {
+		if (isDirty()) {
+			saveConfirmDialog.show();
+		} else {
+			syncAndClose();
+		}
+	};
+
+	const handleClose = () => {
+		if (isDirty()) {
+			cancelConfirmDialog.show();
+		} else {
+			syncAndClose();
+		}
+	};
+
+	return (
+		<DialogContent fullscreen>
+			{/* Header */}
+			<div
+				class="flex items-center justify-between px-4 py-3 shrink-0 border-b"
+				style={{ borderColor: "var(--color-border)" }}
+			>
+				<DialogTitle>{name.value || initialPrep.name}</DialogTitle>
+				<Button
+					variant="ghost"
+					size="icon"
+					type="button"
+					onClick={handleClose}
+					aria-label="Close"
+				>
+					<X size={16} aria-hidden="true" />
+				</Button>
+			</div>
+
+			{/* Scrollable body */}
+			<div class="flex-1 overflow-y-auto">
+				<div class="flex flex-col gap-5 px-4 py-4">
+					{/* Name + Yield */}
+					<div class="flex gap-3">
+						<div class="flex-1">
+							<TextField
+								label="Name"
+								value={name.value}
+								onInput={(e) => {
+									name.value = e.target.value;
+								}}
+							/>
+						</div>
+						<div style={{ width: "80px" }}>
+							<TextField
+								label="Yield"
+								type="number"
+								value={yieldAmount.value}
+								onInput={(e) => {
+									yieldAmount.value = e.target.value;
+								}}
+							/>
+						</div>
+						<div style={{ width: "130px" }}>
+							<Combobox
+								label="Unit"
+								value={yieldUnit.value}
+								onChange={(v) => {
+									yieldUnit.value = v;
+								}}
+								options={COOKING_UNIT_OPTIONS}
+								placeholder="unit…"
+							/>
+						</div>
+					</div>
+
+					{/* Description */}
+					<div>
+						<span
+							class="text-xs font-semibold uppercase tracking-wider mb-2 block"
+							style={{ color: "var(--color-muted)" }}
+						>
+							Description
+						</span>
+						<EditableMarkdown
+							value={description.value}
+							placeholder="Add a description…"
+							onSave={(v) => {
+								description.value = v;
+							}}
+						/>
+					</div>
+
+					{/* Ingredients */}
+					<div>
+						<span
+							class="text-xs font-semibold uppercase tracking-wider mb-2 block"
+							style={{ color: "var(--color-muted)" }}
+						>
+							Ingredients
+						</span>
+						<div class="flex flex-col">
+							{prep.value.ingredients.map((ing) => (
+								<IngredientRow
+									key={ing.id}
+									ingredient={ing}
+									prepId={prep.value.id}
+									editable
+									onUpdated={handleIngredientUpdated}
+									onDeleted={handleIngredientDeleted}
+								/>
+							))}
+						</div>
+						{showAddIngredient.value ? (
+							<div class="mt-2">
+								<AddIngredientForm
+									prepId={prep.value.id}
+									onAdded={handleIngredientAdded}
+									onCancel={() => {
+										showAddIngredient.value = false;
+									}}
+								/>
+							</div>
+						) : (
+							<Button
+								variant="ghost"
+								type="button"
+								class="w-full justify-start text-sm font-normal px-1"
+								style={{ color: "var(--color-muted)" }}
+								onClick={() => {
+									showAddIngredient.value = true;
+								}}
+							>
+								Add ingredient…
+							</Button>
+						)}
+					</div>
+
+					{/* Steps */}
+					<div>
+						<span
+							class="text-xs font-semibold uppercase tracking-wider mb-2 block"
+							style={{ color: "var(--color-muted)" }}
+						>
+							Steps
+						</span>
+						<div class="flex flex-col">
+							{prep.value.steps.map((step, i) => (
+								<StepRow
+									key={step._key}
+									index={i}
+									description={step.description}
+									onChange={handleStepChange}
+									onDelete={handleStepDelete}
+									autoFocus={step._key === focusNextStepKey.value}
+								/>
+							))}
+						</div>
+						<div class="flex items-start gap-2 py-1">
+							<span
+								class="shrink-0 text-xs font-medium tabular-nums mt-2.5"
+								style={{
+									color: "var(--color-muted)",
+									width: "1.25rem",
+									opacity: 0.5,
+								}}
+							>
+								{prep.value.steps.length + 1}.
+							</span>
+							<Button
+								variant="ghost"
+								type="button"
+								class="flex-1 justify-start text-sm font-normal px-1"
+								style={{ color: "var(--color-muted)" }}
+								onClick={handleAddStep}
+							>
+								Add a step…
+							</Button>
+						</div>
+					</div>
+
+					{/* Error */}
+					{modalError.value && (
+						<p class="text-xs" style={{ color: "var(--color-error)" }}>
+							{modalError.value}
+						</p>
+					)}
+				</div>
+			</div>
+
+			{/* Footer */}
+			<div
+				class="flex gap-2 justify-end px-4 py-3 shrink-0 border-t"
+				style={{ borderColor: "var(--color-border)" }}
+			>
+				<Button variant="ghost" type="button" onClick={handleClose}>
+					Cancel
+				</Button>
+				<Button type="button" disabled={saving.value} onClick={handleSave}>
+					{saving.value ? "Saving…" : "Save"}
+				</Button>
+			</div>
+
+			{/* Confirm save dialog */}
+			<ConfirmDialog
+				openSignal={saveConfirmDialog.open}
+				title="Save changes"
+				description="Save all changes to this preparation?"
+				confirmLabel="Save"
+				onConfirm={doSave}
+			/>
+
+			{/* Confirm discard dialog */}
+			<ConfirmDialog
+				openSignal={cancelConfirmDialog.open}
+				title="Discard changes"
+				description="You have unsaved changes. Discard them and close?"
+				confirmLabel="Discard"
+				onConfirm={syncAndClose}
+			/>
+		</DialogContent>
+	);
+}
+
 // ─── PreparationSection ───────────────────────────────────────────────────────
 
 function PreparationSection({
@@ -614,182 +977,9 @@ function PreparationSection({
 		})),
 	});
 	const link = useSignal(initialLink);
-	const showAddIngredient = useSignal(false);
 	const removeDialog = useDialog();
+	const editDialog = useDialog();
 	const removeError = useSignal("");
-	const savingSteps = useSignal(false);
-	const focusNextStepKey = useSignal(null);
-
-	// Editable link amount/unit
-	const editingAmount = useSignal(false);
-	const amountValue = useSignal(String(initialLink.amount));
-	const unitValue = useSignal(initialLink.unit);
-
-	const saveAmount = async () => {
-		editingAmount.value = false;
-		const amt = parseFloat(amountValue.value);
-		const unit = unitValue.value.trim();
-		if (!amt || amt <= 0 || !unit) {
-			amountValue.value = String(link.value.amount);
-			unitValue.value = link.value.unit;
-			return;
-		}
-		try {
-			const r = await apiFetch(
-				`/api/recipes/${link.value.recipe_id}/preparations/${link.value.id}`,
-				{
-					method: "PUT",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						position: link.value.position,
-						amount: amt,
-						unit,
-					}),
-				},
-			);
-			if (!r.ok) throw new Error("Failed to update");
-			const updated = await r.json();
-			link.value = updated;
-		} catch {
-			amountValue.value = String(link.value.amount);
-			unitValue.value = link.value.unit;
-		}
-	};
-
-	// Editable name
-	const editingName = useSignal(false);
-	const nameValue = useSignal(initialPrep.name);
-	const nameRef = useRef(null);
-
-	useEffect(() => {
-		if (editingName.value) nameRef.current?.focus();
-	}, [editingName.value]);
-
-	const saveName = async () => {
-		const trimmed = nameValue.value.trim();
-		if (!trimmed || trimmed === prep.value.name) {
-			editingName.value = false;
-			nameValue.value = prep.value.name;
-			return;
-		}
-		try {
-			const r = await apiFetch(`/api/preparations/${prep.value.id}`, {
-				method: "PUT",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					name: trimmed,
-					description: prep.value.description,
-					yield_amount: prep.value.yield_amount,
-					yield_unit: prep.value.yield_unit,
-					steps: prep.value.steps,
-					is_public: prep.value.is_public,
-				}),
-			});
-			if (!r.ok) throw new Error("Failed to update");
-			const updated = await r.json();
-			prep.value = updated;
-			onUpdated(updated);
-		} catch {
-			nameValue.value = prep.value.name;
-		}
-		editingName.value = false;
-	};
-
-	const saveDescription = async (newDesc) => {
-		const r = await apiFetch(`/api/preparations/${prep.value.id}`, {
-			method: "PUT",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				name: prep.value.name,
-				description: newDesc || undefined,
-				yield_amount: prep.value.yield_amount,
-				yield_unit: prep.value.yield_unit,
-				steps: prep.value.steps,
-				is_public: prep.value.is_public,
-			}),
-		});
-		if (!r.ok) throw new Error("Failed to save description");
-		const updated = await r.json();
-		prep.value = updated;
-		onUpdated(updated);
-	};
-
-	const saveSteps = async (newSteps) => {
-		savingSteps.value = true;
-		try {
-			const r = await apiFetch(`/api/preparations/${prep.value.id}`, {
-				method: "PUT",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					name: prep.value.name,
-					description: prep.value.description,
-					yield_amount: prep.value.yield_amount,
-					yield_unit: prep.value.yield_unit,
-					// eslint-disable-next-line no-unused-vars
-					steps: newSteps.map(({ _key, ...s }) => s),
-					is_public: prep.value.is_public,
-				}),
-			});
-			if (!r.ok) throw new Error("Failed to save steps");
-			const updated = await r.json();
-			prep.value = {
-				...updated,
-				steps: updated.steps.map((s, i) => ({
-					...s,
-					_key: newSteps[i]?._key ?? crypto.randomUUID(),
-				})),
-			};
-			onUpdated(updated);
-		} finally {
-			savingSteps.value = false;
-		}
-	};
-
-	const handleStepChange = (index, newDesc) => {
-		const newSteps = prep.value.steps.map((s, i) =>
-			i === index ? { ...s, description: newDesc } : s,
-		);
-		saveSteps(newSteps);
-	};
-
-	const handleStepDelete = (index) => {
-		const newSteps = prep.value.steps.filter((_, i) => i !== index);
-		saveSteps(newSteps);
-	};
-
-	const handleAddStep = () => {
-		const newKey = crypto.randomUUID();
-		focusNextStepKey.value = newKey;
-		const newSteps = [...prep.value.steps, { description: "", _key: newKey }];
-		saveSteps(newSteps);
-	};
-
-	const handleIngredientAdded = (ing) => {
-		prep.value = {
-			...prep.value,
-			ingredients: [...prep.value.ingredients, ing],
-		};
-		showAddIngredient.value = false;
-		onUpdated(prep.value);
-	};
-
-	const handleIngredientUpdated = (updated) => {
-		prep.value = {
-			...prep.value,
-			ingredients: prep.value.ingredients.map((i) =>
-				i.id === updated.id ? updated : i,
-			),
-		};
-		onUpdated(prep.value);
-	};
-
-	const handleIngredientDeleted = (id) => {
-		prep.value = {
-			...prep.value,
-			ingredients: prep.value.ingredients.filter((i) => i.id !== id),
-		};
-		onUpdated(prep.value);
-	};
 
 	const handleRemove = async () => {
 		const r = await apiFetch(
@@ -804,119 +994,70 @@ function PreparationSection({
 		onRemoved(link.value.id);
 	};
 
+	const handleSaved = (updated) => {
+		prep.value = {
+			...updated,
+			steps: (updated.steps ?? []).map((s) => ({
+				...s,
+				_key: crypto.randomUUID(),
+			})),
+		};
+		onUpdated(updated);
+	};
+
 	return (
 		<>
 			<AccordionItem value={String(initialLink.id)}>
-				{editingName.value ? (
-					<div class="flex w-full items-center gap-3 px-4 py-3 bg-(--color-bg)">
-						<TextField
-							inline
-							inputRef={nameRef}
-							containerClass="flex-1 min-w-0"
-							class="text-sm font-semibold"
-							value={nameValue.value}
-							onInput={(e) => {
-								nameValue.value = e.target.value;
-							}}
-							onKeyDown={(e) => {
-								if (e.key === "Enter") saveName();
-								if (e.key === "Escape") {
-									nameValue.value = prep.value.name;
-									editingName.value = false;
-								}
-							}}
-						/>
-						<div class="flex gap-1 shrink-0">
-							<Button size="sm" type="button" onClick={saveName}>
-								Save
-							</Button>
-							<Button
-								variant="outline"
-								size="sm"
-								type="button"
-								onClick={() => {
-									nameValue.value = prep.value.name;
-									editingName.value = false;
-								}}
-							>
-								Cancel
-							</Button>
-						</div>
-					</div>
-				) : (
-					<AccordionTrigger>
-						<div class="group flex flex-1 items-center gap-2 min-w-0">
-							<Button
-								variant="unstyled"
-								type="button"
-								class="truncate cursor-text"
-								onClick={(e) => {
-									e.stopPropagation();
-									editingName.value = true;
-								}}
-							>
-								{prep.value.name}
-							</Button>
-							<Button
-								variant="ghost"
-								size="icon"
-								type="button"
-								class="opacity-0 group-hover:opacity-30 transition-opacity cursor-pointer shrink-0"
-								onClick={(e) => {
-									e.stopPropagation();
-									editingName.value = true;
-								}}
-								onKeyDown={(e) => {
-									if (e.key === "Enter" || e.key === " ") {
-										e.stopPropagation();
-										editingName.value = true;
-									}
-								}}
-								aria-label="Edit preparation name"
-							>
-								<Pencil
-									size={12}
-									style={{ color: "var(--color-muted)" }}
-									aria-hidden="true"
-								/>
-							</Button>
-							{prep.value.yield_amount > 0 && (
-								<span
-									class="text-xs shrink-0 ml-auto"
-									style={{ color: "var(--color-muted)" }}
-								>
-									{prep.value.yield_amount} {prep.value.yield_unit}
-								</span>
-							)}
-						</div>
-						<Button
-							variant="ghost"
-							size="icon"
-							type="button"
-							class="ml-2"
-							onClick={(e) => {
-								e.stopPropagation();
-								removeDialog.show();
-							}}
-						>
-							<Trash2
-								size={14}
-								aria-hidden="true"
+				<AccordionTrigger>
+					<div class="flex flex-1 items-center gap-2 min-w-0">
+						<span class="truncate font-medium text-sm">{prep.value.name}</span>
+						{prep.value.yield_amount > 0 && (
+							<span
+								class="text-xs shrink-0 ml-auto"
 								style={{ color: "var(--color-muted)" }}
-							/>
-						</Button>
-					</AccordionTrigger>
-				)}
-				<AccordionContent>
-					<div class="flex flex-col gap-5 px-4 py-3">
-						{/* Description */}
-						<EditableMarkdown
-							value={prep.value.description ?? ""}
-							placeholder="Add a description…"
-							onSave={saveDescription}
+							>
+								{prep.value.yield_amount} {prep.value.yield_unit}
+							</span>
+						)}
+					</div>
+					<Button
+						variant="ghost"
+						size="icon"
+						type="button"
+						onClick={(e) => {
+							e.stopPropagation();
+							editDialog.show();
+						}}
+						aria-label="Edit preparation"
+					>
+						<Pencil
+							size={14}
+							aria-hidden="true"
+							style={{ color: "var(--color-muted)" }}
 						/>
-
-						{/* Amount in recipe */}
+					</Button>
+					<Button
+						variant="ghost"
+						size="icon"
+						type="button"
+						class="ml-2"
+						onClick={(e) => {
+							e.stopPropagation();
+							removeDialog.show();
+						}}
+					>
+						<Trash2
+							size={14}
+							aria-hidden="true"
+							style={{ color: "var(--color-muted)" }}
+						/>
+					</Button>
+				</AccordionTrigger>
+				<AccordionContent>
+					<div class="flex flex-col gap-4 px-4 py-3">
+						{prep.value.description && (
+							<Markdown>{prep.value.description}</Markdown>
+						)}
 						<div>
 							<span
 								class="text-xs font-semibold uppercase tracking-wider"
@@ -924,165 +1065,57 @@ function PreparationSection({
 							>
 								Amount in recipe
 							</span>
-							{editingAmount.value ? (
-								<div class="flex items-center gap-2 mt-1">
-									<TextField
-										type="number"
-										value={amountValue.value}
-										onInput={(e) => {
-											amountValue.value = e.target.value;
-										}}
-										onKeyDown={(e) => {
-											if (e.key === "Enter") saveAmount();
-											if (e.key === "Escape") {
-												amountValue.value = String(link.value.amount);
-												unitValue.value = link.value.unit;
-												editingAmount.value = false;
-											}
-										}}
-										autoFocus
-									/>
-									<TextField
-										value={unitValue.value}
-										placeholder="g, ml, serving…"
-										onInput={(e) => {
-											unitValue.value = e.target.value;
-										}}
-										onKeyDown={(e) => {
-											if (e.key === "Enter") saveAmount();
-											if (e.key === "Escape") {
-												amountValue.value = String(link.value.amount);
-												unitValue.value = link.value.unit;
-												editingAmount.value = false;
-											}
-										}}
-									/>
-									<Button size="sm" type="button" onClick={saveAmount}>
-										Save
-									</Button>
-									<Button
-										variant="ghost"
-										size="sm"
-										type="button"
-										onClick={() => {
-											amountValue.value = String(link.value.amount);
-											unitValue.value = link.value.unit;
-											editingAmount.value = false;
-										}}
-									>
-										Cancel
-									</Button>
-								</div>
-							) : (
-								<Button
-									variant="unstyled"
-									type="button"
-									class="mt-1 text-sm cursor-text"
-									style={{ color: "var(--color-muted)" }}
-									onClick={() => {
-										editingAmount.value = true;
-									}}
-									onKeyDown={(e) => {
-										if (e.key === "Enter" || e.key === " ")
-											editingAmount.value = true;
-									}}
-								>
-									{link.value.amount} {link.value.unit}
-								</Button>
-							)}
+							<p class="mt-1 text-sm" style={{ color: "var(--color-muted)" }}>
+								{link.value.amount} {link.value.unit}
+							</p>
 						</div>
-
-						{/* Ingredients */}
-						<div>
-							<span
-								class="text-xs font-semibold uppercase tracking-wider mb-2 block"
-								style={{ color: "var(--color-muted)" }}
-							>
-								Ingredients
-							</span>
-
-							<div class="flex flex-col">
-								{prep.value.ingredients.map((ing) => (
-									<IngredientRow
-										key={ing.id}
-										ingredient={ing}
-										prepId={prep.value.id}
-										onUpdated={handleIngredientUpdated}
-										onDeleted={handleIngredientDeleted}
-									/>
-								))}
-							</div>
-
-							{showAddIngredient.value ? (
-								<div class="mt-2">
-									<AddIngredientForm
-										prepId={prep.value.id}
-										onAdded={handleIngredientAdded}
-										onCancel={() => {
-											showAddIngredient.value = false;
-										}}
-									/>
-								</div>
-							) : (
-								<Button
-									variant="ghost"
-									type="button"
-									class="w-full justify-start text-sm font-normal px-1"
-									style={{ color: "var(--color-muted)" }}
-									onClick={() => {
-										showAddIngredient.value = true;
-									}}
-								>
-									Add ingredient…
-								</Button>
-							)}
-						</div>
-
-						{/* Steps */}
-						<div>
-							<span
-								class="text-xs font-semibold uppercase tracking-wider mb-2 block"
-								style={{ color: "var(--color-muted)" }}
-							>
-								Steps
-							</span>
-
-							<div class="flex flex-col">
-								{prep.value.steps.map((step, i) => (
-									<StepRow
-										key={step._key}
-										index={i}
-										description={step.description}
-										onChange={handleStepChange}
-										onDelete={handleStepDelete}
-										autoFocus={step._key === focusNextStepKey.value}
-									/>
-								))}
-							</div>
-
-							<div class="flex items-start gap-2 py-1">
+						{prep.value.ingredients && prep.value.ingredients.length > 0 && (
+							<div>
 								<span
-									class="shrink-0 text-xs font-medium tabular-nums mt-2.5"
-									style={{
-										color: "var(--color-muted)",
-										width: "1.25rem",
-										opacity: 0.5,
-									}}
-								>
-									{prep.value.steps.length + 1}.
-								</span>
-								<Button
-									variant="ghost"
-									type="button"
-									class="flex-1 justify-start text-sm font-normal px-1"
+									class="text-xs font-semibold uppercase tracking-wider mb-2 block"
 									style={{ color: "var(--color-muted)" }}
-									onClick={handleAddStep}
-									disabled={savingSteps.value}
 								>
-									Add a step…
-								</Button>
+									Ingredients
+								</span>
+								<div class="flex flex-col">
+									{prep.value.ingredients.map((ing) => (
+										<IngredientRow
+											key={ing.id}
+											ingredient={ing}
+											prepId={prep.value.id}
+											editable={false}
+										/>
+									))}
+								</div>
 							</div>
-						</div>
+						)}
+						{prep.value.steps && prep.value.steps.length > 0 && (
+							<div>
+								<span
+									class="text-xs font-semibold uppercase tracking-wider mb-2 block"
+									style={{ color: "var(--color-muted)" }}
+								>
+									Steps
+								</span>
+								<div class="flex flex-col gap-1">
+									{prep.value.steps.map((step, i) => (
+										<p
+											key={step._key ?? i}
+											class="text-sm"
+											style={{ color: "var(--color-text)" }}
+										>
+											<span
+												class="font-medium tabular-nums mr-1"
+												style={{ color: "var(--color-muted)" }}
+											>
+												{i + 1}.
+											</span>
+											{step.description}
+										</p>
+									))}
+								</div>
+							</div>
+						)}
 					</div>
 				</AccordionContent>
 			</AccordionItem>
@@ -1099,6 +1132,13 @@ function PreparationSection({
 				confirmLabel="Remove"
 				onConfirm={handleRemove}
 			/>
+			<Dialog openSignal={editDialog.open}>
+				<PrepEditModal
+					prep={prep.value}
+					onSaved={handleSaved}
+					onClose={editDialog.hide}
+				/>
+			</Dialog>
 		</>
 	);
 }

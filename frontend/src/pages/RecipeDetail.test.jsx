@@ -75,6 +75,17 @@ vi.mock("../components/ui/EditableMarkdown.jsx", () => ({
 	),
 }));
 
+vi.mock("../components/ui/Dialog.jsx", () => ({
+	Dialog: ({ openSignal, children }) =>
+		openSignal.value ? <div data-testid="mock-dialog">{children}</div> : null,
+	DialogContent: ({ children }) => <div>{children}</div>,
+	DialogTitle: ({ children }) => <h2>{children}</h2>,
+}));
+
+vi.mock("../components/ui/Markdown.jsx", () => ({
+	Markdown: ({ children }) => <div data-testid="mock-markdown">{children}</div>,
+}));
+
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const MOCK_USER = { email: "user@example.com", name: "Test User" };
@@ -242,11 +253,19 @@ function mockFetchForIngredients({
 	});
 }
 
-async function openAddIngredientForm() {
+async function openEditModal() {
 	renderDetail(1);
 	await waitFor(() =>
 		expect(screen.getByText("Bolognese Sauce")).toBeInTheDocument(),
 	);
+	fireEvent.click(screen.getByRole("button", { name: "Edit preparation" }));
+	await waitFor(() =>
+		expect(screen.getByTestId("mock-dialog")).toBeInTheDocument(),
+	);
+}
+
+async function openAddIngredientForm() {
+	await openEditModal();
 	fireEvent.click(screen.getByRole("button", { name: "Add ingredient\u2026" }));
 	await waitFor(() =>
 		expect(screen.getByTestId("mock-combobox-freeform")).toBeInTheDocument(),
@@ -753,13 +772,25 @@ describe("RecipeDetail — delete ingredient", () => {
 
 		renderDetail(1);
 		await waitFor(() =>
-			expect(screen.getByText("Ground beef")).toBeInTheDocument(),
+			expect(screen.getByText("Bolognese Sauce")).toBeInTheDocument(),
 		);
 
+		// Open the edit modal to access the editable ingredient row
+		fireEvent.click(screen.getByRole("button", { name: "Edit preparation" }));
+		await waitFor(() =>
+			expect(screen.getByTestId("mock-dialog")).toBeInTheDocument(),
+		);
+
+		const dialog = await screen.findByTestId("mock-dialog");
+
 		// The X button next to the ingredient — find the button within the ingredient row
-		// There are multiple X buttons; we need the one adjacent to "Ground beef"
-		const ingredientText = screen.getByText(/Ground beef/);
-		const ingredientRow = ingredientText.closest("div");
+		// There are multiple X buttons; we need the one adjacent to "Ground beef" inside the modal
+		const ingredientTexts = dialog.querySelectorAll("span.flex-1");
+		const ingredientSpan = Array.from(ingredientTexts).find((el) =>
+			el.textContent.includes("Ground beef"),
+		);
+		expect(ingredientSpan).toBeDefined();
+		const ingredientRow = ingredientSpan.closest("div");
 		const xButtons = ingredientRow.querySelectorAll("button");
 		// Last button in the row is the delete (X) button
 		fireEvent.click(xButtons[xButtons.length - 1]);
@@ -767,8 +798,8 @@ describe("RecipeDetail — delete ingredient", () => {
 		await waitFor(() =>
 			expect(screen.getByText("delete failed")).toBeInTheDocument(),
 		);
-		// Ingredient must still be in the list
-		expect(screen.getByText("Ground beef")).toBeInTheDocument();
+		// Ingredient must still be in the dialog
+		expect(dialog.textContent).toContain("Ground beef");
 	});
 });
 
@@ -895,7 +926,14 @@ describe("RecipeDetail — AddIngredientForm", () => {
 		mockFetchForIngredients();
 		await openAddIngredientForm();
 
-		fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+		// Click the Cancel button inside the AddIngredientForm (not the modal footer Cancel)
+		const form = screen.getByTestId("mock-combobox-freeform").closest("form");
+		const cancelButtons = form.querySelectorAll("button");
+		const cancelBtn = Array.from(cancelButtons).find(
+			(btn) => btn.textContent === "Cancel",
+		);
+		expect(cancelBtn).toBeDefined();
+		fireEvent.click(cancelBtn);
 
 		await waitFor(() =>
 			expect(
@@ -918,7 +956,12 @@ describe("RecipeDetail — AddIngredientForm", () => {
 		fireEvent.input(screen.getByLabelText("Amount"), {
 			target: { value: "2" },
 		});
-		fireEvent.input(screen.getByTestId("mock-combobox"), {
+		// Scope to the add ingredient form to avoid ambiguity with modal unit combobox
+		const form = screen.getByTestId("mock-combobox-freeform").closest("form");
+		const unitCombobox = form.querySelector(
+			'[data-testid="mock-combobox"]:not([data-testid="mock-combobox-freeform"])',
+		);
+		fireEvent.input(unitCombobox, {
 			target: { value: "cup" },
 		});
 
@@ -1137,6 +1180,10 @@ describe("RecipeDetail — AddIngredientForm", () => {
 		await waitFor(() =>
 			expect(screen.getByText("Bolognese Sauce")).toBeInTheDocument(),
 		);
+		fireEvent.click(screen.getByRole("button", { name: "Edit preparation" }));
+		await waitFor(() =>
+			expect(screen.getByTestId("mock-dialog")).toBeInTheDocument(),
+		);
 		fireEvent.click(
 			screen.getByRole("button", { name: "Add ingredient\u2026" }),
 		);
@@ -1163,15 +1210,30 @@ describe("RecipeDetail — ingredient display", () => {
 	it("shows amount and unit for a normal unit", async () => {
 		const prep = {
 			...MOCK_PREP,
-			ingredients: [{ id: 1, ingredient_id: 42, name: "Ground beef", amount: 2, unit: "cups", prep: null }],
+			ingredients: [
+				{
+					id: 1,
+					ingredient_id: 42,
+					name: "Ground beef",
+					amount: 2,
+					unit: "cups",
+					prep: null,
+				},
+			],
 		};
 		vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
 			if (url === "/api/recipes/1" && !opts?.method)
-				return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_RECIPE_WITH_PREP) });
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_RECIPE_WITH_PREP),
+				});
 			if (url === "/api/preparations/10" && !opts?.method)
 				return Promise.resolve({ ok: true, json: () => Promise.resolve(prep) });
 			if (url === "/api/preparations" && !opts?.method)
-				return Promise.resolve({ ok: true, json: () => Promise.resolve([prep]) });
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve([prep]),
+				});
 			return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
 		});
 		renderDetail(1);
@@ -1182,15 +1244,30 @@ describe("RecipeDetail — ingredient display", () => {
 	it("omits the word 'unit' when the unit is 'unit'", async () => {
 		const prep = {
 			...MOCK_PREP,
-			ingredients: [{ id: 1, ingredient_id: 42, name: "Egg", amount: 3, unit: "unit", prep: null }],
+			ingredients: [
+				{
+					id: 1,
+					ingredient_id: 42,
+					name: "Egg",
+					amount: 3,
+					unit: "unit",
+					prep: null,
+				},
+			],
 		};
 		vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
 			if (url === "/api/recipes/1" && !opts?.method)
-				return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_RECIPE_WITH_PREP) });
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve(MOCK_RECIPE_WITH_PREP),
+				});
 			if (url === "/api/preparations/10" && !opts?.method)
 				return Promise.resolve({ ok: true, json: () => Promise.resolve(prep) });
 			if (url === "/api/preparations" && !opts?.method)
-				return Promise.resolve({ ok: true, json: () => Promise.resolve([prep]) });
+				return Promise.resolve({
+					ok: true,
+					json: () => Promise.resolve([prep]),
+				});
 			return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
 		});
 		renderDetail(1);
