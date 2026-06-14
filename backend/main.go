@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -33,94 +32,33 @@ import (
 //go:embed ui
 var uiFS embed.FS
 
-// getSecret reads a config value using the following precedence:
-//  1. $COVE_SECRETS_DIR/<key>  — mounted secrets directory
-//  2. $<key>_FILE              — explicit file path (e.g. for CNPG-generated secrets)
-//  3. $<key>                   — plain env var (local dev)
-func getSecret(key string) string {
-	if dir := os.Getenv("COVE_SECRETS_DIR"); dir != "" {
-		data, err := os.ReadFile(filepath.Join(dir, key))
-		if err == nil {
-			return strings.TrimSpace(string(data))
-		}
-	}
-	if path := os.Getenv(key + "_FILE"); path != "" {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			log.Fatalf("read secret file for %s: %v", key, err)
-		}
-		return strings.TrimSpace(string(data))
-	}
-	return os.Getenv(key)
-}
-
-// resolveMigrationDSN returns the DSN to use for migrations and whether it is valid.
-// In dev mode, falls back to appDSN when MIGRATION_DATABASE_URL is unset.
-// In production, returns ("", false) when MIGRATION_DATABASE_URL is unset.
-func resolveMigrationDSN(appDSN string, dev bool) (string, bool) {
-	if dsn := getSecret("MIGRATION_DATABASE_URL"); dsn != "" {
-		return dsn, true
-	}
-	if dev {
-		return appDSN, true
-	}
-	return "", false
-}
-
 func main() {
-	dbURL := getSecret("DATABASE_URL")
-	if dbURL == "" {
-		log.Fatal("DATABASE_URL is required")
+	cfg, err := loadConfig()
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	migrationDBURL, ok := resolveMigrationDSN(dbURL, os.Getenv("COVE_DEV") != "")
-	if !ok {
-		log.Fatal("MIGRATION_DATABASE_URL is required in production")
-	}
-
-	googleClientID := getSecret("GOOGLE_CLIENT_ID")
-	if googleClientID == "" {
-		log.Fatal("GOOGLE_CLIENT_ID is required")
-	}
-	googleClientSecret := getSecret("GOOGLE_CLIENT_SECRET")
-	if googleClientSecret == "" {
-		log.Fatal("GOOGLE_CLIENT_SECRET is required")
-	}
-	googleRedirectURL := getSecret("GOOGLE_REDIRECT_URL")
-	if googleRedirectURL == "" {
-		log.Fatal("GOOGLE_REDIRECT_URL is required")
-	}
-
-	encryptionKey := getSecret("SESSION_ENCRYPTION_KEY")
-	if encryptionKey == "" {
-		log.Fatal("SESSION_ENCRYPTION_KEY is required")
-	}
-	enc, err := crypto.NewAESEncryptor(0, map[byte]string{0: encryptionKey})
+	enc, err := crypto.NewAESEncryptor(0, map[byte]string{0: cfg.EncryptionKey})
 	if err != nil {
 		log.Fatalf("init encryptor: %v", err)
 	}
 
-	var allowedEmails []string
-	if raw := getSecret("COVE_ALLOWED_EMAILS"); raw != "" {
-		allowedEmails = strings.Split(raw, ",")
-	}
-
-	db.Migrate(migrationDBURL)
-	database := db.Open(dbURL)
+	db.Migrate(cfg.MigrationDatabaseURL)
+	database := db.Open(cfg.DatabaseURL)
 	defer database.Close()
 
 	userStore := store.NewUserStore()
 	orgStore := store.NewOrgStore()
 	userSvc := service.NewUserService(database, userStore, orgStore)
 	oauthCfg := &oauth2.Config{
-		ClientID:     googleClientID,
-		ClientSecret: googleClientSecret,
-		RedirectURL:  googleRedirectURL,
+		ClientID:     cfg.GoogleClientID,
+		ClientSecret: cfg.GoogleClientSecret,
+		RedirectURL:  cfg.GoogleRedirectURL,
 		Scopes:       []string{"openid", "email"},
 		Endpoint:     google.Endpoint,
 	}
 
-	fdcClient := fdc.NewClient(getSecret("FDC_API_KEY"))
+	fdcClient := fdc.NewClient(cfg.FDCAPIKey)
 
 	exStore := store.NewExerciseStore()
 	exSvc := service.NewExerciseService(database, exStore)
@@ -132,9 +70,9 @@ func main() {
 	prepSvc := service.NewPreparationService(database, store.NewPreparationStore())
 	oauthSvc := service.NewOAuthService(database, store.NewOAuthStore(), userStore)
 	llmRouter := llm.NewStaticRouter(llm.NewOpenAICompatClient(llm.Config{
-		BaseURL: getSecret("LLM_BASE_URL"),
-		APIKey:  getSecret("LLM_API_KEY"),
-		Model:   getSecret("LLM_MODEL"),
+		BaseURL: cfg.LLMBaseURL,
+		APIKey:  cfg.LLMAPIKey,
+		Model:   cfg.LLMModel,
 	}))
 	summarizeSvc := service.NewSummarizeService(llmRouter)
 
@@ -158,29 +96,26 @@ func main() {
 	}
 
 	var hatchetClient *workers.HatchetClient
-	if hatchetToken := getSecret("HATCHET_CLIENT_TOKEN"); hatchetToken != "" {
-		var err error
-		hatchetClient, err = workers.NewHatchetClient(hatchetToken)
+	if cfg.HatchetToken != "" {
+		hatchetClient, err = workers.NewHatchetClient(cfg.HatchetToken)
 		if err != nil {
 			log.Fatalf("create hatchet client: %v", err)
 		}
 		apiSvcs.HatchetClient = hatchetClient
 	}
 
-	secureCookies := os.Getenv("COVE_DEV") == ""
+	secureCookies := !cfg.Dev
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", NewAPIHandler(apiSvcs, secureCookies))
 	mux.Handle("/mcp/", middleware.OAuth(userSvc, covemcp.NewHTTPHandler(mcpSvcs)))
 
 	var staticFS fs.FS
-	if os.Getenv("COVE_DEV") != "" {
+	if cfg.Dev {
 		log.Printf("serving local ui assets")
-		// Serve from disk so frontend rebuilds are visible without restarting.
 		staticFS = os.DirFS("ui")
 	} else {
 		log.Printf("serving embedded ui assets")
-		var err error
 		staticFS, err = fs.Sub(uiFS, "ui")
 		if err != nil {
 			log.Fatal(err)
@@ -198,18 +133,18 @@ func main() {
 
 	// Outer mux: UI at / (no auth), everything else to mux.
 	outer := http.NewServeMux()
-	oauthHandler := handlers.NewOAuthHandler(oauthCfg, userSvc, allowedEmails, secureCookies)
+	oauthHandler := handlers.NewOAuthHandler(oauthCfg, userSvc, cfg.AllowedEmails, secureCookies)
 	oauthHandler.RegisterRoutes(outer)
 	oauthHandler.RegisterMobileRoutes(outer)
 	handlers.NewOAuthServerHandler(oauthSvc, userSvc, secureCookies).RegisterRoutes(outer)
-	if os.Getenv("COVE_DEV") != "" {
+	if cfg.Dev {
 		oauthHandler.RegisterDevRoutes(outer)
 	}
 	outer.Handle("/api/", mux)
 	outer.Handle("/mcp/", mux)
 	outer.Handle("/", spaHandler)
 
-	if getSecret("COVE_WORKER_ENABLED") == "true" {
+	if cfg.WorkerEnabled {
 		if hatchetClient == nil {
 			log.Fatalf("COVE_WORKER_ENABLED is true but HATCHET_CLIENT_TOKEN is not set")
 		}
@@ -222,11 +157,6 @@ func main() {
 		log.Printf("hatchet worker started")
 	}
 
-	port := getSecret("COVE_PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	log.Printf("cove listening on :%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, middleware.Logging(middleware.CORS([]string{"capacitor://localhost"}, outer))))
+	log.Printf("cove listening on :%s", cfg.Port)
+	log.Fatal(http.ListenAndServe(":"+cfg.Port, middleware.Logging(middleware.CORS([]string{"capacitor://localhost"}, outer))))
 }
