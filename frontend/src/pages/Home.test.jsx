@@ -19,7 +19,7 @@ describe("Home", () => {
 		expect(screen.getByText("Your space.")).toBeInTheDocument();
 	});
 
-	it("shows Train nav items when signed in", () => {
+	it("shows all nav section items when signed in", () => {
 		withProviders(<Home />, { user: MOCK_USER });
 		expect(screen.getByRole("link", { name: "Workout" })).toHaveAttribute(
 			"href",
@@ -28,12 +28,22 @@ describe("Home", () => {
 		expect(
 			screen.getByRole("link", { name: "Review Sessions" }),
 		).toHaveAttribute("href", "/sessions");
+		expect(
+			screen.getByRole("link", { name: "Build Programs" }),
+		).toHaveAttribute("href", "/programs");
+		expect(screen.getByRole("link", { name: "Exercises" })).toHaveAttribute(
+			"href",
+			"/exercises",
+		);
 	});
 
-	it("does not show Program nav items when signed in", () => {
+	it("shows section headings when signed in", () => {
 		withProviders(<Home />, { user: MOCK_USER });
-		expect(screen.queryByRole("link", { name: "Exercises" })).toBeNull();
-		expect(screen.queryByRole("link", { name: "Build Programs" })).toBeNull();
+		expect(screen.getByRole("heading", { name: "Train" })).toBeInTheDocument();
+		expect(
+			screen.getByRole("heading", { name: "Program" }),
+		).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "Cook" })).toBeInTheDocument();
 	});
 
 	it("hides nav items and shows splash when signed out", () => {

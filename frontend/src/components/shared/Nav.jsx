@@ -13,7 +13,7 @@ import {
 } from "../ui/NavigationMenu.jsx";
 import { TopBar } from "../ui/TopBar.jsx";
 
-const NAV_SECTIONS = [
+export const NAV_SECTIONS = [
 	{
 		label: "Train",
 		items: [
@@ -37,8 +37,6 @@ const NAV_SECTIONS = [
 		],
 	},
 ];
-
-export const TRAIN_NAV_ITEMS = NAV_SECTIONS[0].items;
 
 const PAGE_TITLES = [
 	{ label: "Workout", href: "/workout" },
