@@ -6,14 +6,99 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/gosusnp/cove/backend/internal/crypto"
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/markdown"
 	"github.com/gosusnp/cove/backend/internal/service"
+	"github.com/gosusnp/cove/backend/internal/store"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+func sensitiveStringPtr(s *string) *crypto.SensitiveString {
+	if s == nil {
+		return nil
+	}
+	ss := crypto.NewSensitiveString(*s)
+	return &ss
+}
+
+type createSessionParams struct {
+	Activity         *string `json:"activity,omitempty"`
+	StartedAt        *string `json:"started_at,omitempty"`
+	CompletedAt      *string `json:"completed_at,omitempty"`
+	DurationS        *int    `json:"duration_s,omitempty"`
+	ProgramID        *int64  `json:"program_id,omitempty"`
+	ProgramName      *string `json:"program_name,omitempty"`
+	ProgramStructure *string `json:"program_structure,omitempty"`
+	PerceivedEffort  *int    `json:"perceived_effort,omitempty"`
+	SessionNotes     *string `json:"session_notes,omitempty"`
+}
+
+func buildSessionParams(params createSessionParams) (store.WorkoutSessionParams, error) {
+	p := store.WorkoutSessionParams{
+		Activity:  params.Activity,
+		DurationS: params.DurationS,
+	}
+
+	if params.ProgramID != nil {
+		pid := domain.ProgramID(*params.ProgramID)
+		p.ProgramID = &pid
+	}
+
+	if params.StartedAt != nil {
+		t, err := time.Parse(time.RFC3339, *params.StartedAt)
+		if err != nil {
+			return p, fmt.Errorf("invalid started_at: use RFC3339 format, e.g. 2026-06-01T09:00:00Z")
+		}
+		p.StartedAt = &t
+	}
+
+	if params.CompletedAt != nil {
+		t, err := time.Parse(time.RFC3339, *params.CompletedAt)
+		if err != nil {
+			return p, fmt.Errorf("invalid completed_at: use RFC3339 format, e.g. 2026-06-01T09:00:00Z")
+		}
+		p.CompletedAt = &t
+	}
+
+	p.SensitiveData = domain.SessionSensitiveData{
+		PerceivedEffort:  params.PerceivedEffort,
+		SessionNotes:     sensitiveStringPtr(params.SessionNotes),
+		ProgramName:      sensitiveStringPtr(params.ProgramName),
+		ProgramStructure: sensitiveStringPtr(params.ProgramStructure),
+	}
+
+	return p, nil
+}
+
 func registerSessionTools(server *mcp.Server, sessions *service.WorkoutSessionService) {
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "create_session",
+		Description: "Create a historical workout session. All fields are optional — supply only what you know.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, params createSessionParams) (*mcp.CallToolResult, struct{}, error) {
+		p, err := buildSessionParams(params)
+		if err != nil {
+			return nil, struct{}{}, err
+		}
+
+		ws, err := sessions.Create(ctx, p)
+		if err != nil {
+			return nil, struct{}{}, fmt.Errorf("create session: %w", err)
+		}
+
+		var text string
+		if err := ws.UseSensitiveData(ctx, func(sd domain.SessionSensitiveData) error {
+			text = fmt.Sprintf("**ID:** %d\n\n%s", ws.ID, markdown.SessionEntry(ws, sd))
+			return nil
+		}); err != nil {
+			return nil, struct{}{}, fmt.Errorf("decrypt session: %w", err)
+		}
+
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, struct{}{}, nil
+	})
+
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_sessions",
 		Description: "List workout sessions, optionally filtered by date range (from/to as YYYY-MM-DD). Returns activity, duration, RPE, program name, notes, and AI-generated summaries.",
