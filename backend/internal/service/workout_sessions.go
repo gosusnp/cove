@@ -71,15 +71,6 @@ func cloneSensitiveString(s *crypto.SensitiveString) *crypto.SensitiveString {
 	return &ss
 }
 
-// newSensitiveStringPtr wraps s as a SensitiveString, or returns nil if s is nil.
-func newSensitiveStringPtr(s *string) *crypto.SensitiveString {
-	if s == nil {
-		return nil
-	}
-	ss := crypto.NewSensitiveString(*s)
-	return &ss
-}
-
 // SessionFilter holds optional date range bounds for listing sessions.
 // From is an inclusive lower bound; To is an exclusive upper bound on started_at.
 // Sessions with a null started_at are excluded when either bound is set.
@@ -270,16 +261,16 @@ func (s *WorkoutSessionService) Patch(ctx context.Context, id domain.WorkoutSess
 				p.SensitiveData.PerceivedEffort = patch.PerceivedEffort.Value
 			}
 			if patch.SessionNotes.Set {
-				p.SensitiveData.SessionNotes = newSensitiveStringPtr(patch.SessionNotes.Value)
+				p.SensitiveData.SessionNotes = crypto.NewSensitiveStringFromPtr(patch.SessionNotes.Value)
 			}
 			if patch.ProgramName.Set {
-				p.SensitiveData.ProgramName = newSensitiveStringPtr(patch.ProgramName.Value)
+				p.SensitiveData.ProgramName = crypto.NewSensitiveStringFromPtr(patch.ProgramName.Value)
 			}
 			if patch.ProgramStructure.Set {
-				p.SensitiveData.ProgramStructure = newSensitiveStringPtr(patch.ProgramStructure.Value)
+				p.SensitiveData.ProgramStructure = crypto.NewSensitiveStringFromPtr(patch.ProgramStructure.Value)
 			}
 			if patch.Summary.Set {
-				p.SensitiveData.Summary = newSensitiveStringPtr(patch.Summary.Value)
+				p.SensitiveData.Summary = crypto.NewSensitiveStringFromPtr(patch.Summary.Value)
 				setSummaryNow = patch.Summary.Value != nil
 			}
 			return nil

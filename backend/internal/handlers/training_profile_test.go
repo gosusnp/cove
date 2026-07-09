@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gosusnp/cove/backend/internal/crypto"
 	"github.com/gosusnp/cove/backend/internal/domain"
 )
 
@@ -74,8 +75,8 @@ func TestTrainingProfileHandler(t *testing.T) {
 		motivation := "Original motivation"
 		constraints := "Original constraints"
 		app.SeedTrainingProfile(context.Background(), u1, o1, domain.TrainingProfileSensitiveData{
-			Motivation:  sensitiveStringPtr(&motivation),
-			Constraints: sensitiveStringPtr(&constraints),
+			Motivation:  crypto.NewSensitiveStringFromPtr(&motivation),
+			Constraints: crypto.NewSensitiveStringFromPtr(&constraints),
 		})
 
 		newMotivation := "Updated motivation"
@@ -103,7 +104,7 @@ func TestTrainingProfileHandler(t *testing.T) {
 		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
 		motivation1 := "Motivation 1"
 		app.SeedTrainingProfile(context.Background(), u1, o1, domain.TrainingProfileSensitiveData{
-			Motivation: sensitiveStringPtr(&motivation1),
+			Motivation: crypto.NewSensitiveStringFromPtr(&motivation1),
 		})
 
 		motivation2 := "Motivation 2"
@@ -128,7 +129,7 @@ func TestTrainingProfileHandler(t *testing.T) {
 		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
 		motivation := "Test motivation"
 		app.SeedTrainingProfile(context.Background(), u1, o1, domain.TrainingProfileSensitiveData{
-			Motivation: sensitiveStringPtr(&motivation),
+			Motivation: crypto.NewSensitiveStringFromPtr(&motivation),
 		})
 
 		r := app.AuthRequest(http.MethodGet, "/api/users/me/training-profile", nil, u1)
@@ -153,7 +154,7 @@ func TestTrainingProfileHandler(t *testing.T) {
 
 		motivation := "Private motivation"
 		app.SeedTrainingProfile(context.Background(), u1, o1, domain.TrainingProfileSensitiveData{
-			Motivation: sensitiveStringPtr(&motivation),
+			Motivation: crypto.NewSensitiveStringFromPtr(&motivation),
 		})
 
 		// u2 tries to get their own profile (which doesn't exist)

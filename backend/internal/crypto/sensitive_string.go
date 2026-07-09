@@ -30,6 +30,15 @@ func NewSensitiveString(s string) SensitiveString {
 	return SensitiveString{b: b}
 }
 
+// NewSensitiveStringFromPtr wraps s as a *SensitiveString, or returns nil if s is nil.
+func NewSensitiveStringFromPtr(s *string) *SensitiveString {
+	if s == nil {
+		return nil
+	}
+	ss := NewSensitiveString(*s)
+	return &ss
+}
+
 // String returns a copy of the value as a Go string. The returned string is
 // short-lived by convention — use it only for building response values and
 // let it be collected promptly.

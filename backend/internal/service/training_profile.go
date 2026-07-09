@@ -134,19 +134,19 @@ func (s *TrainingProfileService) Patch(ctx context.Context, patch TrainingProfil
 		}
 
 		if patch.Motivation.Set {
-			data.Motivation = newSensitiveStringPtr(patch.Motivation.Value)
+			data.Motivation = crypto.NewSensitiveStringFromPtr(patch.Motivation.Value)
 		}
 		if patch.Constraints.Set {
-			data.Constraints = newSensitiveStringPtr(patch.Constraints.Value)
+			data.Constraints = crypto.NewSensitiveStringFromPtr(patch.Constraints.Value)
 		}
 		if patch.Disciplines.Set {
 			data.Disciplines = make([]domain.TrainingProfileDiscipline, len(patch.Disciplines.Value))
 			for i, dp := range patch.Disciplines.Value {
 				data.Disciplines[i] = domain.TrainingProfileDiscipline{
-					Name:          newSensitiveStringPtr(dp.Name),
+					Name:          crypto.NewSensitiveStringFromPtr(dp.Name),
 					YearsPractice: dp.YearsPractice,
-					Level:         newSensitiveStringPtr(dp.Level),
-					Notes:         newSensitiveStringPtr(dp.Notes),
+					Level:         crypto.NewSensitiveStringFromPtr(dp.Level),
+					Notes:         crypto.NewSensitiveStringFromPtr(dp.Notes),
 				}
 			}
 		}

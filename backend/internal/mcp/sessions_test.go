@@ -103,9 +103,9 @@ func TestCreateSessionTool_SensitiveDataRoundtrip(t *testing.T) {
 		Activity: &activity,
 		SensitiveData: domain.SessionSensitiveData{
 			PerceivedEffort:  &rpe,
-			SessionNotes:     sensitiveStringPtr(&notes),
-			ProgramName:      sensitiveStringPtr(&progName),
-			ProgramStructure: sensitiveStringPtr(&structure),
+			SessionNotes:     crypto.NewSensitiveStringFromPtr(&notes),
+			ProgramName:      crypto.NewSensitiveStringFromPtr(&progName),
+			ProgramStructure: crypto.NewSensitiveStringFromPtr(&structure),
 		},
 	}
 

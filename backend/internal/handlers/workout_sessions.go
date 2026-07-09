@@ -68,14 +68,6 @@ func parseSessionFilter(r *http.Request) (service.SessionFilter, error) {
 	return service.NewSessionFilter(from, to)
 }
 
-func sensitiveStringPtr(s *string) *crypto.SensitiveString {
-	if s == nil {
-		return nil
-	}
-	ss := crypto.NewSensitiveString(*s)
-	return &ss
-}
-
 func stringPtr(s *crypto.SensitiveString) *string {
 	if s == nil {
 		return nil
@@ -92,10 +84,10 @@ func (req *workoutSessionRequest) toParams() store.WorkoutSessionParams {
 		CompletedAt: req.CompletedAt,
 		SensitiveData: domain.SessionSensitiveData{
 			PerceivedEffort:  req.PerceivedEffort,
-			SessionNotes:     sensitiveStringPtr(req.SessionNotes),
-			ProgramName:      sensitiveStringPtr(req.ProgramName),
-			ProgramStructure: sensitiveStringPtr(req.ProgramStructure),
-			Summary:          sensitiveStringPtr(req.Summary),
+			SessionNotes:     crypto.NewSensitiveStringFromPtr(req.SessionNotes),
+			ProgramName:      crypto.NewSensitiveStringFromPtr(req.ProgramName),
+			ProgramStructure: crypto.NewSensitiveStringFromPtr(req.ProgramStructure),
+			Summary:          crypto.NewSensitiveStringFromPtr(req.Summary),
 		},
 	}
 	if req.ProgramID != nil {

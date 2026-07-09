@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gosusnp/cove/backend/internal/crypto"
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/service"
 )
@@ -44,16 +45,16 @@ func (req *trainingProfileRequest) toDomain() domain.TrainingProfileSensitiveDat
 	disciplines := make([]domain.TrainingProfileDiscipline, len(req.Disciplines))
 	for i, d := range req.Disciplines {
 		disciplines[i] = domain.TrainingProfileDiscipline{
-			Name:          sensitiveStringPtr(d.Name),
+			Name:          crypto.NewSensitiveStringFromPtr(d.Name),
 			YearsPractice: d.YearsPractice,
-			Level:         sensitiveStringPtr(d.Level),
-			Notes:         sensitiveStringPtr(d.Notes),
+			Level:         crypto.NewSensitiveStringFromPtr(d.Level),
+			Notes:         crypto.NewSensitiveStringFromPtr(d.Notes),
 		}
 	}
 	return domain.TrainingProfileSensitiveData{
-		Motivation:  sensitiveStringPtr(req.Motivation),
+		Motivation:  crypto.NewSensitiveStringFromPtr(req.Motivation),
 		Disciplines: disciplines,
-		Constraints: sensitiveStringPtr(req.Constraints),
+		Constraints: crypto.NewSensitiveStringFromPtr(req.Constraints),
 	}
 }
 

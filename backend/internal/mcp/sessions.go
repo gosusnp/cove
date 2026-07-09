@@ -16,14 +16,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func sensitiveStringPtr(s *string) *crypto.SensitiveString {
-	if s == nil {
-		return nil
-	}
-	ss := crypto.NewSensitiveString(*s)
-	return &ss
-}
-
 type createSessionParams struct {
 	Activity         *string `json:"activity,omitempty"`
 	StartedAt        *string `json:"started_at,omitempty"`
@@ -65,9 +57,9 @@ func buildSessionParams(params createSessionParams) (store.WorkoutSessionParams,
 
 	p.SensitiveData = domain.SessionSensitiveData{
 		PerceivedEffort:  params.PerceivedEffort,
-		SessionNotes:     sensitiveStringPtr(params.SessionNotes),
-		ProgramName:      sensitiveStringPtr(params.ProgramName),
-		ProgramStructure: sensitiveStringPtr(params.ProgramStructure),
+		SessionNotes:     crypto.NewSensitiveStringFromPtr(params.SessionNotes),
+		ProgramName:      crypto.NewSensitiveStringFromPtr(params.ProgramName),
+		ProgramStructure: crypto.NewSensitiveStringFromPtr(params.ProgramStructure),
 	}
 
 	return p, nil
