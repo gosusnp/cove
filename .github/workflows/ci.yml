@@ -76,6 +76,7 @@ jobs:
           context: .
           push: false
           platforms: linux/arm64
+          build-args: APP_VERSION=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -116,6 +117,7 @@ jobs:
           context: .
           push: true
           platforms: linux/arm64
+          build-args: APP_VERSION=${{ github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

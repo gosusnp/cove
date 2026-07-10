@@ -6,10 +6,10 @@ build: frontend.build backend.build
 
 # Runs backend at :8080 in dev move and watch rebuild UI assets and backend
 # Develop at localhost:8080. OAuth redirect URL must point to localhost:8080/auth/callback.
-dev:
+dev: frontend.ota-bundle
 	$(MAKE) -j2 backend.watch frontend.watch
 
-check: backend.check frontend.check android.check
+check: frontend.check backend.check android.check
 
 fix: backend.fix frontend.fix android.fix
 
@@ -68,6 +68,9 @@ frontend.run:
 frontend.watch:
 	$(MAKE) -C frontend watch
 
+frontend.ota-bundle:
+	$(MAKE) -C frontend ota-bundle
+
 frontend.pre-commit:
 	$(MAKE) -C Frontend pre-commit
 
@@ -89,4 +92,4 @@ android.fix:
 android.pre-commit:
 	$(MAKE) -C android pre-commit
 
-.PHONY: preview dev build check fix test.e2e devenv.up devenv.down devenv.reset backend.build backend.check backend.fix backend.run backend.watch frontend.build frontend.check frontend.fix frontend.run frontend.watch android.build android.run android.check android.fix
+.PHONY: preview dev build check fix test.e2e devenv.up devenv.down devenv.reset backend.build backend.check backend.fix backend.run backend.watch frontend.build frontend.check frontend.fix frontend.run frontend.watch frontend.ota-bundle android.build android.run android.check android.fix

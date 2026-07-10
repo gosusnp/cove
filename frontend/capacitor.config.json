@@ -6,6 +6,10 @@
 		"path": "../android"
 	},
 	"plugins": {
+		"CapacitorUpdater": {
+			"updateUrl": "https://cove.pgnd.dev/ota/mobile/version",
+			"autoUpdate": true
+		},
 		"CapacitorHttp": {
 			"enabled": true
 		},

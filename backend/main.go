@@ -32,6 +32,13 @@ import (
 //go:embed ui
 var uiFS embed.FS
 
+//go:embed mobile.zip
+var mobileBundleZip []byte
+
+// appVersion is set via -ldflags "-X main.appVersion=<git-sha>" at build time.
+// Empty in local dev; the update endpoint returns "no update" when empty.
+var appVersion string
+
 func main() {
 	cfg, err := loadConfig()
 	if err != nil {
@@ -140,6 +147,7 @@ func main() {
 	if cfg.Dev {
 		oauthHandler.RegisterDevRoutes(outer)
 	}
+	handlers.NewOTAHandler(appVersion, mobileBundleZip).RegisterRoutes(outer)
 	outer.Handle("/api/", mux)
 	outer.Handle("/mcp/", mux)
 	outer.Handle("/", spaHandler)

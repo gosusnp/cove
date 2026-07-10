@@ -8,17 +8,20 @@ COPY frontend/package*.json ./frontend/
 RUN npm --prefix frontend ci
 COPY frontend/ ./frontend/
 # vite outDir is ../backend/ui → /workspace/backend/ui
-RUN npm --prefix frontend run build
+# also builds the OTA bundle (dist-mobile → backend/mobile.zip)
+RUN npm --prefix frontend run build && npm --prefix frontend run build:ota-bundle
 
 # Stage 2: build backend
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS backend-build
 ARG TARGETARCH
+ARG APP_VERSION=dev
 WORKDIR /app
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 COPY backend/ .
 COPY --from=frontend-build /workspace/backend/ui ./ui
-RUN CGO_ENABLED=0 GOARCH=${TARGETARCH} go build -o bin/cove .
+COPY --from=frontend-build /workspace/backend/mobile.zip ./mobile.zip
+RUN CGO_ENABLED=0 GOARCH=${TARGETARCH} go build -ldflags "-X main.appVersion=${APP_VERSION}" -o bin/cove .
 
 # Stage 3: minimal runtime image
 FROM gcr.io/distroless/static-debian13

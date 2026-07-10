@@ -6,6 +6,7 @@ watch:
 
 build:
 	npm run build
+	npm run build:ota-bundle
 
 preview:
 	npm run preview
@@ -36,9 +37,12 @@ e2e.ui:
 
 fix: license-fix fmt
 
-check: lint fmt-check license-check test
+check: lint fmt-check license-check test ota-bundle
 
 pre-commit: fix check
+
+ota-bundle:
+	npm run build:ota-bundle
 
 android.build:
 	npm run cap:sync
@@ -50,4 +54,4 @@ install:
 	npm install
 	npx playwright install --with-deps
 
-.PHONY: run watch build preview lint fmt fmt-check license-fix license-check test test.e2e e2e.ui fix check install android.build android.run
+.PHONY: run watch build preview lint fmt fmt-check license-fix license-check test test.e2e e2e.ui fix check install ota-bundle android.build android.run

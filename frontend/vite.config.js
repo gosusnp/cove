@@ -25,6 +25,10 @@ export default defineConfig({
 		setupFiles: ["./src/test-setup.js"],
 		exclude: ["e2e/**", "node_modules/**"],
 		alias: {
+			"@capgo/capacitor-updater": resolve(
+				import.meta.dirname,
+				"src/__mocks__/capgo-capacitor-updater.js",
+			),
 			"@capacitor/core": resolve(
 				import.meta.dirname,
 				"src/__mocks__/capacitor-core.js",

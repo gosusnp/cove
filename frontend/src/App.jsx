@@ -3,6 +3,8 @@
 
 import { useEffect } from "preact/hooks";
 import { LocationProvider, Route, Router, useLocation } from "preact-iso";
+import { Capacitor } from "@capacitor/core";
+import { CapacitorUpdater } from "@capgo/capacitor-updater";
 import { AuthProvider, useAuth } from "./Auth.jsx";
 import { Nav } from "./components/shared/Nav.jsx";
 import { AdminServiceAccounts } from "./pages/AdminServiceAccounts.jsx";
@@ -87,6 +89,12 @@ function Layout() {
 }
 
 export function App() {
+	useEffect(() => {
+		if (Capacitor.isNativePlatform()) {
+			CapacitorUpdater.notifyAppReady();
+		}
+	}, []);
+
 	return (
 		<LocationProvider>
 			<AuthProvider>
