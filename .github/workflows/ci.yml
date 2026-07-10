@@ -45,6 +45,11 @@ jobs:
           name: frontend-dist
           path: backend/ui/
           retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mobile-bundle
+          path: backend/mobile.zip
+          retention-days: 1
 
   backend-check:
     runs-on: ubuntu-latest
@@ -62,6 +67,10 @@ jobs:
         with:
           name: frontend-dist
           path: backend/ui/
+      - uses: actions/download-artifact@v4
+        with:
+          name: mobile-bundle
+          path: backend/
       - run: go mod download
       - run: make check
 
