@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gosusnp/cove/backend/internal/domain"
@@ -95,7 +96,7 @@ func TestUserService_GetUserByToken(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		ctx, svc := newTestUserService(t)
 		user, _, _ := svc.GetOrCreate(ctx, "test@example.com", "sub")
-		token, _, _ := svc.CreateSession(ctx, user.ID, "1.2.3.4", "Chrome", "OS")
+		token, _, _, _ := svc.CreateSession(ctx, user.ID, "1.2.3.4", "Chrome", "OS")
 
 		gotUser, gotOrg, tokenID, err := svc.GetUserByToken(ctx, token, "1.2.3.4", "Chrome", "OS")
 		if err != nil {
@@ -235,9 +236,14 @@ func TestUserService_Tokens(t *testing.T) {
 	_ = svc.db.QueryRowContext(ctx, "SELECT org_id FROM cove.org_members WHERE user_id = $1 LIMIT 1", user.ID).Scan(&orgID)
 
 	t.Run("session lifecycle", func(t *testing.T) {
-		token, tokenID, err := svc.CreateSession(ctx, user.ID, "1.1.1.1", "B1", "O1")
+		before := time.Now()
+		token, tokenID, expiresAt, err := svc.CreateSession(ctx, user.ID, "1.1.1.1", "B1", "O1")
 		if err != nil {
 			t.Fatal(err)
+		}
+		wantExpiry := before.Add(SessionTTL)
+		if expiresAt.Before(wantExpiry.Add(-time.Second)) || expiresAt.After(wantExpiry.Add(time.Second)) {
+			t.Errorf("expiresAt %v not within 1s of expected %v", expiresAt, wantExpiry)
 		}
 
 		sessions, _ := svc.ListSessions(ctx, user.ID)

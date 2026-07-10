@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"golang.org/x/oauth2"
 
@@ -22,13 +23,15 @@ import (
 const sessionCookieName = "cove_session"
 
 // setSessionCookie writes an HttpOnly session cookie to the response.
-func setSessionCookie(w http.ResponseWriter, token string, secure bool) {
+// MaxAge is derived from expiresAt so the cookie lifetime matches the server-side session TTL.
+func setSessionCookie(w http.ResponseWriter, token string, expiresAt time.Time, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    token,
 		HttpOnly: true,
 		Secure:   secure,
 		SameSite: http.SameSiteStrictMode,
+		MaxAge:   int(time.Until(expiresAt).Seconds()),
 		Path:     "/",
 	})
 }
@@ -55,10 +58,10 @@ type OAuthHandler struct {
 	secureCookies bool
 }
 
-func (h *OAuthHandler) createSession(r *http.Request, userID domain.UserID) (string, error) {
+func (h *OAuthHandler) createSession(r *http.Request, userID domain.UserID) (string, time.Time, error) {
 	ip, browser, os := httputil.FromRequest(r)
-	token, _, err := h.userSvc.CreateSession(r.Context(), userID, ip, browser, os)
-	return token, err
+	token, _, expiresAt, err := h.userSvc.CreateSession(r.Context(), userID, ip, browser, os)
+	return token, expiresAt, err
 }
 
 func NewOAuthHandler(cfg *oauth2.Config, svc *service.UserService, allowed []string, secureCookies bool) *OAuthHandler {
@@ -104,12 +107,12 @@ func (h *OAuthHandler) devLogin(w http.ResponseWriter, r *http.Request) {
 		internalError(w, r, fmt.Errorf("get or create user: %w", err))
 		return
 	}
-	token, err := h.createSession(r, user.ID)
+	token, expiresAt, err := h.createSession(r, user.ID)
 	if err != nil {
 		internalError(w, r, fmt.Errorf("create session: %w", err))
 		return
 	}
-	setSessionCookie(w, token, h.secureCookies)
+	setSessionCookie(w, token, expiresAt, h.secureCookies)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -169,13 +172,13 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Issue session
-	sessionToken, err := h.createSession(r, user.ID)
+	sessionToken, sessionExpiresAt, err := h.createSession(r, user.ID)
 	if err != nil {
 		internalError(w, r, fmt.Errorf("create session: %w", err))
 		return
 	}
 
-	setSessionCookie(w, sessionToken, h.secureCookies)
+	setSessionCookie(w, sessionToken, sessionExpiresAt, h.secureCookies)
 
 	// After OAuth login, complete a pending MCP authorization flow if one was started.
 	if c, err := r.Cookie(oauthReturnToCookieName); err == nil {

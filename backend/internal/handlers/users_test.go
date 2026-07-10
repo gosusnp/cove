@@ -21,7 +21,7 @@ func TestUserHandler_Logout(t *testing.T) {
 		userID := app.SeedUser("logout@example.com", "sub-logout")
 
 		// We need a session token.
-		token, _, err := app.Users.CreateSession(context.Background(), userID, "1.2.3.4", "agent", "OS")
+		token, _, _, err := app.Users.CreateSession(context.Background(), userID, "1.2.3.4", "agent", "OS")
 		if err != nil {
 			t.Fatalf("CreateSession: %v", err)
 		}
@@ -271,7 +271,7 @@ func TestUserHandler_Sessions(t *testing.T) {
 		userB := app.SeedUser("b-sess@example.com", "sub-b-sess")
 
 		// User A creates an extra session (outside of AuthRequest).
-		_, _, _ = app.Users.CreateSession(context.Background(), userA, "1.1.1.1", "agent", "OS")
+		_, _, _, _ = app.Users.CreateSession(context.Background(), userA, "1.1.1.1", "agent", "OS")
 
 		// User B lists sessions — should only see their own (1 from AuthRequest), not A's.
 		r := app.AuthRequest(http.MethodGet, "/api/users/sessions", nil, userB)
@@ -290,7 +290,7 @@ func TestUserHandler_Sessions(t *testing.T) {
 		userB := app.SeedUser("b@example.com", "sub-b")
 
 		// User A has a session
-		tokenA, _, _ := app.Users.CreateSession(context.Background(), userA, "1.1.1.1", "agent", "OS")
+		tokenA, _, _, _ := app.Users.CreateSession(context.Background(), userA, "1.1.1.1", "agent", "OS")
 		sessionsA, _ := app.Users.ListSessions(context.Background(), userA)
 		idA := sessionsA[0].ID
 

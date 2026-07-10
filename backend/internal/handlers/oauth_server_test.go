@@ -315,7 +315,7 @@ func TestOAuthServerHandler_FullFlow(t *testing.T) {
 
 	// 2. Create a user and obtain a session token.
 	userID := app.SeedUser("flowtest@example.com", "sub-flow")
-	sessionToken, _, err := app.Users.CreateSession(t.Context(), userID, "127.0.0.1", "test", "test")
+	sessionToken, _, _, err := app.Users.CreateSession(t.Context(), userID, "127.0.0.1", "test", "test")
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}

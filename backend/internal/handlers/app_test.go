@@ -98,7 +98,7 @@ func newTestApp(t *testing.T, fdcClient *fdc.Client, jobClient SummaryJobClient)
 	if err != nil {
 		t.Fatalf("create system user: %v", err)
 	}
-	sysToken, _, err := uSvc.CreateSession(context.Background(), sysUser.ID, "127.0.0.1", "test-agent", "Test OS")
+	sysToken, _, _, err := uSvc.CreateSession(context.Background(), sysUser.ID, "127.0.0.1", "test-agent", "Test OS")
 	if err != nil {
 		t.Fatalf("create system session: %v", err)
 	}
@@ -185,7 +185,7 @@ func (a *TestApp) AuthRequest(method, path string, body any, userID domain.UserI
 	}
 
 	r := httptest.NewRequest(method, path, rbody)
-	token, _, err := a.Users.CreateSession(context.Background(), userID, "127.0.0.1", "test-agent", "Test OS")
+	token, _, _, err := a.Users.CreateSession(context.Background(), userID, "127.0.0.1", "test-agent", "Test OS")
 	if err != nil {
 		a.T.Fatalf("create session: %v", err)
 	}

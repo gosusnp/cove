@@ -86,7 +86,7 @@ func TestOAuth(t *testing.T) {
 		svc := service.NewUserService(database, us, orgs)
 
 		user, _, _ := svc.GetOrCreate(context.Background(), "test@example.com", "sub123")
-		token, _, _ := svc.CreateSession(context.Background(), user.ID, "1.2.3.4", "Chrome", "macOS")
+		token, _, _, _ := svc.CreateSession(context.Background(), user.ID, "1.2.3.4", "Chrome", "macOS")
 
 		handler := OAuth(svc, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			got := UserIDFromContext(r.Context())
@@ -160,7 +160,7 @@ func TestOAuth(t *testing.T) {
 		svc := service.NewUserService(database, us, orgs)
 
 		user, _, _ := svc.GetOrCreate(context.Background(), "cookie@example.com", "sub-cookie")
-		token, _, _ := svc.CreateSession(context.Background(), user.ID, "1.2.3.4", "Chrome", "macOS")
+		token, _, _, _ := svc.CreateSession(context.Background(), user.ID, "1.2.3.4", "Chrome", "macOS")
 
 		handler := OAuth(svc, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			got := UserIDFromContext(r.Context())

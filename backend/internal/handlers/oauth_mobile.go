@@ -68,13 +68,13 @@ func (h *OAuthHandler) mobileLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.createSession(r, user.ID)
+	token, expiresAt, err := h.createSession(r, user.ID)
 	if err != nil {
 		internalError(w, r, fmt.Errorf("create session: %w", err))
 		return
 	}
 
-	setSessionCookie(w, token, h.secureCookies)
+	setSessionCookie(w, token, expiresAt, h.secureCookies)
 	w.WriteHeader(http.StatusNoContent)
 }
 

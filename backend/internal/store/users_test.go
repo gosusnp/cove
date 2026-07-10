@@ -8,11 +8,15 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/testutil"
 )
+
+// testSessionExpiry returns a session expiry 30 days from now, matching service.SessionTTL.
+func testSessionExpiry() time.Time { return time.Now().Add(30 * 24 * time.Hour) }
 
 func newTestUserStore(t *testing.T) (context.Context, *sql.DB, *UserStore, *OrgStore) {
 	t.Helper()
@@ -145,7 +149,7 @@ func TestUserStore_CreateSession(t *testing.T) {
 	user, _ := createTestUser(t, db, s, os, "test@example.com", "sub")
 
 	t.Run("success", func(t *testing.T) {
-		token, _, err := s.CreateSession(ctx, db, user.ID, "127.0.0.1", "Chrome", "macOS")
+		token, _, err := s.CreateSession(ctx, db, user.ID, testSessionExpiry(), "127.0.0.1", "Chrome", "macOS")
 		if err != nil {
 			t.Fatalf("CreateSession: %v", err)
 		}
@@ -195,8 +199,8 @@ func TestUserStore_Lists(t *testing.T) {
 	user, orgID := createTestUser(t, db, s, os, "test@example.com", "sub")
 
 	t.Run("sessions", func(t *testing.T) {
-		_, _, _ = s.CreateSession(ctx, db, user.ID, "1.1.1.1", "B1", "O1")
-		_, _, _ = s.CreateSession(ctx, db, user.ID, "2.2.2.2", "B2", "O2")
+		_, _, _ = s.CreateSession(ctx, db, user.ID, testSessionExpiry(), "1.1.1.1", "B1", "O1")
+		_, _, _ = s.CreateSession(ctx, db, user.ID, testSessionExpiry(), "2.2.2.2", "B2", "O2")
 
 		list, err := s.ListSessions(ctx, db, user.ID)
 		if err != nil {
@@ -226,7 +230,7 @@ func TestUserStore_GetUserByToken(t *testing.T) {
 	user, _ := createTestUser(t, db, s, os, "test@example.com", "sub")
 
 	t.Run("found active session", func(t *testing.T) {
-		token, _, _ := s.CreateSession(ctx, db, user.ID, "1.1.1.1", "B1", "O1")
+		token, _, _ := s.CreateSession(ctx, db, user.ID, testSessionExpiry(), "1.1.1.1", "B1", "O1")
 
 		gotUser, gotOrg, tokenID, err := s.GetUserByToken(ctx, db, token, "2.2.2.2", "B2", "O2")
 		if err != nil {
@@ -316,7 +320,7 @@ func TestUserStore_Deletes(t *testing.T) {
 	})
 
 	t.Run("delete session", func(t *testing.T) {
-		_, sessionID, _ := s.CreateSession(ctx, db, user.ID, "", "", "")
+		_, sessionID, _ := s.CreateSession(ctx, db, user.ID, testSessionExpiry(), "", "", "")
 
 		err := s.DeleteSession(ctx, db, user.ID, sessionID)
 		if err != nil {

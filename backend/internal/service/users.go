@@ -9,11 +9,16 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gosusnp/cove/backend/internal/domain"
 	"github.com/gosusnp/cove/backend/internal/store"
 )
+
+// SessionTTL is the lifetime of a user session. The store uses it as expires_at;
+// the handler uses it to set the cookie MaxAge.
+const SessionTTL = 30 * 24 * time.Hour
 
 // UserService handles user profile operations.
 type UserService struct {
@@ -82,19 +87,21 @@ func (s *UserService) GetUserByToken(
 	return s.users.GetUserByToken(ctx, s.db, token, ipMasked, browser, os)
 }
 
-// CreateSession generates a session token for the user.
+// CreateSession generates a session token for the user and returns the raw token,
+// session ID, expiry time, and any error.
 func (s *UserService) CreateSession(
 	ctx context.Context,
 	userID domain.UserID,
 	ip domain.MaskedIP,
 	browser string,
 	os string,
-) (string, domain.SessionID, error) {
-	token, sessionID, err := s.users.CreateSession(ctx, s.db, userID, ip, browser, os)
+) (string, domain.SessionID, time.Time, error) {
+	expiresAt := time.Now().Add(SessionTTL)
+	token, sessionID, err := s.users.CreateSession(ctx, s.db, userID, expiresAt, ip, browser, os)
 	if err != nil {
-		return "", domain.SessionID{}, fmt.Errorf("create session: %w", err)
+		return "", domain.SessionID{}, time.Time{}, fmt.Errorf("create session: %w", err)
 	}
-	return token, sessionID, nil
+	return token, sessionID, expiresAt, nil
 }
 
 // CreatePAT creates a named PAT for the user. Returns the raw token (shown once) and the PAT metadata.

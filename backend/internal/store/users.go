@@ -112,6 +112,7 @@ func (s *UserStore) CreateSession(
 	ctx context.Context,
 	q Querier,
 	userID domain.UserID,
+	expiresAt time.Time,
 	ipMasked domain.MaskedIP,
 	browser string,
 	os string,
@@ -132,7 +133,6 @@ func (s *UserStore) CreateSession(
 	}
 	hash := sha256TokenHash(token)
 
-	expiresAt := time.Now().Add(30 * 24 * time.Hour)
 	_, err = q.ExecContext(
 		ctx,
 		`INSERT INTO cove.user_tokens (id, user_id, org_id, kind, token, expires_at, initial_ip_masked, initial_browser, initial_os)
