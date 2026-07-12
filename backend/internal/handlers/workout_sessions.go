@@ -35,6 +35,7 @@ func NewWorkoutSessionHandler(s *service.WorkoutSessionService, d SummaryJobClie
 func (h *WorkoutSessionHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /sessions", h.list)
 	mux.HandleFunc("POST /sessions", h.create)
+	mux.HandleFunc("GET /sessions/labels", h.labels)
 	mux.HandleFunc("GET /sessions/{id}", h.get)
 	mux.HandleFunc("PUT /sessions/{id}", h.replace)
 	mux.HandleFunc("PATCH /sessions/{id}", h.patch)
@@ -50,6 +51,7 @@ type workoutSessionRequest struct {
 	ProgramStructure *string    `json:"program_structure,omitempty"`
 	Activity         *string    `json:"activity,omitempty"`
 	DurationS        *int       `json:"duration_s,omitempty"`
+	Labels           []string   `json:"labels,omitempty"`
 	PerceivedEffort  *int       `json:"perceived_effort,omitempty"`
 	SessionNotes     *string    `json:"session_notes,omitempty"`
 	Summary          *string    `json:"summary,omitempty"`
@@ -82,6 +84,7 @@ func (req *workoutSessionRequest) toParams() store.WorkoutSessionParams {
 		DurationS:   req.DurationS,
 		StartedAt:   req.StartedAt,
 		CompletedAt: req.CompletedAt,
+		Labels:      req.Labels,
 		SensitiveData: domain.SessionSensitiveData{
 			PerceivedEffort:  req.PerceivedEffort,
 			SessionNotes:     crypto.NewSensitiveStringFromPtr(req.SessionNotes),
@@ -109,6 +112,7 @@ type workoutSessionResponse struct {
 	DurationS          *int                    `json:"duration_s,omitempty"`
 	StartedAt          *time.Time              `json:"started_at,omitempty"`
 	CompletedAt        *time.Time              `json:"completed_at,omitempty"`
+	Labels             []string                `json:"labels"`
 	SummaryGeneratedAt *time.Time              `json:"summary_generated_at,omitempty"`
 	CreatedBy          domain.UserID           `json:"created_by"`
 	CreatedAt          time.Time               `json:"created_at"`
@@ -120,6 +124,10 @@ type workoutSessionResponse struct {
 	ProgramName      *string `json:"program_name,omitempty"`
 	ProgramStructure *string `json:"program_structure,omitempty"`
 	Summary          *string `json:"summary,omitempty"`
+}
+
+type sessionLabelsResponse struct {
+	Labels []string `json:"labels"`
 }
 
 type summarizeResponse struct {
@@ -140,6 +148,7 @@ func toResponse(r *http.Request, ws *domain.WorkoutSession) (*workoutSessionResp
 		DurationS:          ws.DurationS,
 		StartedAt:          ws.StartedAt,
 		CompletedAt:        ws.CompletedAt,
+		Labels:             ws.Labels,
 		SummaryGeneratedAt: ws.SummaryGeneratedAt,
 		CreatedBy:          ws.CreatedBy,
 		CreatedAt:          ws.CreatedAt,
@@ -157,6 +166,10 @@ func toResponse(r *http.Request, ws *domain.WorkoutSession) (*workoutSessionResp
 	return resp, err
 }
 
+func (h *WorkoutSessionHandler) labels(w http.ResponseWriter, r *http.Request) {
+	jsonOK(w, sessionLabelsResponse{Labels: service.AllowedSessionLabels()})
+}
+
 func (h *WorkoutSessionHandler) create(w http.ResponseWriter, r *http.Request) {
 	var req workoutSessionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -166,6 +179,11 @@ func (h *WorkoutSessionHandler) create(w http.ResponseWriter, r *http.Request) {
 	ws, err := h.svc.Create(r.Context(), req.toParams())
 	if errors.Is(err, service.ErrUnauthorized) {
 		jsonError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	var ve *service.ValidationError
+	if errors.As(err, &ve) {
+		jsonError(w, ve.Error(), http.StatusBadRequest)
 		return
 	}
 	if err != nil {

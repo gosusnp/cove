@@ -64,6 +64,7 @@ type WorkoutSession struct {
 	DurationS          *int             `json:"duration_s,omitempty"`
 	StartedAt          *time.Time       `json:"started_at,omitempty"`
 	CompletedAt        *time.Time       `json:"completed_at,omitempty"`
+	Labels             []string         `json:"labels"`
 	SummaryGeneratedAt *time.Time       `json:"summary_generated_at,omitempty"`
 	CreatedBy          UserID           `json:"created_by"`
 	CreatedAt          time.Time        `json:"created_at"`

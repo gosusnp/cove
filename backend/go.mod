@@ -8,6 +8,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hatchet-dev/hatchet v0.83.11
 	github.com/jackc/pgx/v5 v5.9.1
+	github.com/lib/pq v1.11.1
 	github.com/mileusna/useragent v1.3.5
 	github.com/modelcontextprotocol/go-sdk v1.3.1
 	github.com/peterldowns/pgtestdb v0.1.1
@@ -194,7 +195,6 @@ require (
 	github.com/ldez/usetesting v0.5.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/leonklingele/grouper v1.1.2 // indirect
-	github.com/lib/pq v1.11.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20250317134145-8bc96cf8fc35 // indirect
 	github.com/macabu/inamedparam v0.2.0 // indirect

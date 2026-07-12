@@ -194,6 +194,119 @@ func TestWorkoutSessionService_Update(t *testing.T) {
 	})
 }
 
+func TestWorkoutSessionService_Labels(t *testing.T) {
+	t.Run("valid labels stored and returned", func(t *testing.T) {
+		svc, ctx := newTestWorkoutSessionService(t)
+		ws, err := svc.Create(ctx, store.WorkoutSessionParams{
+			Labels: []string{"deload", "recovery"},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(ws.Labels) != 2 || ws.Labels[0] != "deload" || ws.Labels[1] != "recovery" {
+			t.Errorf("got labels %v, want [deload recovery]", ws.Labels)
+		}
+	})
+
+	t.Run("empty labels stored as empty slice not nil", func(t *testing.T) {
+		svc, ctx := newTestWorkoutSessionService(t)
+		ws, err := svc.Create(ctx, store.WorkoutSessionParams{Labels: []string{}})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if ws.Labels == nil {
+			t.Error("got nil labels, want empty slice")
+		}
+	})
+
+	t.Run("invalid label returns ValidationError on create", func(t *testing.T) {
+		svc, ctx := newTestWorkoutSessionService(t)
+		_, err := svc.Create(ctx, store.WorkoutSessionParams{Labels: []string{"invalid"}})
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Errorf("got %v, want ValidationError", err)
+		}
+	})
+
+	t.Run("invalid label returns ValidationError on update", func(t *testing.T) {
+		svc, ctx := newTestWorkoutSessionService(t)
+		created, _ := svc.Create(ctx, store.WorkoutSessionParams{})
+		_, err := svc.Update(ctx, created.ID, &created.UpdatedAt, store.WorkoutSessionParams{
+			Labels: []string{"not-real"},
+		})
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Errorf("got %v, want ValidationError", err)
+		}
+	})
+}
+
+func TestWorkoutSessionService_Patch_Labels(t *testing.T) {
+	t.Run("adds labels without affecting other fields", func(t *testing.T) {
+		svc, ctx := newTestWorkoutSessionService(t)
+		activity := "Run"
+		created, _ := svc.Create(ctx, store.WorkoutSessionParams{Activity: &activity})
+
+		patched, err := svc.Patch(ctx, created.ID, WorkoutSessionPatch{
+			Labels: domain.Optional[[]string]{Value: []string{"deload"}, Set: true},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(patched.Labels) != 1 || patched.Labels[0] != "deload" {
+			t.Errorf("got labels %v, want [deload]", patched.Labels)
+		}
+		if patched.Activity == nil || *patched.Activity != activity {
+			t.Errorf("activity should be preserved, got %v", patched.Activity)
+		}
+	})
+
+	t.Run("clears labels when set to empty slice", func(t *testing.T) {
+		svc, ctx := newTestWorkoutSessionService(t)
+		created, _ := svc.Create(ctx, store.WorkoutSessionParams{Labels: []string{"deload"}})
+
+		patched, err := svc.Patch(ctx, created.ID, WorkoutSessionPatch{
+			Labels: domain.Optional[[]string]{Value: []string{}, Set: true},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(patched.Labels) != 0 {
+			t.Errorf("got labels %v, want []", patched.Labels)
+		}
+	})
+
+	t.Run("omitting labels leaves them unchanged", func(t *testing.T) {
+		svc, ctx := newTestWorkoutSessionService(t)
+		created, _ := svc.Create(ctx, store.WorkoutSessionParams{Labels: []string{"recovery"}})
+
+		patched, err := svc.Patch(ctx, created.ID, WorkoutSessionPatch{
+			Activity: domain.Optional[*string]{Value: strPtr("Swim"), Set: true},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(patched.Labels) != 1 || patched.Labels[0] != "recovery" {
+			t.Errorf("got labels %v, want [recovery]", patched.Labels)
+		}
+	})
+
+	t.Run("invalid label in patch returns ValidationError", func(t *testing.T) {
+		svc, ctx := newTestWorkoutSessionService(t)
+		created, _ := svc.Create(ctx, store.WorkoutSessionParams{})
+
+		_, err := svc.Patch(ctx, created.ID, WorkoutSessionPatch{
+			Labels: domain.Optional[[]string]{Value: []string{"unknown"}, Set: true},
+		})
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Errorf("got %v, want ValidationError", err)
+		}
+	})
+}
+
+func strPtr(s string) *string { return &s }
+
 func TestWorkoutSessionService_Delete(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc, ctx := newTestWorkoutSessionService(t)

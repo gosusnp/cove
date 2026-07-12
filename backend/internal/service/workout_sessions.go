@@ -25,6 +25,33 @@ func NewWorkoutSessionService(db *sql.DB, s *store.WorkoutSessionStore, enc cryp
 	return &WorkoutSessionService{db: db, store: s, enc: enc}
 }
 
+// allowedSessionLabels is the set of valid label values. Service-level
+// validation is intentional — keeps the DB schema unconstrained and allows
+// the allowed set to be made DB-driven in the future without a migration.
+var allowedSessionLabels = []string{"deload", "recovery"}
+
+var allowedSessionLabelSet = func() map[string]bool {
+	m := make(map[string]bool, len(allowedSessionLabels))
+	for _, l := range allowedSessionLabels {
+		m[l] = true
+	}
+	return m
+}()
+
+// AllowedSessionLabels returns the current set of valid session label values.
+func AllowedSessionLabels() []string {
+	return allowedSessionLabels
+}
+
+func validateLabels(labels []string) error {
+	for _, l := range labels {
+		if !allowedSessionLabelSet[l] {
+			return &ValidationError{Msg: fmt.Sprintf("unknown label %q", l)}
+		}
+	}
+	return nil
+}
+
 // WorkoutSessionPatch contains the fields that may be changed via a partial
 // update. Only fields where Optional.Set == true are applied; absent fields
 // retain their current values unchanged. UpdatedAt is an optional version token
@@ -38,6 +65,7 @@ type WorkoutSessionPatch struct {
 	DurationS        domain.Optional[*int]       `json:"duration_s"`
 	StartedAt        domain.Optional[*time.Time] `json:"started_at"`
 	CompletedAt      domain.Optional[*time.Time] `json:"completed_at"`
+	Labels           domain.Optional[[]string]   `json:"labels"`
 	PerceivedEffort  domain.Optional[*int]       `json:"perceived_effort"`
 	SessionNotes     domain.Optional[*string]    `json:"session_notes"`
 	ProgramName      domain.Optional[*string]    `json:"program_name"`
@@ -150,6 +178,13 @@ func (s *WorkoutSessionService) Create(ctx context.Context, p store.WorkoutSessi
 		return nil, ErrUnauthorized
 	}
 
+	if p.Labels == nil {
+		p.Labels = []string{}
+	}
+	if err := validateLabels(p.Labels); err != nil {
+		return nil, err
+	}
+
 	sensitiveData, err := s.encryptSensitiveData(ctx, p, id.UserID)
 	if err != nil {
 		return nil, err
@@ -172,6 +207,13 @@ func (s *WorkoutSessionService) Update(ctx context.Context, id domain.WorkoutSes
 	identity, ok := domain.IdentityFromContext(ctx)
 	if !ok {
 		return nil, ErrUnauthorized
+	}
+
+	if p.Labels == nil {
+		p.Labels = []string{}
+	}
+	if err := validateLabels(p.Labels); err != nil {
+		return nil, err
 	}
 
 	sensitiveData, err := s.encryptSensitiveData(ctx, p, identity.UserID)
@@ -224,9 +266,20 @@ func (s *WorkoutSessionService) Patch(ctx context.Context, id domain.WorkoutSess
 			DurationS:   current.DurationS,
 			StartedAt:   current.StartedAt,
 			CompletedAt: current.CompletedAt,
+			Labels:      current.Labels,
 		}
 
 		// Apply non-sensitive patches.
+		if patch.Labels.Set {
+			labels := patch.Labels.Value
+			if labels == nil {
+				labels = []string{}
+			}
+			if err := validateLabels(labels); err != nil {
+				return err
+			}
+			p.Labels = labels
+		}
 		if patch.ProgramID.Set {
 			if patch.ProgramID.Value != nil {
 				pid := domain.ProgramID(*patch.ProgramID.Value)

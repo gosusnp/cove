@@ -96,7 +96,7 @@ func TestWorkoutSessionStore_List(t *testing.T) {
 		q2 := NewScopedQuerier(tx2, oID.String(), uID2.String())
 
 		s := NewWorkoutSessionStore()
-		p := WorkoutSessionParams{Activity: strPtr("Run")}
+		p := WorkoutSessionParams{Activity: strPtr("Run"), Labels: []string{}}
 		if _, err := s.Create(ctx1, q1, p, secureBytes(t, ctx1, p)); err != nil {
 			t.Fatal(err)
 		}
@@ -115,7 +115,7 @@ func TestWorkoutSessionStore_List(t *testing.T) {
 func TestWorkoutSessionStore_Get(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
 		s, q, ctx := newTestWorkoutSessionStore(t)
-		p := WorkoutSessionParams{Activity: strPtr("Swim")}
+		p := WorkoutSessionParams{Activity: strPtr("Swim"), Labels: []string{}}
 		created, err := s.Create(ctx, q, p, secureBytes(t, ctx, p))
 		if err != nil {
 			t.Fatal(err)
@@ -152,6 +152,7 @@ func TestWorkoutSessionStore_Create(t *testing.T) {
 		p := WorkoutSessionParams{
 			Activity:  strPtr("Bike"),
 			DurationS: &duration,
+			Labels:    []string{},
 			SensitiveData: domain.SessionSensitiveData{
 				PerceivedEffort: &effort,
 				SessionNotes:    &notesSS,
@@ -187,7 +188,7 @@ func TestWorkoutSessionStore_Create(t *testing.T) {
 
 	t.Run("creates with no optional fields", func(t *testing.T) {
 		s, q, ctx := newTestWorkoutSessionStore(t)
-		p := WorkoutSessionParams{}
+		p := WorkoutSessionParams{Labels: []string{}}
 		ws, err := s.Create(ctx, q, p, secureBytes(t, ctx, p))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -212,7 +213,7 @@ func TestWorkoutSessionStore_Update(t *testing.T) {
 	t.Run("updates fields", func(t *testing.T) {
 		s, q, ctx := newTestWorkoutSessionStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
-		p0 := WorkoutSessionParams{Activity: strPtr("Run")}
+		p0 := WorkoutSessionParams{Activity: strPtr("Run"), Labels: []string{}}
 		created, err := s.Create(ctx, q, p0, secureBytes(t, ctx, p0))
 		if err != nil {
 			t.Fatal(err)
@@ -221,6 +222,7 @@ func TestWorkoutSessionStore_Update(t *testing.T) {
 		effort := 8
 		p1 := WorkoutSessionParams{
 			Activity:      strPtr("Swim"),
+			Labels:        []string{},
 			SensitiveData: domain.SessionSensitiveData{PerceivedEffort: &effort},
 		}
 		updated, err := s.Update(ctx, q, id.OrgID, created.ID, p1, secureBytes(t, ctx, p1), false, &created.UpdatedAt)
@@ -244,7 +246,7 @@ func TestWorkoutSessionStore_Update(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		s, q, ctx := newTestWorkoutSessionStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
-		p := WorkoutSessionParams{}
+		p := WorkoutSessionParams{Labels: []string{}}
 		_, err := s.Update(ctx, q, id.OrgID, domain.WorkoutSessionID(999), p, secureBytes(t, ctx, p), false, nil)
 		if !errors.Is(err, ErrNotFound) {
 			t.Errorf("got %v, want ErrNotFound", err)
@@ -256,7 +258,7 @@ func TestWorkoutSessionStore_Delete(t *testing.T) {
 	t.Run("deletes existing", func(t *testing.T) {
 		s, q, ctx := newTestWorkoutSessionStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
-		p := WorkoutSessionParams{}
+		p := WorkoutSessionParams{Labels: []string{}}
 		created, err := s.Create(ctx, q, p, secureBytes(t, ctx, p))
 		if err != nil {
 			t.Fatal(err)
@@ -301,7 +303,7 @@ func TestWorkoutSessionStore_ServiceAccountRLS(t *testing.T) {
 	seedTx, _ := db.BeginTx(userCtx, nil)
 	seedQ := NewScopedQuerier(seedTx, oID.String(), uID.String())
 	s := NewWorkoutSessionStore()
-	p := WorkoutSessionParams{Activity: strPtr("Run")}
+	p := WorkoutSessionParams{Activity: strPtr("Run"), Labels: []string{}}
 	created, err := s.Create(userCtx, seedQ, p, secureBytes(t, userCtx, p))
 	if err != nil {
 		t.Fatalf("seed session: %v", err)
@@ -338,7 +340,7 @@ func TestWorkoutSessionStore_ServiceAccountRLS(t *testing.T) {
 
 	t.Run("service account can UPDATE workout sessions", func(t *testing.T) {
 		q := newSvcTx(t)
-		p := WorkoutSessionParams{Activity: strPtr("Bike")}
+		p := WorkoutSessionParams{Activity: strPtr("Bike"), Labels: []string{}}
 		updated, err := s.Update(svcCtx, q, oID, created.ID, p, nil, true, nil)
 		if err != nil {
 			t.Fatalf("expected UPDATE to succeed, got: %v", err)
@@ -352,7 +354,7 @@ func TestWorkoutSessionStore_ServiceAccountRLS(t *testing.T) {
 		q := newSvcTx(t)
 		// Use a real (empty) sensitive-data blob so the failure is unambiguously
 		// RLS, not a null-dereference or encoding error.
-		p := WorkoutSessionParams{Activity: strPtr("Swim")}
+		p := WorkoutSessionParams{Activity: strPtr("Swim"), Labels: []string{}}
 		if _, err := s.Create(svcCtx, q, p, secureBytes(t, userCtx, p)); err == nil {
 			t.Error("expected INSERT to be blocked for service account, got nil error")
 		}
@@ -379,7 +381,7 @@ func TestWorkoutSessionStore_ServiceAccountRLS(t *testing.T) {
 		userCtx2 := domain.NewContext(context.Background(), &domain.Identity{UserID: uID2, OrgID: oID2})
 		seedTx2, _ := db.BeginTx(userCtx2, nil)
 		seedQ2 := NewScopedQuerier(seedTx2, oID2.String(), uID2.String())
-		p2 := WorkoutSessionParams{Activity: strPtr("Yoga")}
+		p2 := WorkoutSessionParams{Activity: strPtr("Yoga"), Labels: []string{}}
 		session2, err := s.Create(userCtx2, seedQ2, p2, secureBytes(t, userCtx2, p2))
 		if err != nil {
 			t.Fatalf("seed org2 session: %v", err)

@@ -42,6 +42,37 @@ type sessionResp struct {
 	PerceivedEffort  *int                    `json:"perceived_effort,omitempty"`
 	SessionNotes     *string                 `json:"session_notes,omitempty"`
 	ProgramStructure *string                 `json:"program_structure,omitempty"`
+	Labels           []string                `json:"labels"`
+}
+
+func TestWorkoutSessionHandler_Labels(t *testing.T) {
+	t.Run("returns allowed labels", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+		r := app.AuthRequest(http.MethodGet, "/api/sessions/labels", nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
+		}
+		var got struct {
+			Labels []string `json:"labels"`
+		}
+		DecodeJSON(t, w, &got)
+		if len(got.Labels) == 0 {
+			t.Error("expected non-empty labels list")
+		}
+	})
+
+	t.Run("unauthorized", func(t *testing.T) {
+		app := NewTestApp(t)
+		r := httptest.NewRequest(http.MethodGet, "/api/sessions/labels", nil)
+		w := app.Do(r)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusUnauthorized)
+		}
+	})
 }
 
 func TestWorkoutSessionHandler_List(t *testing.T) {
@@ -276,6 +307,35 @@ func TestWorkoutSessionHandler_Create(t *testing.T) {
 		}
 	})
 
+	t.Run("creates session with labels", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+		body := mustJSON(t, map[string]any{"labels": []string{"deload"}})
+		r := app.AuthRequest(http.MethodPost, "/api/sessions", body, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusCreated {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusCreated)
+		}
+		var got sessionResp
+		DecodeJSON(t, w, &got)
+		if len(got.Labels) != 1 || got.Labels[0] != "deload" {
+			t.Errorf("got labels %v, want [deload]", got.Labels)
+		}
+	})
+
+	t.Run("invalid label returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+		body := mustJSON(t, map[string]any{"labels": []string{"not-a-label"}})
+		r := app.AuthRequest(http.MethodPost, "/api/sessions", body, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
 	t.Run("creates freeform session with no body fields", func(t *testing.T) {
 		app := NewTestApp(t)
 		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
@@ -363,6 +423,19 @@ func TestWorkoutSessionHandler_Replace(t *testing.T) {
 		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
 		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
 		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/sessions/%d", ws.ID), bytes.NewBufferString("not json"), u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("invalid label returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+		body := mustJSON(t, map[string]any{"labels": []string{"invalid"}, "updated_at": ws.UpdatedAt})
+		r := app.AuthRequest(http.MethodPut, fmt.Sprintf("/api/sessions/%d", ws.ID), body, u1)
 		w := app.Do(r)
 
 		if w.Code != http.StatusBadRequest {
@@ -478,6 +551,41 @@ func TestWorkoutSessionHandler_Patch(t *testing.T) {
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("got status %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("patches labels without affecting other fields", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		activity := "Run"
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{Activity: &activity})
+		body := mustJSON(t, map[string]any{"labels": []string{"deload", "recovery"}})
+		r := app.AuthRequest(http.MethodPatch, fmt.Sprintf("/api/sessions/%d", ws.ID), body, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
+		}
+		var got sessionResp
+		DecodeJSON(t, w, &got)
+		if len(got.Labels) != 2 {
+			t.Errorf("got labels %v, want [deload recovery]", got.Labels)
+		}
+		if got.Activity == nil || *got.Activity != activity {
+			t.Errorf("activity should be preserved, got %v", got.Activity)
+		}
+	})
+
+	t.Run("invalid label returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+		body := mustJSON(t, map[string]any{"labels": []string{"not-a-label"}})
+		r := app.AuthRequest(http.MethodPatch, fmt.Sprintf("/api/sessions/%d", ws.ID), body, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
 		}
 	})
 

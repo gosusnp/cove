@@ -17,15 +17,16 @@ import (
 )
 
 type createSessionParams struct {
-	Activity         *string `json:"activity,omitempty"`
-	StartedAt        *string `json:"started_at,omitempty"`
-	CompletedAt      *string `json:"completed_at,omitempty"`
-	DurationS        *int    `json:"duration_s,omitempty"`
-	ProgramID        *int64  `json:"program_id,omitempty"`
-	ProgramName      *string `json:"program_name,omitempty"`
-	ProgramStructure *string `json:"program_structure,omitempty"`
-	PerceivedEffort  *int    `json:"perceived_effort,omitempty"`
-	SessionNotes     *string `json:"session_notes,omitempty"`
+	Activity         *string  `json:"activity,omitempty"`
+	StartedAt        *string  `json:"started_at,omitempty"`
+	CompletedAt      *string  `json:"completed_at,omitempty"`
+	DurationS        *int     `json:"duration_s,omitempty"`
+	ProgramID        *int64   `json:"program_id,omitempty"`
+	ProgramName      *string  `json:"program_name,omitempty"`
+	ProgramStructure *string  `json:"program_structure,omitempty"`
+	PerceivedEffort  *int     `json:"perceived_effort,omitempty"`
+	SessionNotes     *string  `json:"session_notes,omitempty"`
+	Labels           []string `json:"labels,omitempty"`
 }
 
 func buildSessionParams(params createSessionParams) (store.WorkoutSessionParams, error) {
@@ -55,6 +56,8 @@ func buildSessionParams(params createSessionParams) (store.WorkoutSessionParams,
 		p.CompletedAt = &t
 	}
 
+	p.Labels = params.Labels
+
 	p.SensitiveData = domain.SessionSensitiveData{
 		PerceivedEffort:  params.PerceivedEffort,
 		SessionNotes:     crypto.NewSensitiveStringFromPtr(params.SessionNotes),
@@ -68,7 +71,7 @@ func buildSessionParams(params createSessionParams) (store.WorkoutSessionParams,
 func registerSessionTools(server *mcp.Server, sessions *service.WorkoutSessionService) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "create_session",
-		Description: "Create a historical workout session. All fields are optional — supply only what you know.",
+		Description: "Create a historical workout session. All fields are optional — supply only what you know. labels is an optional array of classification tags (e.g. [\"deload\", \"recovery\"]).",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, params createSessionParams) (*mcp.CallToolResult, struct{}, error) {
 		p, err := buildSessionParams(params)
 		if err != nil {
@@ -93,7 +96,7 @@ func registerSessionTools(server *mcp.Server, sessions *service.WorkoutSessionSe
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_sessions",
-		Description: "List workout sessions, optionally filtered by date range (from/to as YYYY-MM-DD). Returns activity, duration, RPE, program name, notes, and AI-generated summaries.",
+		Description: "List workout sessions, optionally filtered by date range (from/to as YYYY-MM-DD). Returns activity, duration, RPE, program name, notes, AI-generated summaries, and labels.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, params struct {
 		From *string `json:"from,omitempty"`
 		To   *string `json:"to,omitempty"`
