@@ -64,6 +64,7 @@ import {
 } from "../components/ui/Section.jsx";
 import { Switch } from "../components/ui/Switch.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
+import { TagSelector } from "../components/ui/TagSelector.jsx";
 import { ToggleGroup } from "../components/ui/ToggleGroup.jsx";
 import {
 	Tooltip,
@@ -363,6 +364,8 @@ export function DesignElements() {
 	const toggleVal = useSignal("bilateral");
 	const toggleNullable = useSignal("unilateral");
 	const toggleNoLabel = useSignal(null);
+	const tagVal = useSignal([]);
+	const tagVal2 = useSignal(["deload"]);
 	const comboVal = useSignal("");
 	const comboVal2 = useSignal("2");
 	const listDetailHasDetail = useSignal(false);
@@ -712,6 +715,44 @@ export function DesignElements() {
 						options={[
 							{ value: "bilateral", label: "Bilateral" },
 							{ value: "unilateral", label: "Unilateral" },
+						]}
+						disabled
+					/>
+				</PreviewRow>
+			</PageSection>
+
+			<Divider />
+
+			{/* ── TagSelector ───────────────────────────────── */}
+			<PageSection title="TagSelector">
+				<PreviewRow label="with label — none selected">
+					<TagSelector
+						label="Labels"
+						value={tagVal.value}
+						onChange={(v) => (tagVal.value = v)}
+						options={[
+							{ value: "deload", label: "Deload" },
+							{ value: "recovery", label: "Recovery" },
+						]}
+					/>
+				</PreviewRow>
+				<PreviewRow label="without label — pre-selected">
+					<TagSelector
+						value={tagVal2.value}
+						onChange={(v) => (tagVal2.value = v)}
+						options={[
+							{ value: "deload", label: "Deload" },
+							{ value: "recovery", label: "Recovery" },
+						]}
+					/>
+				</PreviewRow>
+				<PreviewRow label="disabled">
+					<TagSelector
+						value={["deload"]}
+						onChange={() => {}}
+						options={[
+							{ value: "deload", label: "Deload" },
+							{ value: "recovery", label: "Recovery" },
 						]}
 						disabled
 					/>
