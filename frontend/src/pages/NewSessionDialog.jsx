@@ -11,7 +11,9 @@ import {
 import { DateTimePicker } from "../components/ui/DateTimePicker.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { ActivityPicker } from "../components/shared/ActivityPicker.jsx";
+import { TagSelector } from "../components/ui/TagSelector.jsx";
 import { apiFetch } from "../lib/api.js";
+import { useSessionLabels } from "../hooks/useSessionLabels.js";
 
 function toDateTimeLocalValue(d) {
 	const pad = (n) => String(n).padStart(2, "0");
@@ -64,14 +66,17 @@ export function NewSessionDialog({ openSignal, onCreated }) {
 	const startedAt = useSignal(toDateTimeLocalValue(new Date()));
 	const duration = useSignal("");
 	const activity = useSignal("");
+	const labels = useSignal([]);
 	const saving = useSignal(false);
 	const saveError = useSignal("");
+	const availableLabels = useSessionLabels();
 
 	function resetForm() {
 		name.value = "";
 		startedAt.value = toDateTimeLocalValue(new Date());
 		duration.value = "";
 		activity.value = "";
+		labels.value = [];
 		saveError.value = "";
 	}
 
@@ -88,6 +93,7 @@ export function NewSessionDialog({ openSignal, onCreated }) {
 			const durationS = parseDuration(duration.value);
 			const body = {
 				started_at: startDate.toISOString(),
+				labels: labels.value,
 				...(name.value.trim() && { program_name: name.value.trim() }),
 				...(durationS != null && {
 					duration_s: durationS,
@@ -152,6 +158,16 @@ export function NewSessionDialog({ openSignal, onCreated }) {
 							activity.value = v ?? "";
 						}}
 					/>
+					{availableLabels.length > 0 && (
+						<TagSelector
+							label="Labels"
+							value={labels.value}
+							onChange={(v) => {
+								labels.value = v;
+							}}
+							options={availableLabels}
+						/>
+					)}
 					{saveError.value && (
 						<p class="text-sm" style={{ color: "var(--color-error, #dc2626)" }}>
 							{saveError.value}

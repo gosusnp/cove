@@ -6,6 +6,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { withProviders } from "../test-utils.jsx";
 import { SessionDetail } from "./SessionDetail.jsx";
 
+vi.mock("../hooks/useSessionLabels.js", () => ({
+	useSessionLabels: () => [
+		{ value: "deload", label: "Deload" },
+		{ value: "recovery", label: "Recovery" },
+	],
+}));
+
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
 vi.mock("../components/ui/ConfirmDialog.jsx", () => ({
@@ -64,6 +71,7 @@ const MOCK_SESSION = {
 	program_structure: "## Squats\n3x5",
 	started_at: "2026-03-24T10:00:00Z",
 	completed_at: "2026-03-24T10:45:00Z",
+	labels: ["deload"],
 };
 
 const MOCK_USER = { email: "user@example.com", name: "Test User" };
@@ -466,5 +474,79 @@ describe("SessionDetail — delete", () => {
 		expect(screen.getByTestId("mock-confirm-dialog")).toBeInTheDocument();
 		fireEvent.click(screen.getByText("Cancel"));
 		expect(screen.queryByTestId("mock-confirm-dialog")).not.toBeInTheDocument();
+	});
+});
+
+describe("SessionDetail — labels", () => {
+	it("renders label toggles from useSessionLabels", async () => {
+		makeFetch();
+		renderDetail();
+		await waitFor(() => screen.getByText("Deload"));
+		expect(screen.getByText("Deload")).toBeInTheDocument();
+		expect(screen.getByText("Recovery")).toBeInTheDocument();
+	});
+
+	it("marks the session's current labels as active", async () => {
+		makeFetch();
+		renderDetail();
+		await waitFor(() => screen.getByText("Deload"));
+		expect(screen.getByText("Deload").closest("button")).toHaveAttribute(
+			"aria-pressed",
+			"true",
+		);
+		expect(screen.getByText("Recovery").closest("button")).toHaveAttribute(
+			"aria-pressed",
+			"false",
+		);
+	});
+
+	it("PATCHes labels when a tag is toggled", async () => {
+		const fetchSpy = makeFetch();
+		renderDetail();
+		await waitFor(() => screen.getByText("Recovery"));
+		fireEvent.click(screen.getByText("Recovery"));
+		await waitFor(() =>
+			expect(fetchSpy).toHaveBeenCalledWith(
+				"/api/sessions/42",
+				expect.objectContaining({
+					method: "PATCH",
+					body: JSON.stringify({ labels: ["deload", "recovery"] }),
+				}),
+			),
+		);
+	});
+
+	it("shows error message when labels PATCH fails", async () => {
+		vi.spyOn(global, "fetch").mockImplementation((_url, opts) => {
+			if (opts?.method === "PATCH") {
+				return Promise.resolve({ ok: false });
+			}
+			return Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve(MOCK_SESSION),
+			});
+		});
+		renderDetail();
+		await waitFor(() => screen.getByText("Recovery"));
+		fireEvent.click(screen.getByText("Recovery"));
+		await waitFor(() =>
+			expect(screen.getByText("Save failed")).toBeInTheDocument(),
+		);
+	});
+
+	it("PATCHes with label removed when an active tag is toggled off", async () => {
+		const fetchSpy = makeFetch();
+		renderDetail();
+		await waitFor(() => screen.getByText("Deload"));
+		fireEvent.click(screen.getByText("Deload"));
+		await waitFor(() =>
+			expect(fetchSpy).toHaveBeenCalledWith(
+				"/api/sessions/42",
+				expect.objectContaining({
+					method: "PATCH",
+					body: JSON.stringify({ labels: [] }),
+				}),
+			),
+		);
 	});
 });

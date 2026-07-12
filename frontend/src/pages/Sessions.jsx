@@ -51,7 +51,10 @@ function SessionList({ sessions, selectedId, onSelect, onNew, error }) {
 			{!error &&
 				sessions.map((s, i) => {
 					const label = s.program_name ?? s.activity ?? "Session";
-					const sub = formatDate(s.started_at ?? s.created_at);
+					const labelText = (s.labels ?? []).join(", ");
+					const sub = [formatDate(s.started_at ?? s.created_at), labelText]
+						.filter(Boolean)
+						.join(" · ");
 					return (
 						<ListItem
 							key={s.id}

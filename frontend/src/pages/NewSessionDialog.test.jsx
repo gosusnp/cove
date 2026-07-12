@@ -6,6 +6,13 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NewSessionDialog } from "./NewSessionDialog.jsx";
 
+vi.mock("../hooks/useSessionLabels.js", () => ({
+	useSessionLabels: () => [
+		{ value: "deload", label: "Deload" },
+		{ value: "recovery", label: "Recovery" },
+	],
+}));
+
 vi.mock("../components/shared/ActivityPicker.jsx", () => ({
 	ActivityPicker: ({ onChange }) => (
 		<button
@@ -196,6 +203,33 @@ describe("NewSessionDialog", () => {
 		await waitFor(() =>
 			expect(screen.getByText("Failed to create session")).toBeInTheDocument(),
 		);
+	});
+
+	it("renders label toggles from useSessionLabels", () => {
+		renderDialog();
+		expect(screen.getByText("Deload")).toBeInTheDocument();
+		expect(screen.getByText("Recovery")).toBeInTheDocument();
+	});
+
+	it("includes selected labels in POST body", async () => {
+		mockFetch();
+		renderDialog();
+
+		fireEvent.click(screen.getByText("Deload"));
+		fireEvent.click(screen.getByRole("button", { name: "Log Session" }));
+
+		await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+		expect(getPostBody().labels).toEqual(["deload"]);
+	});
+
+	it("includes empty labels array when no label is selected", async () => {
+		mockFetch();
+		renderDialog();
+
+		fireEvent.click(screen.getByRole("button", { name: "Log Session" }));
+
+		await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+		expect(getPostBody().labels).toEqual([]);
 	});
 
 	it("disables Log Session while saving", async () => {

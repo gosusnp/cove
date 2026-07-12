@@ -21,6 +21,8 @@ import {
 import { useDialog } from "../hooks/useDialog.js";
 import { apiFetch } from "../lib/api.js";
 import { ActivityPicker } from "../components/shared/ActivityPicker.jsx";
+import { TagSelector } from "../components/ui/TagSelector.jsx";
+import { useSessionLabels } from "../hooks/useSessionLabels.js";
 
 function toDateTimeLocalValue(iso) {
 	if (!iso) return "";
@@ -82,6 +84,7 @@ function parseDuration(str) {
 export function SessionDetail({ sessionId, onDelete }) {
 	const { user } = useAuth();
 	const session = useSignal(null);
+	const availableLabels = useSessionLabels();
 	const loading = useSignal(true);
 	const error = useSignal("");
 	const deleteDialog = useDialog();
@@ -98,8 +101,9 @@ export function SessionDetail({ sessionId, onDelete }) {
 	const programNameRef = useRef(null);
 	const programNameSaveError = useSignal("");
 
-	// Started / completed save error state.
+	// Started / completed / labels save error state.
 	const startedAtSaveError = useSignal("");
+	const labelsSaveError = useSignal("");
 	const completedAtSaveError = useSignal("");
 
 	useEffect(() => {
@@ -163,6 +167,22 @@ export function SessionDetail({ sessionId, onDelete }) {
 		});
 		if (!r.ok) throw new Error("Failed to save notes");
 		session.value = await r.json();
+	}
+
+	async function saveLabels(newLabels) {
+		const r = await apiFetch(`/api/sessions/${sessionId}`, {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ labels: newLabels }),
+		});
+		if (r.ok) {
+			session.value = await r.json();
+		} else {
+			labelsSaveError.value = "Save failed";
+			setTimeout(() => {
+				labelsSaveError.value = "";
+			}, 3000);
+		}
 	}
 
 	async function saveActivity(activity) {
@@ -277,6 +297,7 @@ export function SessionDetail({ sessionId, onDelete }) {
 	}
 
 	const hasPerceivedEffort = s.perceived_effort != null;
+	const hasLabels = availableLabels.length > 0;
 
 	return (
 		<div class="page-content">
@@ -394,7 +415,7 @@ export function SessionDetail({ sessionId, onDelete }) {
 						/>
 					</div>
 				</Row>
-				<Row label="Completed" last={!hasPerceivedEffort}>
+				<Row label="Completed" last={!hasPerceivedEffort && !hasLabels}>
 					<div class="flex flex-col items-end gap-0.5">
 						{completedAtSaveError.value && (
 							<span class="text-xs" style={{ color: "var(--color-error)" }}>
@@ -414,8 +435,24 @@ export function SessionDetail({ sessionId, onDelete }) {
 					</div>
 				</Row>
 				{hasPerceivedEffort && (
-					<Row label="Perceived effort" last>
+					<Row label="Perceived effort" last={!hasLabels}>
 						{s.perceived_effort} / 10
+					</Row>
+				)}
+				{hasLabels && (
+					<Row label="Labels" last>
+						<div class="flex flex-col items-end gap-0.5">
+							{labelsSaveError.value && (
+								<span class="text-xs" style={{ color: "var(--color-error)" }}>
+									{labelsSaveError.value}
+								</span>
+							)}
+							<TagSelector
+								value={s.labels ?? []}
+								onChange={saveLabels}
+								options={availableLabels}
+							/>
+						</div>
 					</Row>
 				)}
 			</Section>
