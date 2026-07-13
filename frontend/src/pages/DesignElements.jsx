@@ -64,6 +64,7 @@ import {
 } from "../components/ui/Section.jsx";
 import { Switch } from "../components/ui/Switch.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
+import { StripSelector } from "../components/ui/StripSelector.jsx";
 import { TagSelector } from "../components/ui/TagSelector.jsx";
 import { ToggleGroup } from "../components/ui/ToggleGroup.jsx";
 import {
@@ -79,6 +80,8 @@ const PREVIEW_NAV_ITEMS = [
 	{ label: "Home", href: "/" },
 	{ label: "Exercises", href: "/exercises" },
 ];
+
+const BOULDER_GRADES = Array.from({ length: 18 }, (_, i) => `V${i}`);
 
 // ── Nav preview helpers ───────────────────────────────────────────────────────
 
@@ -364,6 +367,8 @@ export function DesignElements() {
 	const toggleVal = useSignal("bilateral");
 	const toggleNullable = useSignal("unilateral");
 	const toggleNoLabel = useSignal(null);
+	const stripVal = useSignal(null);
+	const stripVal2 = useSignal("V5");
 	const tagVal = useSignal([]);
 	const tagVal2 = useSignal(["deload"]);
 	const comboVal = useSignal("");
@@ -716,6 +721,39 @@ export function DesignElements() {
 							{ value: "bilateral", label: "Bilateral" },
 							{ value: "unilateral", label: "Unilateral" },
 						]}
+						disabled
+					/>
+				</PreviewRow>
+			</PageSection>
+
+			<Divider />
+
+			{/* ── StripSelector ─────────────────────────────── */}
+			<PageSection title="StripSelector">
+				<PreviewRow label="constrained width — scroll to see all grades">
+					<StripSelector
+						class="w-72"
+						options={BOULDER_GRADES}
+						value={stripVal.value}
+						onChange={(v) => (stripVal.value = v)}
+					/>
+				</PreviewRow>
+				<PreviewRow label="with label — pre-selected">
+					<StripSelector
+						label="Grade"
+						class="w-72"
+						options={BOULDER_GRADES}
+						value={stripVal2.value}
+						onChange={(v) => (stripVal2.value = v)}
+					/>
+				</PreviewRow>
+				<PreviewRow label="disabled">
+					<StripSelector
+						label="Grade"
+						class="w-72"
+						options={BOULDER_GRADES}
+						value="V5"
+						onChange={() => {}}
 						disabled
 					/>
 				</PreviewRow>
