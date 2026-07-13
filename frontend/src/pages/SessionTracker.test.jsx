@@ -42,9 +42,14 @@ vi.mock("../components/ui/Combobox.jsx", () => ({
 
 vi.mock("../components/shared/ActivityPicker.jsx", () => ({
 	ActivityPicker: ({ value, onChange }) => (
-		<button type="button" onClick={() => onChange("Climbing")}>
-			Activity: {value || "none"}
-		</button>
+		<>
+			<button type="button" onClick={() => onChange("Climbing")}>
+				Activity: {value || "none"}
+			</button>
+			<button type="button" onClick={() => onChange("bouldering")}>
+				Set Bouldering
+			</button>
+		</>
 	),
 }));
 
@@ -534,6 +539,104 @@ describe("SessionTracker", () => {
 					1,
 				),
 			);
+		});
+	});
+
+	describe("bouldering tracker", () => {
+		async function startBouldSession() {
+			fireEvent.click(screen.getByRole("button", { name: "Set Bouldering" }));
+			fireEvent.click(screen.getByRole("button", { name: "Start" }));
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: "End Session" }),
+				).toBeInTheDocument(),
+			);
+		}
+
+		it("shows the bouldering tracker when activity is bouldering", async () => {
+			mockFetch();
+			renderTracker();
+			await startBouldSession();
+			expect(screen.getByText("Bouldering")).toBeInTheDocument();
+		});
+
+		it("does not show the bouldering tracker for other activities", async () => {
+			mockFetch();
+			renderTracker();
+			await selectActivityAndStart();
+			expect(screen.queryByText("Bouldering")).not.toBeInTheDocument();
+		});
+
+		it("prefills notes with serialized entries when End Session is tapped", async () => {
+			mockFetch();
+			renderTracker();
+			await startBouldSession();
+
+			fireEvent.click(screen.getByRole("button", { name: "Log Send" }));
+			fireEvent.click(screen.getByRole("button", { name: "Log Attempt" }));
+			fireEvent.click(screen.getByRole("button", { name: "End Session" }));
+
+			await waitFor(() =>
+				expect(screen.getByTestId("mock-summary-dialog")).toBeInTheDocument(),
+			);
+
+			// The mock dialog exposes notesSignal via its rendered textarea.
+			// Instead, check the PATCH body includes the serialized summary.
+			const fetchSpy = global.fetch;
+			await capturedOnSave();
+			const patchCall = fetchSpy.mock.calls.find(
+				([url, opts]) =>
+					opts?.method === "PATCH" && url.includes("/api/sessions/"),
+			);
+			const body = JSON.parse(patchCall[1].body);
+			expect(body.session_notes).toContain("V5");
+			expect(body.session_notes).toContain("Attempt");
+			expect(body.session_notes).toContain("Send");
+		});
+
+		it("appends serialized summary after pre-existing notes", async () => {
+			mockFetch();
+			renderTracker();
+			await startBouldSession();
+
+			fireEvent.click(screen.getByRole("button", { name: "Log Send" }));
+
+			// Type notes before ending the session
+			const notesField = screen.getByRole("textbox", { name: /notes/i });
+			fireEvent.input(notesField, { target: { value: "Felt strong today" } });
+
+			fireEvent.click(screen.getByRole("button", { name: "End Session" }));
+			await waitFor(() =>
+				expect(screen.getByTestId("mock-summary-dialog")).toBeInTheDocument(),
+			);
+			await capturedOnSave();
+
+			const patchCall = global.fetch.mock.calls.find(
+				([url, opts]) =>
+					opts?.method === "PATCH" && url.includes("/api/sessions/"),
+			);
+			const body = JSON.parse(patchCall[1].body);
+			expect(body.session_notes).toMatch(/^Felt strong today/); // user notes first
+			expect(body.session_notes).toContain("- V5"); // summary after
+		});
+
+		it("does not set session_notes when no bouldering entries are logged", async () => {
+			mockFetch();
+			renderTracker();
+			await startBouldSession();
+
+			fireEvent.click(screen.getByRole("button", { name: "End Session" }));
+			await waitFor(() =>
+				expect(screen.getByTestId("mock-summary-dialog")).toBeInTheDocument(),
+			);
+			await capturedOnSave();
+
+			const patchCall = global.fetch.mock.calls.find(
+				([url, opts]) =>
+					opts?.method === "PATCH" && url.includes("/api/sessions/"),
+			);
+			const body = JSON.parse(patchCall[1].body);
+			expect(body.session_notes).toBeNull();
 		});
 	});
 

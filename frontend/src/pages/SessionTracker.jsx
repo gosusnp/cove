@@ -21,6 +21,10 @@ import {
 } from "../components/ui/Dialog.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { SessionSummaryDialog } from "./SessionSummaryDialog.jsx";
+import {
+	BoulderingTracker,
+	serializeBoulderingEntries,
+} from "./BoulderingTracker.jsx";
 import { apiFetch } from "../lib/api.js";
 import { ActivityPicker } from "../components/shared/ActivityPicker.jsx";
 import {
@@ -129,6 +133,9 @@ export function SessionTracker() {
 
 	// Notes field.
 	const notes = useSignal("");
+
+	// Bouldering entries — populated by BoulderingTracker when activity is bouldering.
+	const bouldEntries = useSignal([]);
 
 	// Activity field (pre-filled from selected program).
 	const activity = useSignal("");
@@ -295,6 +302,14 @@ export function SessionTracker() {
 		running.value = false;
 		completedAtRef.current = new Date(now);
 		summaryElapsed.value = accumulatedRef.current;
+		// Prefill notes with the bouldering summary so the user can review and edit.
+		if (
+			activity.value.toLowerCase() === "bouldering" &&
+			bouldEntries.value.length > 0
+		) {
+			const summary = serializeBoulderingEntries(bouldEntries.value);
+			notes.value = [notes.value.trim(), summary].filter(Boolean).join("\n\n");
+		}
 		showSummary.value = true;
 	}
 
@@ -484,6 +499,11 @@ export function SessionTracker() {
 									}}
 								/>
 							</div>
+						)}
+
+						{/* Bouldering tracker — visible once session is running with bouldering activity */}
+						{started && activity.value.toLowerCase() === "bouldering" && (
+							<BoulderingTracker entriesSignal={bouldEntries} />
 						)}
 
 						{/* Program tracker — one CheckList per program in the session */}
