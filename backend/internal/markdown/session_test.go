@@ -95,10 +95,11 @@ func TestSessionEntry_structureHiddenWhenNotesPresent(t *testing.T) {
 }
 
 func TestSessionEntry_labels(t *testing.T) {
-	ws := &domain.WorkoutSession{
+	ws := &domain.WorkoutSession{}
+	sd := domain.SessionSensitiveData{
 		Labels: []string{"deload", "recovery"},
 	}
-	got := SessionEntry(ws, domain.SessionSensitiveData{})
+	got := SessionEntry(ws, sd)
 	for _, label := range []string{"deload", "recovery"} {
 		if !strings.Contains(got, label) {
 			t.Errorf("expected %q in output:\n%s", label, got)
@@ -107,9 +108,7 @@ func TestSessionEntry_labels(t *testing.T) {
 }
 
 func TestSessionEntry_noLabelsLine(t *testing.T) {
-	ws := &domain.WorkoutSession{
-		Labels: []string{},
-	}
+	ws := &domain.WorkoutSession{}
 	got := SessionEntry(ws, domain.SessionSensitiveData{})
 	if strings.Contains(got, "Labels:") {
 		t.Errorf("expected no Labels line for empty labels, got: %q", got)

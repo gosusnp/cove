@@ -84,13 +84,13 @@ func (req *workoutSessionRequest) toParams() store.WorkoutSessionParams {
 		DurationS:   req.DurationS,
 		StartedAt:   req.StartedAt,
 		CompletedAt: req.CompletedAt,
-		Labels:      req.Labels,
 		SensitiveData: domain.SessionSensitiveData{
 			PerceivedEffort:  req.PerceivedEffort,
 			SessionNotes:     crypto.NewSensitiveStringFromPtr(req.SessionNotes),
 			ProgramName:      crypto.NewSensitiveStringFromPtr(req.ProgramName),
 			ProgramStructure: crypto.NewSensitiveStringFromPtr(req.ProgramStructure),
 			Summary:          crypto.NewSensitiveStringFromPtr(req.Summary),
+			Labels:           req.Labels,
 		},
 	}
 	if req.ProgramID != nil {
@@ -148,7 +148,7 @@ func toResponse(r *http.Request, ws *domain.WorkoutSession) (*workoutSessionResp
 		DurationS:          ws.DurationS,
 		StartedAt:          ws.StartedAt,
 		CompletedAt:        ws.CompletedAt,
-		Labels:             ws.Labels,
+		Labels:             []string{},
 		SummaryGeneratedAt: ws.SummaryGeneratedAt,
 		CreatedBy:          ws.CreatedBy,
 		CreatedAt:          ws.CreatedAt,
@@ -161,6 +161,9 @@ func toResponse(r *http.Request, ws *domain.WorkoutSession) (*workoutSessionResp
 		resp.ProgramName = stringPtr(private.ProgramName)
 		resp.ProgramStructure = stringPtr(private.ProgramStructure)
 		resp.Summary = stringPtr(private.Summary)
+		if private.Labels != nil {
+			resp.Labels = private.Labels
+		}
 		return nil
 	})
 	return resp, err

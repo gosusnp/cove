@@ -178,10 +178,10 @@ func (s *WorkoutSessionService) Create(ctx context.Context, p store.WorkoutSessi
 		return nil, ErrUnauthorized
 	}
 
-	if p.Labels == nil {
-		p.Labels = []string{}
+	if p.SensitiveData.Labels == nil {
+		p.SensitiveData.Labels = []string{}
 	}
-	if err := validateLabels(p.Labels); err != nil {
+	if err := validateLabels(p.SensitiveData.Labels); err != nil {
 		return nil, err
 	}
 
@@ -209,10 +209,10 @@ func (s *WorkoutSessionService) Update(ctx context.Context, id domain.WorkoutSes
 		return nil, ErrUnauthorized
 	}
 
-	if p.Labels == nil {
-		p.Labels = []string{}
+	if p.SensitiveData.Labels == nil {
+		p.SensitiveData.Labels = []string{}
 	}
-	if err := validateLabels(p.Labels); err != nil {
+	if err := validateLabels(p.SensitiveData.Labels); err != nil {
 		return nil, err
 	}
 
@@ -266,20 +266,9 @@ func (s *WorkoutSessionService) Patch(ctx context.Context, id domain.WorkoutSess
 			DurationS:   current.DurationS,
 			StartedAt:   current.StartedAt,
 			CompletedAt: current.CompletedAt,
-			Labels:      current.Labels,
 		}
 
 		// Apply non-sensitive patches.
-		if patch.Labels.Set {
-			labels := patch.Labels.Value
-			if labels == nil {
-				labels = []string{}
-			}
-			if err := validateLabels(labels); err != nil {
-				return err
-			}
-			p.Labels = labels
-		}
 		if patch.ProgramID.Set {
 			if patch.ProgramID.Value != nil {
 				pid := domain.ProgramID(*patch.ProgramID.Value)
@@ -309,7 +298,18 @@ func (s *WorkoutSessionService) Patch(ctx context.Context, id domain.WorkoutSess
 			p.SensitiveData.ProgramName = cloneSensitiveString(cur.ProgramName)
 			p.SensitiveData.ProgramStructure = cloneSensitiveString(cur.ProgramStructure)
 			p.SensitiveData.Summary = cloneSensitiveString(cur.Summary)
+			p.SensitiveData.Labels = cur.Labels
 
+			if patch.Labels.Set {
+				labels := patch.Labels.Value
+				if labels == nil {
+					labels = []string{}
+				}
+				if err := validateLabels(labels); err != nil {
+					return err
+				}
+				p.SensitiveData.Labels = labels
+			}
 			if patch.PerceivedEffort.Set {
 				p.SensitiveData.PerceivedEffort = patch.PerceivedEffort.Value
 			}

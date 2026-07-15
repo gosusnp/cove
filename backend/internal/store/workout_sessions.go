@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gosusnp/cove/backend/internal/domain"
-	"github.com/lib/pq"
 )
 
 type WorkoutSessionStore struct{}
@@ -31,7 +30,6 @@ func scanWorkoutSession(sc scanner) (*domain.WorkoutSession, error) {
 		&ws.ProgramID,
 		&ws.Activity, &ws.DurationS,
 		&ws.StartedAt, &ws.CompletedAt,
-		pq.Array(&ws.Labels),
 		&ws.SummaryGeneratedAt,
 		&ws.CreatedBy, &ws.CreatedAt, &ws.UpdatedBy, &ws.UpdatedAt,
 		ws.SensitiveDataScanner(),
@@ -42,9 +40,6 @@ func scanWorkoutSession(sc scanner) (*domain.WorkoutSession, error) {
 	if err != nil {
 		return nil, err
 	}
-	if ws.Labels == nil {
-		ws.Labels = []string{}
-	}
 	return &ws, nil
 }
 
@@ -53,7 +48,6 @@ const workoutSessionColumns = `
 	program_id,
 	activity, duration_s,
 	started_at, completed_at,
-	labels,
 	summary_generated_at,
 	created_by, created_at, updated_by, updated_at,
 	sensitive_data`
@@ -107,7 +101,6 @@ type WorkoutSessionParams struct {
 	DurationS     *int
 	StartedAt     *time.Time
 	CompletedAt   *time.Time
-	Labels        []string
 	SensitiveData domain.SessionSensitiveData
 }
 
@@ -122,16 +115,14 @@ func (s *WorkoutSessionStore) Create(ctx context.Context, q Querier, p WorkoutSe
 			program_id,
 			activity, duration_s,
 			started_at, completed_at,
-			labels,
 			sensitive_data
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
 	`,
 		idInfo.UserID,
 		p.ProgramID,
 		p.Activity, p.DurationS,
 		p.StartedAt, p.CompletedAt,
-		pq.Array(p.Labels),
 		sensitiveData,
 	).Scan(&id)
 	if err != nil {
@@ -147,15 +138,13 @@ func (s *WorkoutSessionStore) Update(ctx context.Context, q Querier, orgID domai
 			program_id = $1,
 			activity = $2, duration_s = $3,
 			started_at = $4, completed_at = $5,
-			labels = $6,
-			sensitive_data = $7,
-			summary_generated_at = CASE WHEN $8 THEN NOW() ELSE summary_generated_at END
-		WHERE id = $9 AND org_id = $10 AND ($11::timestamptz IS NULL OR updated_at = $11)
+			sensitive_data = $6,
+			summary_generated_at = CASE WHEN $7 THEN NOW() ELSE summary_generated_at END
+		WHERE id = $8 AND org_id = $9 AND ($10::timestamptz IS NULL OR updated_at = $10)
 	`,
 		p.ProgramID,
 		p.Activity, p.DurationS,
 		p.StartedAt, p.CompletedAt,
-		pq.Array(p.Labels),
 		sensitiveData,
 		setSummaryNow,
 		id, orgID, updatedAt,

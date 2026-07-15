@@ -29,6 +29,7 @@ type SessionSensitiveData struct {
 	ProgramName      *crypto.SensitiveString `json:"program_name,omitempty"`
 	ProgramStructure *crypto.SensitiveString `json:"program_structure,omitempty"`
 	Summary          *crypto.SensitiveString `json:"summary,omitempty"`
+	Labels           []string                `json:"labels,omitempty"`
 }
 
 // Format implements fmt.Formatter. All verbs emit "[REDACTED]" to prevent
@@ -50,7 +51,8 @@ func (s SessionSensitiveData) IsEmpty() bool {
 		s.SessionNotes == nil &&
 		s.ProgramName == nil &&
 		s.ProgramStructure == nil &&
-		s.Summary == nil
+		s.Summary == nil &&
+		len(s.Labels) == 0
 }
 
 // WorkoutSession represents a single training session.
@@ -64,7 +66,6 @@ type WorkoutSession struct {
 	DurationS          *int             `json:"duration_s,omitempty"`
 	StartedAt          *time.Time       `json:"started_at,omitempty"`
 	CompletedAt        *time.Time       `json:"completed_at,omitempty"`
-	Labels             []string         `json:"labels"`
 	SummaryGeneratedAt *time.Time       `json:"summary_generated_at,omitempty"`
 	CreatedBy          UserID           `json:"created_by"`
 	CreatedAt          time.Time        `json:"created_at"`

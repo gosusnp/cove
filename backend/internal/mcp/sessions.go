@@ -56,13 +56,12 @@ func buildSessionParams(params createSessionParams) (store.WorkoutSessionParams,
 		p.CompletedAt = &t
 	}
 
-	p.Labels = params.Labels
-
 	p.SensitiveData = domain.SessionSensitiveData{
 		PerceivedEffort:  params.PerceivedEffort,
 		SessionNotes:     crypto.NewSensitiveStringFromPtr(params.SessionNotes),
 		ProgramName:      crypto.NewSensitiveStringFromPtr(params.ProgramName),
 		ProgramStructure: crypto.NewSensitiveStringFromPtr(params.ProgramStructure),
+		Labels:           params.Labels,
 	}
 
 	return p, nil

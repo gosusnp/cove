@@ -31,8 +31,8 @@ func SessionEntry(ws *domain.WorkoutSession, sd domain.SessionSensitiveData) str
 	fmt.Fprintf(&b, "### %s\n", header)
 
 	// Labels
-	if len(ws.Labels) > 0 {
-		fmt.Fprintf(&b, "**Labels:** %s\n", strings.Join(ws.Labels, ", "))
+	if len(sd.Labels) > 0 {
+		fmt.Fprintf(&b, "**Labels:** %s\n", strings.Join(sd.Labels, ", "))
 	}
 
 	// Program name
