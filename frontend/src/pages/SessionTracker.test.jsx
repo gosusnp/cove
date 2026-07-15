@@ -150,6 +150,7 @@ async function selectActivityAndStart() {
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	localStorage.clear();
 	capturedOnSave = null;
 	capturedOnCancel = null;
 });
@@ -637,6 +638,144 @@ describe("SessionTracker", () => {
 			);
 			const body = JSON.parse(patchCall[1].body);
 			expect(body.session_notes).toBeNull();
+		});
+	});
+
+	describe("session restore", () => {
+		function seedStorage(overrides = {}) {
+			localStorage.setItem(
+				"cove_active_workout_session",
+				JSON.stringify({
+					sessionId: 42,
+					startedAt: "2026-07-13T10:00:00Z",
+					activity: "Climbing",
+					sessionPrograms: [],
+					checkedItems: {},
+					bouldEntries: [],
+					notes: "",
+					accumulatedS: 0,
+					segmentStart: Date.now(),
+					running: true,
+					...overrides,
+				}),
+			);
+		}
+
+		it("skips Start screen when an active session is in localStorage", async () => {
+			mockFetch();
+			seedStorage();
+			renderTracker();
+
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: "End Session" }),
+				).toBeInTheDocument(),
+			);
+			expect(
+				screen.queryByRole("button", { name: "Start" }),
+			).not.toBeInTheDocument();
+		});
+
+		it("restores elapsed accounting for time away", async () => {
+			vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+			try {
+				const now = Date.now();
+				mockFetch();
+				seedStorage({ accumulatedS: 300, segmentStart: now - 120_000 });
+				renderTracker();
+
+				// 300s accumulated + 120s since segment started = 420s = 7 minutes
+				await waitFor(() =>
+					expect(screen.getByText("00:07:00")).toBeInTheDocument(),
+				);
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it("restores notes", async () => {
+			mockFetch();
+			seedStorage({ notes: "Felt strong today" });
+			renderTracker();
+
+			await waitFor(() =>
+				expect(screen.getByRole("textbox", { name: /notes/i })).toHaveValue(
+					"Felt strong today",
+				),
+			);
+		});
+
+		it("restores bouldering tracker with logged entries", async () => {
+			mockFetch();
+			seedStorage({
+				activity: "bouldering",
+				bouldEntries: [{ id: 1, grade: "V5", labels: [], type: "send" }],
+			});
+			renderTracker();
+
+			await waitFor(() =>
+				expect(screen.getByText("Bouldering")).toBeInTheDocument(),
+			);
+			// Entry appears in the logged list (grade selector also shows V5, so use getAllByText)
+			expect(screen.getAllByText("V5").length).toBeGreaterThanOrEqual(2);
+			expect(screen.getByText("Send")).toBeInTheDocument();
+		});
+
+		it("restores program checklist exercises", async () => {
+			mockFetch();
+			seedStorage({
+				sessionPrograms: [
+					{
+						id: 1,
+						name: "Test Program",
+						sets: [
+							{
+								id: 1,
+								name: "Set A",
+								rounds: 1,
+								exercises: [{ name: "Pull-up", reps: 5 }],
+							},
+						],
+					},
+				],
+			});
+			renderTracker();
+
+			await waitFor(() =>
+				expect(screen.getByText("5x Pull-up")).toBeInTheDocument(),
+			);
+		});
+
+		it("restores a paused session", async () => {
+			mockFetch();
+			seedStorage({ accumulatedS: 180, segmentStart: null, running: false });
+			renderTracker();
+
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: "Resume" }),
+				).toBeInTheDocument(),
+			);
+			expect(screen.getByText("00:03:00")).toBeInTheDocument();
+		});
+
+		it("clears localStorage on successful save", async () => {
+			mockFetch();
+			seedStorage();
+			renderTracker();
+
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: "End Session" }),
+				).toBeInTheDocument(),
+			);
+			fireEvent.click(screen.getByRole("button", { name: "End Session" }));
+			await waitFor(() =>
+				expect(screen.getByTestId("mock-summary-dialog")).toBeInTheDocument(),
+			);
+			await capturedOnSave();
+
+			expect(localStorage.getItem("cove_active_workout_session")).toBeNull();
 		});
 	});
 

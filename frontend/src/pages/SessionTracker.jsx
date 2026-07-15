@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Jimmy Ma
 // SPDX-License-Identifier: Elastic-2.0
 
-import { useSignal } from "@preact/signals";
+import { effect, useSignal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
 import { useLocation } from "preact-iso";
 import { KeepAwake } from "@capacitor-community/keep-awake";
@@ -153,11 +153,67 @@ export function SessionTracker() {
 	// Populated on Start and appended to via "Add Program".
 	const sessionPrograms = useSignal([]);
 
+	// Checked state for all CheckListItems, keyed by "${programIndex}-${sectionIndex}-${exerciseIndex}".
+	const checkedItems = useSignal({});
+
+	// ISO timestamp captured when the session was started (for localStorage).
+	const startedAtRef = useRef(null);
+
 	// Add Program dialog state.
 	const addProgramDialog = useDialog();
 	const addProgramId = useSignal("");
 	const addingProgram = useSignal(false);
 	const addProgramError = useSignal("");
+
+	// Restore in-flight session from localStorage on mount.
+	useEffect(() => {
+		const raw = localStorage.getItem("cove_active_workout_session");
+		if (!raw) return;
+		try {
+			const data = JSON.parse(raw);
+			sessionId.value = data.sessionId;
+			startedAtRef.current = data.startedAt ?? null;
+			activity.value = data.activity ?? "";
+			sessionPrograms.value = data.sessionPrograms ?? [];
+			checkedItems.value = data.checkedItems ?? {};
+			bouldEntries.value = data.bouldEntries ?? [];
+			notes.value = data.notes ?? "";
+			accumulatedRef.current = data.accumulatedS ?? 0;
+			if (data.running && data.segmentStart) {
+				segmentStartRef.current = data.segmentStart;
+				elapsed.value =
+					Math.floor((Date.now() - data.segmentStart) / 1000) +
+					(data.accumulatedS ?? 0);
+				running.value = true;
+			} else {
+				elapsed.value = data.accumulatedS ?? 0;
+			}
+		} catch {
+			localStorage.removeItem("cove_active_workout_session");
+		}
+	}, []);
+
+	// Persist active session to localStorage whenever tracked state changes.
+	useEffect(() => {
+		return effect(() => {
+			if (sessionId.value == null) return;
+			localStorage.setItem(
+				"cove_active_workout_session",
+				JSON.stringify({
+					sessionId: sessionId.value,
+					startedAt: startedAtRef.current,
+					activity: activity.value,
+					sessionPrograms: sessionPrograms.value,
+					checkedItems: checkedItems.value,
+					bouldEntries: bouldEntries.value,
+					notes: notes.value,
+					accumulatedS: accumulatedRef.current,
+					segmentStart: segmentStartRef.current,
+					running: running.value,
+				}),
+			);
+		});
+	}, []);
 
 	// Load programs list for the selector.
 	useEffect(() => {
@@ -174,7 +230,10 @@ export function SessionTracker() {
 	useEffect(() => {
 		programDetail.value = null;
 		if (!selectedProgramId.value) {
-			activity.value = "";
+			// Don't clear activity when a session is already running (e.g. restored from localStorage).
+			if (sessionId.value == null) {
+				activity.value = "";
+			}
 			return;
 		}
 		apiFetch(`/api/programs/${selectedProgramId.value}`)
@@ -242,8 +301,11 @@ export function SessionTracker() {
 					activity.value = prog.activity ?? "";
 				}
 			}
+			const startedAt = new Date().toISOString();
+			startedAtRef.current = startedAt;
 			const body = {
-				started_at: new Date().toISOString(),
+				started_at: startedAt,
+				activity: activity.value || null,
 				...(prog && {
 					program_id: prog.id,
 					program_name: prog.name,
@@ -343,6 +405,7 @@ export function SessionTracker() {
 				body: JSON.stringify(body),
 			});
 			if (!r.ok) throw new Error("Failed to save session");
+			localStorage.removeItem("cove_active_workout_session");
 			route(`/sessions/${sessionId.value}`);
 		} catch (err) {
 			saving.value = false;
@@ -525,6 +588,16 @@ export function SessionTracker() {
 													{exercises.map((ex, j) => (
 														<CheckListItem
 															key={j}
+															defaultChecked={
+																!!checkedItems.value[`${pi}-${i}-${j}`]
+															}
+															onCheckedChange={(v) => {
+																const key = `${pi}-${i}-${j}`;
+																const next = { ...checkedItems.value };
+																if (v) next[key] = true;
+																else delete next[key];
+																checkedItems.value = next;
+															}}
 															subtitle={formatSubtitle(ex, fitnessWeightUnit)}
 														>
 															{formatLabel(ex)}

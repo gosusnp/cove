@@ -40,7 +40,8 @@ export function CheckList({ class: className, children }) {
 // Swipe right on the header to check all items in the section.
 // The header strikes through and shows a checkmark when all items are done.
 export function CheckListSection({ label, children }) {
-	// Set of each item's `checked` signal — populated by CheckListItem on mount.
+	// Set of {signal, notify} pairs — populated by CheckListItem on mount.
+	// notify is the onCheckedChange callback (may be undefined).
 	const items = useRef(new Set());
 	// Bumped on register/unregister so the computed re-subscribes to new items.
 	const version = useSignal(0);
@@ -52,23 +53,25 @@ export function CheckListSection({ label, children }) {
 		allDoneRef.current = computed(() => {
 			void version.value; // subscribe to registration changes
 			if (items.current.size === 0) return false;
-			return [...items.current].every((s) => s.value);
+			return [...items.current].every(({ signal }) => signal.value);
 		});
 	}
 	const allDone = allDoneRef.current.value;
 
-	function register(checkedSignal) {
-		items.current.add(checkedSignal);
+	function register(checkedSignal, notify) {
+		const entry = { signal: checkedSignal, notify };
+		items.current.add(entry);
 		version.value++;
 		return () => {
-			items.current.delete(checkedSignal);
+			items.current.delete(entry);
 			version.value++;
 		};
 	}
 
 	function checkAll() {
-		for (const s of items.current) {
-			s.value = true;
+		for (const { signal, notify } of items.current) {
+			signal.value = true;
+			notify?.(true);
 		}
 	}
 
@@ -237,6 +240,7 @@ export function CheckListItem({
 	children,
 	subtitle,
 	defaultChecked = false,
+	onCheckedChange,
 	class: className,
 }) {
 	const ctx = useContext(SectionCtx);
@@ -244,10 +248,16 @@ export function CheckListItem({
 	const translateX = useSignal(0);
 	const swiping = useSignal(false);
 
-	// Register this item's checked signal with the parent section.
+	// Keep a ref to the latest onCheckedChange so the registration callback
+	// (captured once at mount) always calls the current prop, not a stale closure.
+	const onCheckedChangeRef = useRef(onCheckedChange);
+	onCheckedChangeRef.current = onCheckedChange;
+
+	// Register this item with the parent section.
+	// The stable wrapper via ref ensures checkAll() always calls the latest callback.
 	useEffect(() => {
 		if (!ctx) return;
-		return ctx.register(checked);
+		return ctx.register(checked, (v) => onCheckedChangeRef.current?.(v));
 	}, []);
 
 	const touchStartX = useRef(0);
@@ -309,7 +319,9 @@ export function CheckListItem({
 		touchMoveCleanup.current?.();
 		touchMoveCleanup.current = null;
 		if (swiping.value && Math.abs(translateX.value) >= SWIPE_THRESHOLD) {
-			checked.value = !checked.value;
+			const next = !checked.value;
+			checked.value = next;
+			onCheckedChange?.(next);
 			swipeHandled.current = true;
 		}
 		translateX.value = 0;
@@ -331,7 +343,9 @@ export function CheckListItem({
 			swipeHandled.current = false;
 			return;
 		}
-		checked.value = !checked.value;
+		const next = !checked.value;
+		checked.value = next;
+		onCheckedChange?.(next);
 	}
 
 	// Accent fill intensity: grows as the user drags, stays dim when checked.
