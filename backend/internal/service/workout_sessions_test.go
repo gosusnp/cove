@@ -198,13 +198,13 @@ func TestWorkoutSessionService_Labels(t *testing.T) {
 	t.Run("valid labels stored and returned", func(t *testing.T) {
 		svc, ctx := newTestWorkoutSessionService(t)
 		ws, err := svc.Create(ctx, store.WorkoutSessionParams{
-			SensitiveData: domain.SessionSensitiveData{Labels: []string{"deload", "recovery"}},
+			SensitiveData: domain.SessionSensitiveData{Labels: []crypto.SensitiveString{crypto.NewSensitiveString("deload"), crypto.NewSensitiveString("recovery")}},
 		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if err := ws.UseSensitiveData(ctx, func(sd domain.SessionSensitiveData) error {
-			if len(sd.Labels) != 2 || sd.Labels[0] != "deload" || sd.Labels[1] != "recovery" {
+			if len(sd.Labels) != 2 || sd.Labels[0].String() != "deload" || sd.Labels[1].String() != "recovery" {
 				t.Errorf("got labels %v, want [deload recovery]", sd.Labels)
 			}
 			return nil
@@ -216,7 +216,7 @@ func TestWorkoutSessionService_Labels(t *testing.T) {
 	t.Run("empty labels result in no labels", func(t *testing.T) {
 		svc, ctx := newTestWorkoutSessionService(t)
 		ws, err := svc.Create(ctx, store.WorkoutSessionParams{
-			SensitiveData: domain.SessionSensitiveData{Labels: []string{}},
+			SensitiveData: domain.SessionSensitiveData{Labels: []crypto.SensitiveString{}},
 		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -234,7 +234,7 @@ func TestWorkoutSessionService_Labels(t *testing.T) {
 	t.Run("invalid label returns ValidationError on create", func(t *testing.T) {
 		svc, ctx := newTestWorkoutSessionService(t)
 		_, err := svc.Create(ctx, store.WorkoutSessionParams{
-			SensitiveData: domain.SessionSensitiveData{Labels: []string{"invalid"}},
+			SensitiveData: domain.SessionSensitiveData{Labels: []crypto.SensitiveString{crypto.NewSensitiveString("invalid")}},
 		})
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
@@ -246,7 +246,7 @@ func TestWorkoutSessionService_Labels(t *testing.T) {
 		svc, ctx := newTestWorkoutSessionService(t)
 		created, _ := svc.Create(ctx, store.WorkoutSessionParams{})
 		_, err := svc.Update(ctx, created.ID, &created.UpdatedAt, store.WorkoutSessionParams{
-			SensitiveData: domain.SessionSensitiveData{Labels: []string{"not-real"}},
+			SensitiveData: domain.SessionSensitiveData{Labels: []crypto.SensitiveString{crypto.NewSensitiveString("not-real")}},
 		})
 		var ve *ValidationError
 		if !errors.As(err, &ve) {
@@ -262,13 +262,13 @@ func TestWorkoutSessionService_Patch_Labels(t *testing.T) {
 		created, _ := svc.Create(ctx, store.WorkoutSessionParams{Activity: &activity})
 
 		patched, err := svc.Patch(ctx, created.ID, WorkoutSessionPatch{
-			Labels: domain.Optional[[]string]{Value: []string{"deload"}, Set: true},
+			Labels: domain.Optional[[]crypto.SensitiveString]{Value: []crypto.SensitiveString{crypto.NewSensitiveString("deload")}, Set: true},
 		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if err := patched.UseSensitiveData(ctx, func(sd domain.SessionSensitiveData) error {
-			if len(sd.Labels) != 1 || sd.Labels[0] != "deload" {
+			if len(sd.Labels) != 1 || sd.Labels[0].String() != "deload" {
 				t.Errorf("got labels %v, want [deload]", sd.Labels)
 			}
 			return nil
@@ -283,11 +283,11 @@ func TestWorkoutSessionService_Patch_Labels(t *testing.T) {
 	t.Run("clears labels when set to empty slice", func(t *testing.T) {
 		svc, ctx := newTestWorkoutSessionService(t)
 		created, _ := svc.Create(ctx, store.WorkoutSessionParams{
-			SensitiveData: domain.SessionSensitiveData{Labels: []string{"deload"}},
+			SensitiveData: domain.SessionSensitiveData{Labels: []crypto.SensitiveString{crypto.NewSensitiveString("deload")}},
 		})
 
 		patched, err := svc.Patch(ctx, created.ID, WorkoutSessionPatch{
-			Labels: domain.Optional[[]string]{Value: []string{}, Set: true},
+			Labels: domain.Optional[[]crypto.SensitiveString]{Value: []crypto.SensitiveString{}, Set: true},
 		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -305,7 +305,7 @@ func TestWorkoutSessionService_Patch_Labels(t *testing.T) {
 	t.Run("omitting labels leaves them unchanged", func(t *testing.T) {
 		svc, ctx := newTestWorkoutSessionService(t)
 		created, _ := svc.Create(ctx, store.WorkoutSessionParams{
-			SensitiveData: domain.SessionSensitiveData{Labels: []string{"recovery"}},
+			SensitiveData: domain.SessionSensitiveData{Labels: []crypto.SensitiveString{crypto.NewSensitiveString("recovery")}},
 		})
 
 		patched, err := svc.Patch(ctx, created.ID, WorkoutSessionPatch{
@@ -315,7 +315,7 @@ func TestWorkoutSessionService_Patch_Labels(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if err := patched.UseSensitiveData(ctx, func(sd domain.SessionSensitiveData) error {
-			if len(sd.Labels) != 1 || sd.Labels[0] != "recovery" {
+			if len(sd.Labels) != 1 || sd.Labels[0].String() != "recovery" {
 				t.Errorf("got labels %v, want [recovery]", sd.Labels)
 			}
 			return nil
@@ -329,7 +329,7 @@ func TestWorkoutSessionService_Patch_Labels(t *testing.T) {
 		created, _ := svc.Create(ctx, store.WorkoutSessionParams{})
 
 		_, err := svc.Patch(ctx, created.ID, WorkoutSessionPatch{
-			Labels: domain.Optional[[]string]{Value: []string{"unknown"}, Set: true},
+			Labels: domain.Optional[[]crypto.SensitiveString]{Value: []crypto.SensitiveString{crypto.NewSensitiveString("unknown")}, Set: true},
 		})
 		var ve *ValidationError
 		if !errors.As(err, &ve) {

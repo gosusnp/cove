@@ -32,7 +32,11 @@ func SessionEntry(ws *domain.WorkoutSession, sd domain.SessionSensitiveData) str
 
 	// Labels
 	if len(sd.Labels) > 0 {
-		fmt.Fprintf(&b, "**Labels:** %s\n", strings.Join(sd.Labels, ", "))
+		labelStrs := make([]string, len(sd.Labels))
+		for i, l := range sd.Labels {
+			labelStrs[i] = l.String()
+		}
+		fmt.Fprintf(&b, "**Labels:** %s\n", strings.Join(labelStrs, ", "))
 	}
 
 	// Program name

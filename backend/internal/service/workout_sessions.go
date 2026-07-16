@@ -43,10 +43,10 @@ func AllowedSessionLabels() []string {
 	return allowedSessionLabels
 }
 
-func validateLabels(labels []string) error {
+func validateLabels(labels []crypto.SensitiveString) error {
 	for _, l := range labels {
-		if !allowedSessionLabelSet[l] {
-			return &ValidationError{Msg: fmt.Sprintf("unknown label %q", l)}
+		if !allowedSessionLabelSet[l.String()] {
+			return &ValidationError{Msg: fmt.Sprintf("unknown label %q", l.String())}
 		}
 	}
 	return nil
@@ -65,7 +65,7 @@ type WorkoutSessionPatch struct {
 	DurationS        domain.Optional[*int]       `json:"duration_s"`
 	StartedAt        domain.Optional[*time.Time] `json:"started_at"`
 	CompletedAt      domain.Optional[*time.Time] `json:"completed_at"`
-	Labels           domain.Optional[[]string]   `json:"labels"`
+	Labels           domain.Optional[[]crypto.SensitiveString] `json:"labels"`
 	PerceivedEffort  domain.Optional[*int]       `json:"perceived_effort"`
 	SessionNotes     domain.Optional[*string]    `json:"session_notes"`
 	ProgramName      domain.Optional[*string]    `json:"program_name"`
@@ -179,7 +179,7 @@ func (s *WorkoutSessionService) Create(ctx context.Context, p store.WorkoutSessi
 	}
 
 	if p.SensitiveData.Labels == nil {
-		p.SensitiveData.Labels = []string{}
+		p.SensitiveData.Labels = []crypto.SensitiveString{}
 	}
 	if err := validateLabels(p.SensitiveData.Labels); err != nil {
 		return nil, err
@@ -210,7 +210,7 @@ func (s *WorkoutSessionService) Update(ctx context.Context, id domain.WorkoutSes
 	}
 
 	if p.SensitiveData.Labels == nil {
-		p.SensitiveData.Labels = []string{}
+		p.SensitiveData.Labels = []crypto.SensitiveString{}
 	}
 	if err := validateLabels(p.SensitiveData.Labels); err != nil {
 		return nil, err
@@ -303,7 +303,7 @@ func (s *WorkoutSessionService) Patch(ctx context.Context, id domain.WorkoutSess
 			if patch.Labels.Set {
 				labels := patch.Labels.Value
 				if labels == nil {
-					labels = []string{}
+					labels = []crypto.SensitiveString{}
 				}
 				if err := validateLabels(labels); err != nil {
 					return err

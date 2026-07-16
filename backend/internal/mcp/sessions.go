@@ -56,12 +56,16 @@ func buildSessionParams(params createSessionParams) (store.WorkoutSessionParams,
 		p.CompletedAt = &t
 	}
 
+	labels := make([]crypto.SensitiveString, len(params.Labels))
+	for i, l := range params.Labels {
+		labels[i] = crypto.NewSensitiveString(l)
+	}
 	p.SensitiveData = domain.SessionSensitiveData{
 		PerceivedEffort:  params.PerceivedEffort,
 		SessionNotes:     crypto.NewSensitiveStringFromPtr(params.SessionNotes),
 		ProgramName:      crypto.NewSensitiveStringFromPtr(params.ProgramName),
 		ProgramStructure: crypto.NewSensitiveStringFromPtr(params.ProgramStructure),
-		Labels:           params.Labels,
+		Labels:           labels,
 	}
 
 	return p, nil

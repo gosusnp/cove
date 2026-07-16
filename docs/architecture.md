@@ -376,7 +376,7 @@ Some domain fields contain user-private data (e.g. session notes, perceived effo
 ### Design Principles
 
 - **Plaintext never leaves the handler scope in normal read flows.** The only way to read sensitive fields is via `UseSensitiveData` — a callback pattern that decrypts into a `*T`, calls the handler, then zeros the struct in place before returning.
-- **String fields use `crypto.SensitiveString` (`[]byte`-backed).** Go string interning means `*string` fields cannot be reliably zeroed; `SensitiveString` avoids that risk. Zeroing the `*T` struct after the callback wipes the backing bytes.
+- **String fields use `crypto.SensitiveString` (`[]byte`-backed).** Go string interning means `*string` fields cannot be reliably zeroed; `SensitiveString` avoids that risk. Zeroing the `*T` struct after the callback wipes the backing bytes. Use `[]crypto.SensitiveString` for string slices.
 - **The service injects the encryptor; it never decrypts for output.** This keeps the plaintext lifetime as short as possible. **Exception — read-modify-write:** a service `Patch` method may call `UseSensitiveData` internally to merge existing encrypted state with the incoming patch before re-encrypting. This is the only sanctioned case for decryption in the service layer.
 - **The store is a pure byte pass-through.** It has no knowledge of encryption — it scans and writes raw `[]byte`.
 - **User ID is bound into every ciphertext via GCM additional data.** `UseSensitiveData` passes `ws.UserID.UUID[:]` as AAD; decryption will fail if the stored user_id does not match, preventing row-swapping attacks.
@@ -401,12 +401,13 @@ Service        → encrypts on write; calls ws.SetEncryptor after store read; ma
 Store          → scans sensitive_data into ws.SensitiveDataScanner(); writes raw []byte
 ```
 
-See `internal/domain/workout_session.go` for the canonical domain entity pattern (`SessionSensitiveData`, `UseSensitiveData`, `SetEncryptor`) and `internal/handlers/workout_sessions.go` for the handler pattern. The response DTO uses `*string` for JSON output; convert `*SensitiveString` → `*string` via `stringPtr(s.Field)` inside the callback.
+See `internal/domain/types.go` for the canonical domain entity pattern (`SessionSensitiveData`, `UseSensitiveData`, `SetEncryptor`) and `internal/handlers/workout_sessions.go` for the handler pattern. The response DTO uses `*string` for JSON output; convert `*SensitiveString` → `*string` via `stringPtr(s.Field)` inside the callback.
 
 ### Rules
 
 - **DO** define a `[Entity]SensitiveData` struct for each entity with sensitive fields.
-- **DO** use `*crypto.SensitiveString` (not `*string`) for all string fields in `[Entity]SensitiveData` — `[]byte`-backed for reliable zeroing.
+- **DO** use `*crypto.SensitiveString` (not `*string`) for all string fields in `[Entity]SensitiveData`, and `[]crypto.SensitiveString` for string slices — `[]byte`-backed for reliable zeroing.
+- **DO** implement `fmt.Formatter` and `fmt.GoStringer` on every `[Entity]SensitiveData` struct so all format verbs emit `"[Entity]SensitiveData[REDACTED]"` — this prevents sensitive fields from leaking into logs or error messages.
 - **DO** implement `IsEmpty() bool` on every `[Entity]SensitiveData` struct, enumerating all fields.
 - **DO** keep `sensitiveData` unexported on the domain entity — expose only `UseSensitiveData` and `SetEncryptor`.
 - **DO** use `sensitive_data BYTEA` (nullable) as the DB column — `NULL` means no sensitive data was set.

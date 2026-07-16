@@ -29,7 +29,7 @@ type SessionSensitiveData struct {
 	ProgramName      *crypto.SensitiveString `json:"program_name,omitempty"`
 	ProgramStructure *crypto.SensitiveString `json:"program_structure,omitempty"`
 	Summary          *crypto.SensitiveString `json:"summary,omitempty"`
-	Labels           []string                `json:"labels,omitempty"`
+	Labels           []crypto.SensitiveString `json:"labels,omitempty"`
 }
 
 // Format implements fmt.Formatter. All verbs emit "[REDACTED]" to prevent

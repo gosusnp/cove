@@ -78,6 +78,26 @@ func stringPtr(s *crypto.SensitiveString) *string {
 	return &v
 }
 
+// sensitiveLabels converts a []string from a request body into the
+// []crypto.SensitiveString used by the domain layer.
+func sensitiveLabels(labels []string) []crypto.SensitiveString {
+	result := make([]crypto.SensitiveString, len(labels))
+	for i, l := range labels {
+		result[i] = crypto.NewSensitiveString(l)
+	}
+	return result
+}
+
+// plainLabels converts []crypto.SensitiveString back to []string for JSON
+// responses. Called inside a UseSensitiveData callback.
+func plainLabels(labels []crypto.SensitiveString) []string {
+	result := make([]string, len(labels))
+	for i, l := range labels {
+		result[i] = l.String()
+	}
+	return result
+}
+
 func (req *workoutSessionRequest) toParams() store.WorkoutSessionParams {
 	p := store.WorkoutSessionParams{
 		Activity:    req.Activity,
@@ -90,7 +110,7 @@ func (req *workoutSessionRequest) toParams() store.WorkoutSessionParams {
 			ProgramName:      crypto.NewSensitiveStringFromPtr(req.ProgramName),
 			ProgramStructure: crypto.NewSensitiveStringFromPtr(req.ProgramStructure),
 			Summary:          crypto.NewSensitiveStringFromPtr(req.Summary),
-			Labels:           req.Labels,
+			Labels:           sensitiveLabels(req.Labels),
 		},
 	}
 	if req.ProgramID != nil {
@@ -162,7 +182,7 @@ func toResponse(r *http.Request, ws *domain.WorkoutSession) (*workoutSessionResp
 		resp.ProgramStructure = stringPtr(private.ProgramStructure)
 		resp.Summary = stringPtr(private.Summary)
 		if private.Labels != nil {
-			resp.Labels = private.Labels
+			resp.Labels = plainLabels(private.Labels)
 		}
 		return nil
 	})

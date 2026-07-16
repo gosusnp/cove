@@ -97,7 +97,7 @@ func TestSessionEntry_structureHiddenWhenNotesPresent(t *testing.T) {
 func TestSessionEntry_labels(t *testing.T) {
 	ws := &domain.WorkoutSession{}
 	sd := domain.SessionSensitiveData{
-		Labels: []string{"deload", "recovery"},
+		Labels: []crypto.SensitiveString{crypto.NewSensitiveString("deload"), crypto.NewSensitiveString("recovery")},
 	}
 	got := SessionEntry(ws, sd)
 	for _, label := range []string{"deload", "recovery"} {
