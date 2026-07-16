@@ -189,6 +189,8 @@ All interactive and reusable UI elements **must** come from `src/components/ui/`
 | `Markdown` | `components/ui/Markdown.jsx` | Renders a markdown string as styled HTML using design-token typography; `children`, `class` props |
 | `EditableMarkdown` | `components/ui/EditableMarkdown.jsx` | Inline editable markdown field; switches between rendered view and textarea; `value`, `placeholder`, `onSave`, `variant` (`"default"` bordered card \| `"plain"` borderless), `minRows`, `maxRows`, `resizable`, `editLabel`, `disabled` props |
 | `CheckList`, `CheckListSection`, `CheckListItem` | `components/ui/CheckList.jsx` | Swipeable checklist for session tracking; `CheckListSection` groups items under a sticky header (swipe right to check all); `CheckListItem` supports swipe-to-toggle and click-to-toggle, `subtitle` renders a second line, `defaultChecked` sets initial state |
+| `TagSelector` | `components/ui/TagSelector.jsx` | Multi-select pill toggle buttons for independent on/off tags (e.g. session labels); `value` (string[]), `onChange`, `options` ([{ value, label }]), `label`, `disabled` props |
+| `StripSelector` | `components/ui/StripSelector.jsx` | Horizontally scrollable selector strip; scroll or tap to select; auto-centers selected item; `value`, `onChange`, `options` (string[]), `label`, `disabled`, `class` (required to set visible width) props |
 
 Supporting utilities:
 
@@ -218,7 +220,7 @@ The `/design-elements` route (visible when `VITE_COVE_ENV=dev`) is the live show
 
 ### Testing UI Components
 
-Radix UI packages and `@dnd-kit` use browser APIs (`ResizeObserver`, CSS custom properties, pointer events) that jsdom does not support. Any package that causes errors in tests must have a jsdom-compatible mock in `src/__mocks__/`.
+Radix UI packages, `@dnd-kit`, and Capacitor plugins use browser or native APIs that jsdom does not support. Any package that causes errors in tests must have a jsdom-compatible mock in `src/__mocks__/`.
 
 Mocks are wired via vitest-only aliases in `vite.config.js`:
 
@@ -233,6 +235,11 @@ test: {
     "@dnd-kit/core":                   resolve(import.meta.dirname, "src/__mocks__/dnd-kit-core.jsx"),
     "@dnd-kit/sortable":               resolve(import.meta.dirname, "src/__mocks__/dnd-kit-sortable.js"),
     "@dnd-kit/utilities":              resolve(import.meta.dirname, "src/__mocks__/dnd-kit-utilities.js"),
+    "react-markdown":                  resolve(import.meta.dirname, "src/__mocks__/react-markdown.jsx"),
+    "@capacitor/core":                 resolve(import.meta.dirname, "src/__mocks__/capacitor-core.js"),
+    "@capacitor-community/keep-awake": resolve(import.meta.dirname, "src/__mocks__/capacitor-keep-awake.js"),
+    "@capgo/capacitor-social-login":   resolve(import.meta.dirname, "src/__mocks__/capacitor-social-login.js"),
+    "@capgo/capacitor-updater":        resolve(import.meta.dirname, "src/__mocks__/capgo-capacitor-updater.js"),
   },
 }
 ```

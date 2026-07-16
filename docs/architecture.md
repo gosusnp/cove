@@ -41,6 +41,28 @@ docs/             — architecture and style guides
 
 ---
 
+## Configuration
+
+All application configuration is loaded in `backend/config.go` via `loadConfig()`, which returns a `Config` struct. Configuration values are never read with raw `os.Getenv` calls scattered through the codebase.
+
+### Secret Resolution (`getSecret`)
+
+Every value is read through the `getSecret(key string)` helper, which applies the following precedence:
+
+1. `$COVE_SECRETS_DIR/<key>` — file in a mounted secrets directory (k8s `Secret` volume)
+2. `$<key>_FILE` — explicit file path env var (e.g. CNPG-generated database credentials)
+3. `$<key>` — plain environment variable (local dev / `.env`)
+
+This lets the same binary run in local dev (plain env vars) and in production (mounted secrets) without code changes.
+
+### Rules
+
+- **DO** add new config values as fields on `Config` and read them with `getSecret` inside `loadConfig()`.
+- **DON'T** call `os.Getenv` directly anywhere outside `config.go` — all env reads belong in `loadConfig`.
+- **DO** validate required fields in `loadConfig` and return an error immediately if they are missing.
+
+---
+
 ## Layer Hierarchy
 
 ```
