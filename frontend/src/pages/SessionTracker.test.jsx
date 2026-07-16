@@ -64,7 +64,7 @@ function renderTracker() {
 	});
 }
 
-function mockFetch({ sessionId = 1, patchOk = true } = {}) {
+function mockFetch({ sessionId = 1, patchOk = true, deleteOk = true } = {}) {
 	vi.spyOn(global, "fetch").mockImplementation((url, opts) => {
 		if (url.includes("/api/programs")) {
 			return Promise.resolve({
@@ -80,6 +80,9 @@ function mockFetch({ sessionId = 1, patchOk = true } = {}) {
 		}
 		if (opts?.method === "PATCH") {
 			return Promise.resolve({ ok: patchOk });
+		}
+		if (opts?.method === "DELETE") {
+			return Promise.resolve({ ok: deleteOk });
 		}
 		return Promise.reject(new Error(`Unexpected fetch: ${url}`));
 	});
@@ -776,6 +779,90 @@ describe("SessionTracker", () => {
 			await capturedOnSave();
 
 			expect(localStorage.getItem("cove_active_workout_session")).toBeNull();
+		});
+	});
+
+	describe("abort session", () => {
+		it("shows Discard button when session is started", async () => {
+			mockFetch();
+			renderTracker();
+			await startSession();
+			expect(
+				screen.getByRole("button", { name: "Discard" }),
+			).toBeInTheDocument();
+		});
+
+		it("does not show Discard button before session starts", () => {
+			mockFetch();
+			renderTracker();
+			expect(
+				screen.queryByRole("button", { name: "Discard" }),
+			).not.toBeInTheDocument();
+		});
+
+		it("opens a confirmation dialog when Discard is clicked", async () => {
+			mockFetch();
+			renderTracker();
+			await startSession();
+			fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+			expect(screen.getByRole("dialog")).toBeInTheDocument();
+			expect(screen.getByText("Discard session?")).toBeInTheDocument();
+		});
+
+		it("calls DELETE and clears localStorage on confirm", async () => {
+			mockFetch();
+			renderTracker();
+			await startSession();
+
+			fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+			await waitFor(() =>
+				expect(screen.getByText("Discard session?")).toBeInTheDocument(),
+			);
+
+			// After the dialog opens there are two "Discard" buttons: the one in the
+			// controls and the confirm button inside the dialog. Click the last one.
+			const discardBtns = screen.getAllByRole("button", { name: "Discard" });
+			fireEvent.click(discardBtns[discardBtns.length - 1]);
+
+			await waitFor(() => {
+				const deleteCalls = global.fetch.mock.calls.filter(
+					([url, opts]) =>
+						opts?.method === "DELETE" && url.includes("/api/sessions/1"),
+				);
+				expect(deleteCalls).toHaveLength(1);
+			});
+			expect(localStorage.getItem("cove_active_workout_session")).toBeNull();
+		});
+
+		it("shows an error message when DELETE fails", async () => {
+			mockFetch({ deleteOk: false });
+			renderTracker();
+			await startSession();
+
+			// Seed localStorage so we can verify it is NOT cleared on failure.
+			localStorage.setItem(
+				"cove_active_workout_session",
+				JSON.stringify({ sessionId: 1 }),
+			);
+
+			fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+			await waitFor(() =>
+				expect(screen.getByText("Discard session?")).toBeInTheDocument(),
+			);
+
+			const confirmBtns = screen.getAllByRole("button", { name: "Discard" });
+			// The confirm button inside the dialog (last one rendered).
+			fireEvent.click(confirmBtns[confirmBtns.length - 1]);
+
+			await waitFor(() =>
+				expect(
+					screen.getByText("Failed to discard session"),
+				).toBeInTheDocument(),
+			);
+			// localStorage must not be cleared when the request fails.
+			expect(
+				localStorage.getItem("cove_active_workout_session"),
+			).not.toBeNull();
 		});
 	});
 

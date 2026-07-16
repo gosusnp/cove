@@ -20,6 +20,7 @@ import {
 	DialogTitle,
 } from "../components/ui/Dialog.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog.jsx";
 import { SessionSummaryDialog } from "./SessionSummaryDialog.jsx";
 import {
 	BoulderingTracker,
@@ -158,6 +159,9 @@ export function SessionTracker() {
 
 	// ISO timestamp captured when the session was started (for localStorage).
 	const startedAtRef = useRef(null);
+
+	// Abort dialog state.
+	const abortDialog = useDialog();
 
 	// Add Program dialog state.
 	const addProgramDialog = useDialog();
@@ -384,6 +388,17 @@ export function SessionTracker() {
 		saveError.value = "";
 	}
 
+	// Abort Session: delete the server record, clear local state, navigate away.
+	// Throws on failure so ConfirmDialog can display the error.
+	async function handleAbort() {
+		const r = await apiFetch(`/api/sessions/${sessionId.value}`, {
+			method: "DELETE",
+		});
+		if (!r.ok) throw new Error("Failed to discard session");
+		localStorage.removeItem("cove_active_workout_session");
+		route("/sessions");
+	}
+
 	// Save Session: patch with completed_at, duration, notes, effort, then navigate.
 	// Program name and structure are already up-to-date on the server (set on POST
 	// and updated via PATCH on each mid-session add), so they are omitted here.
@@ -525,6 +540,16 @@ export function SessionTracker() {
 								disabled={saving.value}
 							>
 								End Session
+							</Button>
+						)}
+						{started && (
+							<Button
+								variant="ghost"
+								size="md"
+								onClick={abortDialog.show}
+								disabled={saving.value}
+							>
+								Discard
 							</Button>
 						)}
 					</div>
@@ -694,6 +719,15 @@ export function SessionTracker() {
 					</div>
 				</DialogContent>
 			</Dialog>
+
+			{/* Discard Session confirmation dialog */}
+			<ConfirmDialog
+				openSignal={abortDialog.open}
+				title="Discard session?"
+				description="This will permanently delete the session. This cannot be undone."
+				confirmLabel="Discard"
+				onConfirm={handleAbort}
+			/>
 		</>
 	);
 }
