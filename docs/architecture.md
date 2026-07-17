@@ -104,24 +104,6 @@ exHandler := handlers.NewExerciseHandler(exSvc)
 
 Handlers own HTTP: routing, decoding requests, encoding responses. Nothing else.
 
-```go
-type ExerciseHandler struct {
-    svc *service.ExerciseService
-}
-
-func NewExerciseHandler(s *service.ExerciseService) *ExerciseHandler {
-    return &ExerciseHandler{svc: s}
-}
-
-func (h *ExerciseHandler) RegisterRoutes(mux *http.ServeMux) {
-    mux.HandleFunc("GET /exercises", h.list)
-    mux.HandleFunc("POST /exercises", h.create)
-    mux.HandleFunc("GET /exercises/{id}", h.get)
-    mux.HandleFunc("PUT /exercises/{id}", h.update)
-    mux.HandleFunc("DELETE /exercises/{id}", h.delete)
-}
-```
-
 - **DO** use `jsonOK`, `jsonError`, `jsonResponse`, and `internalError` from `handlers/helpers.go` for all responses.
 - **DO** use `pathID[Type](r, "id")` from `handlers/helpers.go` to parse path parameters.
 - **DO** map `service.ErrUnauthorized` → `401 Unauthorized` and `service.ErrNotFound` → `404 Not Found` in the handler's error helper.
@@ -131,14 +113,6 @@ func (h *ExerciseHandler) RegisterRoutes(mux *http.ServeMux) {
 - **DON'T** pass `err.Error()` to `jsonError` — internal error details must not be sent to the client.
 
 ### Request Decoding
-
-```go
-var req exerciseRequest
-if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-    jsonError(w, "invalid request body", http.StatusBadRequest)
-    return
-}
-```
 
 - **DO** define request DTOs as unexported structs within the handler file.
 - **DO** return `400 Bad Request` immediately on decode failure.
@@ -205,7 +179,6 @@ Stores own data access: raw SQL, scanning rows, and database error translation.
 
 Stores are **stateless**. They do not hold a database connection or transaction. Instead, every method accepts a `context.Context` and a `Querier` (defined in `store/base.go`: `QueryContext`, `ExecContext`, `QueryRowContext`). Concrete stores are empty structs with a `New[Type]Store()` constructor.
 
-- **DO** make stores stateless — they must not hold any internal state or connections.
 - **DO** accept `ctx context.Context` and `q Querier` as the first two arguments for every store method.
 
 ### Defense-in-Depth
@@ -261,31 +234,8 @@ To prevent logic errors (e.g., passing a `ProgramID` where an `ExerciseID` is re
 
 ## Error Handling
 
-### Wrapping
-
-```go
-// DO
-return nil, fmt.Errorf("list exercises: %w", err)
-
-// DON'T
-return nil, err
-return nil, errors.New("list exercises: " + err.Error())
-```
-
 - **DO** wrap every error with `fmt.Errorf("context: %w", err)` before returning up the call stack.
 - **DON'T** swallow errors or return bare `err` without context.
-
-### Checking
-
-```go
-// Sentinel errors
-if errors.Is(err, store.ErrNotFound) { ... }
-
-// Typed errors
-var ve *service.ValidationError
-if errors.As(err, &ve) { ... }
-```
-
 - **DO** use `errors.Is` for sentinel errors and `errors.As` for typed errors.
 - **DON'T** compare errors with `==` or check error strings.
 
@@ -328,15 +278,7 @@ Middleware takes `http.Handler` and returns `http.Handler`.
 
 ### JSON Responses
 
-All keys in `snake_case`. Success and error shapes are fixed:
-
-```json
-// Success
-{ "id": 1, "name": "Squat" }
-
-// Error
-{ "error": "exercise not found" }
-```
+All keys in `snake_case`. Use the standard helpers — never ad-hoc `json.Marshal` or `w.Write`.
 
 - **DO** use `jsonOK(w, data)` for 200 responses.
 - **DO** use `jsonError(w, message, code)` for all error responses.
@@ -430,25 +372,11 @@ Generate a local key with:
 python3 -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())"
 ```
 
-#### Ciphertext Format
+#### Key Rotation
 
-Every ciphertext produced by `AESEncryptor` is:
+`NewAESEncryptor(currentVersion byte, keys map[byte]string)` accepts multiple versioned keys. New rows are always encrypted with `currentVersion`; old rows decrypt using the version byte stored in their ciphertext prefix.
 
-```
-[1-byte version][12-byte nonce][AES-256-GCM ciphertext + 16-byte tag]
-```
-
-The version byte identifies which key was used to encrypt the payload. On decrypt, the version byte is read first and the matching key is selected from the key map. This enables lazy key rotation without a migration.
-
-#### AAD Binding
-
-The owning entity's `user_id` bytes are passed as GCM additional authenticated data (AAD) on every encrypt and decrypt call. The AAD is bound into the GCM authentication tag — decryption fails if the user_id does not match the one used during encryption. This prevents a ciphertext from one row being replayed against another user's row.
-
-#### Key Versioning and Rotation
-
-`NewAESEncryptor(currentVersion byte, keys map[byte]string)` accepts multiple versioned keys. New rows are always encrypted with the `currentVersion` key. Old rows are decrypted using whichever key version was stored in the ciphertext prefix.
-
-**To rotate to a new key:** add a new version byte + key to `NewAESEncryptor`'s map and update `currentVersion`. New writes use the new key; old rows decrypt with whichever version is stored in their ciphertext prefix. Remove old keys once no rows reference them.
+**To rotate:** add a new version byte + key, update `currentVersion`. Remove old keys once no rows reference them.
 
 ---
 
@@ -465,7 +393,7 @@ The `(value, unit)` pair stored on a record represents the author's intent and i
 | **Authoring / edit** | Render the stored unit as-is | ProgramDetail exercise editor, recipe ingredient form |
 | **Consumption / display** | Convert to the viewer's preferred unit at render time | SessionTracker, recipe viewer |
 
-This distinction matters because the author and the viewer may be different people or in different environments with different unit preferences. Preserving the stored unit also prevents rounding errors from accumulating across repeated read-convert-save cycles.
+Author and viewer may differ in unit preference; preserving the stored unit also prevents rounding drift across repeated read-convert-save cycles.
 
 ### Backend responsibilities
 
@@ -504,10 +432,7 @@ Workers are background job processors that run alongside the HTTP server in the 
 
 ### Why Ports
 
-All data access from a worker must go through a port, never by importing `internal/service` or `internal/store` directly. This establishes a clean seam for two reasons:
-
-1. **Database connection scaling**: Only the API tier (services) should hold database connections. Workers that bypass services multiply DB clients independently, making connection count harder to reason about as the system scales.
-2. **Deployment flexibility**: When the worker is eventually split into a separate process, the port implementation swaps from a local adapter (direct service call) to a remote adapter (HTTP client). The workflow orchestration code does not change.
+All data access from a worker must go through a port, never by importing `internal/service` or `internal/store` directly. This keeps database connections owned exclusively by the service tier and creates a seam so that when a worker moves to a separate process, only the port implementation changes — the workflow code is untouched.
 
 ### Structure
 
@@ -518,7 +443,7 @@ type WorkoutSessionPort interface {
     PatchSummary(ctx context.Context, id domain.WorkoutSessionID, patch WorkoutSessionSummaryPatch) error
 }
 
-// internal/workers/local.go — local adapter (fat-binary deployment)
+// internal/workers/local.go — thin wrapper on WorkoutSessionService (fat-binary deployment)
 type LocalWorkoutSessionAdapter struct { svc *service.WorkoutSessionService }
 
 // internal/workers/session_summary.go — workflow orchestration
@@ -528,7 +453,7 @@ type SessionSummaryWorker struct {
 }
 ```
 
-The workflow code depends only on `WorkoutSessionPort`. The local adapter is a thin wrapper on `WorkoutSessionService`. When the worker splits to a separate pod, the local adapter is replaced by an HTTP client — zero changes to the workflow.
+The local adapter shares the same process and DB connection pool as the API server. When the worker splits to a separate pod it is replaced by an HTTP client — zero changes to the workflow.
 
 ### Port Design Rules
 
@@ -537,11 +462,6 @@ The workflow code depends only on `WorkoutSessionPort`. The local adapter is a t
 - **DON'T** expose `service.WorkoutSessionPatch` or other service types through a port boundary — define worker-owned input types (e.g. `WorkoutSessionSummaryPatch`) and translate in the adapter.
 - **DO** require identity in ctx (via `domain.NewContext`) before calling any port method — the same convention as the service layer.
 - **DON'T** define ports for pure-computation dependencies (e.g. `SummarizeService`, LLM client) — these are direct dependencies of the worker, not data-tier boundaries.
-
-### Adapters
-
-- **Local adapter** (`LocalWorkoutSessionAdapter`): delegates directly to `WorkoutSessionService`. Used in the fat-binary deployment where worker and API server share a process and DB connection pool.
-- **Remote adapter** (future): HTTP client that calls the API. Used when the worker runs as a separate pod. Satisfies the same port interface; workflow code is unchanged.
 
 ### Sensitive Data
 
@@ -627,13 +547,7 @@ type Router interface {
 }
 ```
 
-`StaticRouter` is the default implementation. It wraps a single `Client` and applies per-task defaults before dispatching:
-
-```go
-func NewStaticRouter(c Client) Router
-```
-
-The `Request` type (`llm.Request`) is the caller's view — it carries semantic fields (`Messages`, `Thinking`, `Temperature`) without any provider details. The router translates these into a `CompletionRequest` and injects provider-specific parameters via `ExtraBody`.
+`StaticRouter` is the default implementation. It wraps a single `Client` and applies per-task defaults before dispatching. The `Request` type (`llm.Request`) is the caller's view — it carries semantic fields (`Messages`, `Thinking`, `Temperature`) without any provider details. The router translates these into a `CompletionRequest` and injects provider-specific parameters via `ExtraBody`.
 
 ### TaskType
 
