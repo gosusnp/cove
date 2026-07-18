@@ -32,6 +32,7 @@ func scanWorkoutSession(sc scanner) (*domain.WorkoutSession, error) {
 		&ws.StartedAt, &ws.CompletedAt,
 		&ws.SummaryGeneratedAt,
 		&ws.CreatedBy, &ws.CreatedAt, &ws.UpdatedBy, &ws.UpdatedAt,
+		&ws.HealthConnectID, &ws.Source, &ws.SourceActivity,
 		ws.SensitiveDataScanner(),
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -50,6 +51,7 @@ const workoutSessionColumns = `
 	started_at, completed_at,
 	summary_generated_at,
 	created_by, created_at, updated_by, updated_at,
+	health_connect_id, source, source_activity,
 	sensitive_data`
 
 func (s *WorkoutSessionStore) get(ctx context.Context, q Querier, orgID domain.OrgID, id domain.WorkoutSessionID) (*domain.WorkoutSession, error) {
@@ -65,15 +67,16 @@ func (s *WorkoutSessionStore) get(ctx context.Context, q Querier, orgID domain.O
 	return ws, nil
 }
 
-func (s *WorkoutSessionStore) List(ctx context.Context, q Querier, orgID domain.OrgID, userID domain.UserID, from, to *time.Time) ([]*domain.WorkoutSession, error) {
+func (s *WorkoutSessionStore) List(ctx context.Context, q Querier, orgID domain.OrgID, userID domain.UserID, from, to, updatedSince *time.Time) ([]*domain.WorkoutSession, error) {
 	rows, err := q.QueryContext(ctx, `
 		SELECT`+workoutSessionColumns+`
 		FROM cove.workout_sessions
 		WHERE org_id = $1 AND user_id = $2
 		  AND ($3::timestamptz IS NULL OR started_at >= $3)
 		  AND ($4::timestamptz IS NULL OR started_at < $4)
+		  AND ($5::timestamptz IS NULL OR updated_at >= $5)
 		ORDER BY COALESCE(started_at, created_at) DESC
-	`, orgID, userID, from, to)
+	`, orgID, userID, from, to, updatedSince)
 	if err != nil {
 		return nil, fmt.Errorf("list workout sessions: %w", err)
 	}
@@ -163,6 +166,82 @@ func (s *WorkoutSessionStore) Update(ctx context.Context, q Querier, orgID domai
 		return nil, ErrConflict
 	}
 	return s.get(ctx, q, orgID, id)
+}
+
+// SetHealthConnectID links a session to a Health Connect record by storing its
+// UUID. Uses IS DISTINCT FROM so the bookkeeping trigger does not fire when the
+// value is already set to the same UUID (preventing a spurious updated_at bump).
+func (s *WorkoutSessionStore) SetHealthConnectID(ctx context.Context, q Querier, orgID domain.OrgID, id domain.WorkoutSessionID, hcID string) error {
+	res, err := q.ExecContext(ctx, `
+		UPDATE cove.workout_sessions
+		SET health_connect_id = $3
+		WHERE id = $1 AND org_id = $2 AND health_connect_id IS DISTINCT FROM $3
+	`, id, orgID, hcID)
+	if err != nil {
+		return fmt.Errorf("set health connect id: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		// Either the value was already the same (noop) or the session doesn't
+		// exist. Distinguish by attempting a get.
+		if _, err := s.get(ctx, q, orgID, id); errors.Is(err, ErrNotFound) {
+			return ErrNotFound
+		}
+		// Noop — HC ID already set to the same value.
+	}
+	return nil
+}
+
+// HealthConnectSessionParams holds the fields provided by the Health Connect
+// import path. Source and health_connect_id are managed by the store.
+type HealthConnectSessionParams struct {
+	SourceActivity *string
+	Activity       *string
+	DurationS      *int
+	StartedAt      *time.Time
+	CompletedAt    *time.Time
+}
+
+// UpsertHealthConnect creates or updates a session keyed on its Health Connect
+// record UUID. Returns the session and true if it was newly created, false if
+// updated. Source is fixed to "health_connect" on insert and never changed on
+// update. On conflict, only non-NULL fields in p are applied; omitted fields
+// retain their current stored values (patch-upsert semantics).
+func (s *WorkoutSessionStore) UpsertHealthConnect(ctx context.Context, q Querier, userID domain.UserID, orgID domain.OrgID, hcID string, p HealthConnectSessionParams) (*domain.WorkoutSession, bool, error) {
+	var id domain.WorkoutSessionID
+	var created bool
+	err := q.QueryRowContext(ctx, `
+		INSERT INTO cove.workout_sessions (
+			user_id,
+			health_connect_id, source, source_activity,
+			activity, duration_s,
+			started_at, completed_at
+		) VALUES ($1, $2, 'health_connect', $3, $4, $5, $6, $7)
+		ON CONFLICT (health_connect_id) DO UPDATE SET
+			source_activity = COALESCE(EXCLUDED.source_activity, workout_sessions.source_activity),
+			activity        = COALESCE(EXCLUDED.activity,         workout_sessions.activity),
+			duration_s      = COALESCE(EXCLUDED.duration_s,       workout_sessions.duration_s),
+			started_at      = COALESCE(EXCLUDED.started_at,       workout_sessions.started_at),
+			completed_at    = COALESCE(EXCLUDED.completed_at,     workout_sessions.completed_at)
+		RETURNING id, (xmax = 0)
+	`,
+		userID,
+		hcID, p.SourceActivity,
+		p.Activity, p.DurationS,
+		p.StartedAt, p.CompletedAt,
+	).Scan(&id, &created)
+	if err != nil {
+		return nil, false, fmt.Errorf("upsert health connect session: %w", err)
+	}
+
+	ws, err := s.get(ctx, q, orgID, id)
+	if err != nil {
+		return nil, false, err
+	}
+	return ws, created, nil
 }
 
 func (s *WorkoutSessionStore) Delete(ctx context.Context, q Querier, orgID domain.OrgID, id domain.WorkoutSessionID) error {

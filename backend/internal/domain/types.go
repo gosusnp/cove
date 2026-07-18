@@ -24,11 +24,11 @@ type WorkoutSessionID IntID[struct{ workoutSession struct{} }]
 // String fields use *crypto.SensitiveString instead of *string so that the
 // backing bytes can be explicitly zeroed after use, avoiding Go string interning.
 type SessionSensitiveData struct {
-	PerceivedEffort  *int                    `json:"perceived_effort,omitempty"`
-	SessionNotes     *crypto.SensitiveString `json:"session_notes,omitempty"`
-	ProgramName      *crypto.SensitiveString `json:"program_name,omitempty"`
-	ProgramStructure *crypto.SensitiveString `json:"program_structure,omitempty"`
-	Summary          *crypto.SensitiveString `json:"summary,omitempty"`
+	PerceivedEffort  *int                     `json:"perceived_effort,omitempty"`
+	SessionNotes     *crypto.SensitiveString  `json:"session_notes,omitempty"`
+	ProgramName      *crypto.SensitiveString  `json:"program_name,omitempty"`
+	ProgramStructure *crypto.SensitiveString  `json:"program_structure,omitempty"`
+	Summary          *crypto.SensitiveString  `json:"summary,omitempty"`
 	Labels           []crypto.SensitiveString `json:"labels,omitempty"`
 }
 
@@ -67,6 +67,9 @@ type WorkoutSession struct {
 	StartedAt          *time.Time       `json:"started_at,omitempty"`
 	CompletedAt        *time.Time       `json:"completed_at,omitempty"`
 	SummaryGeneratedAt *time.Time       `json:"summary_generated_at,omitempty"`
+	HealthConnectID    *string          `json:"health_connect_id,omitempty"`
+	Source             string           `json:"source"`
+	SourceActivity     *string          `json:"source_activity,omitempty"`
 	CreatedBy          UserID           `json:"created_by"`
 	CreatedAt          time.Time        `json:"created_at"`
 	UpdatedBy          *UserID          `json:"updated_by,omitempty"`

@@ -59,18 +59,22 @@ func validateLabels(labels []crypto.SensitiveString) error {
 // updated_at does not match. When nil, the update is applied unconditionally
 // (last-write-wins).
 type WorkoutSessionPatch struct {
-	UpdatedAt        *time.Time                  `json:"updated_at,omitempty"`
-	ProgramID        domain.Optional[*int64]     `json:"program_id"`
-	Activity         domain.Optional[*string]    `json:"activity"`
-	DurationS        domain.Optional[*int]       `json:"duration_s"`
-	StartedAt        domain.Optional[*time.Time] `json:"started_at"`
-	CompletedAt      domain.Optional[*time.Time] `json:"completed_at"`
+	UpdatedAt        *time.Time                                `json:"updated_at,omitempty"`
+	ProgramID        domain.Optional[*int64]                   `json:"program_id"`
+	Activity         domain.Optional[*string]                  `json:"activity"`
+	DurationS        domain.Optional[*int]                     `json:"duration_s"`
+	StartedAt        domain.Optional[*time.Time]               `json:"started_at"`
+	CompletedAt      domain.Optional[*time.Time]               `json:"completed_at"`
 	Labels           domain.Optional[[]crypto.SensitiveString] `json:"labels"`
-	PerceivedEffort  domain.Optional[*int]       `json:"perceived_effort"`
-	SessionNotes     domain.Optional[*string]    `json:"session_notes"`
-	ProgramName      domain.Optional[*string]    `json:"program_name"`
-	ProgramStructure domain.Optional[*string]    `json:"program_structure"`
-	Summary          domain.Optional[*string]    `json:"summary"`
+	PerceivedEffort  domain.Optional[*int]                     `json:"perceived_effort"`
+	SessionNotes     domain.Optional[*string]                  `json:"session_notes"`
+	ProgramName      domain.Optional[*string]                  `json:"program_name"`
+	ProgramStructure domain.Optional[*string]                  `json:"program_structure"`
+	Summary          domain.Optional[*string]                  `json:"summary"`
+	// HealthConnectID links the session to a Health Connect record after export.
+	// nil means not provided; non-nil sets the value. Uses a lightweight update
+	// path (IS DISTINCT FROM) to avoid bumping updated_at when unchanged.
+	HealthConnectID *string `json:"health_connect_id,omitempty"`
 }
 
 // attachEncryptor injects the encryptor into a session returned by the store so
@@ -99,12 +103,14 @@ func cloneSensitiveString(s *crypto.SensitiveString) *crypto.SensitiveString {
 	return &ss
 }
 
-// SessionFilter holds optional date range bounds for listing sessions.
+// SessionFilter holds optional filters for listing sessions.
 // From is an inclusive lower bound; To is an exclusive upper bound on started_at.
-// Sessions with a null started_at are excluded when either bound is set.
+// Sessions with a null started_at are excluded when From or To is set.
+// UpdatedSince is an inclusive lower bound on updated_at for delta sync.
 type SessionFilter struct {
-	From *time.Time
-	To   *time.Time
+	From         *time.Time
+	To           *time.Time
+	UpdatedSince *time.Time
 }
 
 // NewSessionFilter parses optional YYYY-MM-DD date strings into a SessionFilter.
@@ -138,7 +144,7 @@ func (s *WorkoutSessionService) List(ctx context.Context, f SessionFilter) ([]*d
 	var list []*domain.WorkoutSession
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
 		var err error
-		list, err = s.store.List(ctx, q, id.OrgID, id.UserID, f.From, f.To)
+		list, err = s.store.List(ctx, q, id.OrgID, id.UserID, f.From, f.To, f.UpdatedSince)
 		return err
 	})
 	if err != nil {
@@ -251,8 +257,29 @@ func (s *WorkoutSessionService) Patch(ctx context.Context, id domain.WorkoutSess
 		return nil, ErrUnauthorized
 	}
 
+	hasPatchFields := patch.ProgramID.Set || patch.Activity.Set || patch.DurationS.Set ||
+		patch.StartedAt.Set || patch.CompletedAt.Set || patch.Labels.Set ||
+		patch.PerceivedEffort.Set || patch.SessionNotes.Set ||
+		patch.ProgramName.Set || patch.ProgramStructure.Set || patch.Summary.Set
+
 	var ws *domain.WorkoutSession
 	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		// Apply the lightweight HC ID update first if requested. Uses IS DISTINCT
+		// FROM so the bookkeeping trigger does not fire when unchanged.
+		if patch.HealthConnectID != nil {
+			if err := s.store.SetHealthConnectID(ctx, q, identity.OrgID, id, *patch.HealthConnectID); err != nil {
+				return err
+			}
+		}
+
+		// If no other fields are being patched, skip the expensive
+		// read-modify-write and return the current session directly.
+		if !hasPatchFields {
+			var err error
+			ws, err = s.store.Get(ctx, q, identity.OrgID, id)
+			return err
+		}
+
 		current, err := s.store.Get(ctx, q, identity.OrgID, id)
 		if err != nil {
 			return err
@@ -350,6 +377,44 @@ func (s *WorkoutSessionService) Patch(ctx context.Context, id domain.WorkoutSess
 	}
 	s.attachEncryptor(ws)
 	return ws, nil
+}
+
+// HealthConnectSessionParams holds the fields provided when importing a session
+// from Health Connect. Source and health_connect_id are managed internally.
+type HealthConnectSessionParams struct {
+	SourceActivity *string
+	Activity       *string
+	DurationS      *int
+	StartedAt      *time.Time
+	CompletedAt    *time.Time
+}
+
+// UpsertHealthConnect creates or updates a workout session keyed on its Health
+// Connect record UUID. Returns the session and true if newly created.
+func (s *WorkoutSessionService) UpsertHealthConnect(ctx context.Context, hcID string, p HealthConnectSessionParams) (*domain.WorkoutSession, bool, error) {
+	id, ok := domain.IdentityFromContext(ctx)
+	if !ok {
+		return nil, false, ErrUnauthorized
+	}
+
+	var ws *domain.WorkoutSession
+	var created bool
+	err := withScopedTx(ctx, s.db, func(q store.Querier) error {
+		var err error
+		ws, created, err = s.store.UpsertHealthConnect(ctx, q, id.UserID, id.OrgID, hcID, store.HealthConnectSessionParams{
+			SourceActivity: p.SourceActivity,
+			Activity:       p.Activity,
+			DurationS:      p.DurationS,
+			StartedAt:      p.StartedAt,
+			CompletedAt:    p.CompletedAt,
+		})
+		return err
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	s.attachEncryptor(ws)
+	return ws, created, nil
 }
 
 func (s *WorkoutSessionService) Delete(ctx context.Context, id domain.WorkoutSessionID) error {

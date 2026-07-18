@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gosusnp/cove/backend/internal/crypto"
@@ -59,7 +60,7 @@ func TestWorkoutSessionStore_List(t *testing.T) {
 		s, q, ctx := newTestWorkoutSessionStore(t)
 		id, _ := domain.IdentityFromContext(ctx)
 
-		sessions, err := s.List(ctx, q, id.OrgID, id.UserID, nil, nil)
+		sessions, err := s.List(ctx, q, id.OrgID, id.UserID, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -102,7 +103,7 @@ func TestWorkoutSessionStore_List(t *testing.T) {
 		}
 		_ = tx1.Commit()
 
-		sessions, err := s.List(ctx2, q2, oID, uID2, nil, nil)
+		sessions, err := s.List(ctx2, q2, oID, uID2, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -403,3 +404,195 @@ func TestWorkoutSessionStore_ServiceAccountRLS(t *testing.T) {
 }
 
 func strPtr(s string) *string { return &s }
+
+func TestWorkoutSessionStore_SetHealthConnectID(t *testing.T) {
+	t.Run("sets the health connect id", func(t *testing.T) {
+		s, q, ctx := newTestWorkoutSessionStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
+		p := WorkoutSessionParams{Activity: strPtr("Run")}
+		ws, err := s.Create(ctx, q, p, secureBytes(t, ctx, p))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := s.SetHealthConnectID(ctx, q, id.OrgID, ws.ID, "hc-uuid-123"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		got, err := s.Get(ctx, q, id.OrgID, ws.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.HealthConnectID == nil || *got.HealthConnectID != "hc-uuid-123" {
+			t.Errorf("got health_connect_id %v, want %q", got.HealthConnectID, "hc-uuid-123")
+		}
+	})
+
+	t.Run("noop when value is already the same does not error", func(t *testing.T) {
+		s, q, ctx := newTestWorkoutSessionStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
+		p := WorkoutSessionParams{}
+		ws, err := s.Create(ctx, q, p, secureBytes(t, ctx, p))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.SetHealthConnectID(ctx, q, id.OrgID, ws.ID, "hc-uuid-456"); err != nil {
+			t.Fatal(err)
+		}
+		before, _ := s.Get(ctx, q, id.OrgID, ws.ID)
+
+		// Setting the same value again should succeed and not bump updated_at.
+		if err := s.SetHealthConnectID(ctx, q, id.OrgID, ws.ID, "hc-uuid-456"); err != nil {
+			t.Fatalf("noop: unexpected error: %v", err)
+		}
+		after, _ := s.Get(ctx, q, id.OrgID, ws.ID)
+		if !after.UpdatedAt.Equal(before.UpdatedAt) {
+			t.Error("noop: updated_at was bumped when health_connect_id was unchanged")
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		s, q, ctx := newTestWorkoutSessionStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
+
+		err := s.SetHealthConnectID(ctx, q, id.OrgID, domain.WorkoutSessionID(999), "hc-uuid-789")
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("got %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func TestWorkoutSessionStore_UpsertHealthConnect(t *testing.T) {
+	t.Run("creates a new session", func(t *testing.T) {
+		s, q, ctx := newTestWorkoutSessionStore(t)
+		dur := 3600
+		p := HealthConnectSessionParams{
+			Activity:       strPtr("Weightlifting"),
+			DurationS:      &dur,
+			SourceActivity: strPtr("EXERCISE_TYPE_WEIGHT_TRAINING"),
+		}
+
+		id, _ := domain.IdentityFromContext(ctx)
+		ws, created, err := s.UpsertHealthConnect(ctx, q, id.UserID, id.OrgID, "hc-new-uuid", p)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !created {
+			t.Error("expected created=true for new session")
+		}
+		if ws.Activity == nil || *ws.Activity != "Weightlifting" {
+			t.Errorf("got activity %v, want Weightlifting", ws.Activity)
+		}
+		if ws.Source != "health_connect" {
+			t.Errorf("got source %q, want %q", ws.Source, "health_connect")
+		}
+		if ws.SourceActivity == nil || *ws.SourceActivity != "EXERCISE_TYPE_WEIGHT_TRAINING" {
+			t.Errorf("got source_activity %v, want EXERCISE_TYPE_WEIGHT_TRAINING", ws.SourceActivity)
+		}
+		if ws.HealthConnectID == nil || *ws.HealthConnectID != "hc-new-uuid" {
+			t.Errorf("got health_connect_id %v, want hc-new-uuid", ws.HealthConnectID)
+		}
+	})
+
+	t.Run("updates existing session", func(t *testing.T) {
+		s, q, ctx := newTestWorkoutSessionStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
+		dur := 3600
+		p1 := HealthConnectSessionParams{Activity: strPtr("Run"), DurationS: &dur}
+		ws1, created, err := s.UpsertHealthConnect(ctx, q, id.UserID, id.OrgID, "hc-update-uuid", p1)
+		if err != nil || !created {
+			t.Fatalf("setup: err=%v created=%v", err, created)
+		}
+
+		dur2 := 7200
+		p2 := HealthConnectSessionParams{Activity: strPtr("Cycling"), DurationS: &dur2, SourceActivity: strPtr("EXERCISE_TYPE_BIKING")}
+		ws2, created, err := s.UpsertHealthConnect(ctx, q, id.UserID, id.OrgID, "hc-update-uuid", p2)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if created {
+			t.Error("expected created=false for update")
+		}
+		if ws2.ID != ws1.ID {
+			t.Errorf("expected same session ID, got %v vs %v", ws2.ID, ws1.ID)
+		}
+		if ws2.Activity == nil || *ws2.Activity != "Cycling" {
+			t.Errorf("got activity %v, want Cycling", ws2.Activity)
+		}
+		if ws2.DurationS == nil || *ws2.DurationS != 7200 {
+			t.Errorf("got duration %v, want 7200", ws2.DurationS)
+		}
+		// Source must not change on update.
+		if ws2.Source != "health_connect" {
+			t.Errorf("got source %q, want health_connect after update", ws2.Source)
+		}
+	})
+
+	t.Run("omitted fields retain existing values on update", func(t *testing.T) {
+		s, q, ctx := newTestWorkoutSessionStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
+		dur := 3600
+		p1 := HealthConnectSessionParams{
+			Activity:       strPtr("Run"),
+			DurationS:      &dur,
+			SourceActivity: strPtr("EXERCISE_TYPE_RUNNING"),
+		}
+		_, _, err := s.UpsertHealthConnect(ctx, q, id.UserID, id.OrgID, "hc-patch-uuid", p1)
+		if err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
+		// Second upsert omits Activity and SourceActivity — only DurationS changes.
+		dur2 := 5400
+		p2 := HealthConnectSessionParams{DurationS: &dur2}
+		ws2, created, err := s.UpsertHealthConnect(ctx, q, id.UserID, id.OrgID, "hc-patch-uuid", p2)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if created {
+			t.Error("expected created=false for update")
+		}
+		if ws2.DurationS == nil || *ws2.DurationS != 5400 {
+			t.Errorf("got duration %v, want 5400", ws2.DurationS)
+		}
+		// Omitted fields must retain original values.
+		if ws2.Activity == nil || *ws2.Activity != "Run" {
+			t.Errorf("got activity %v, want Run (should be unchanged)", ws2.Activity)
+		}
+		if ws2.SourceActivity == nil || *ws2.SourceActivity != "EXERCISE_TYPE_RUNNING" {
+			t.Errorf("got source_activity %v, want EXERCISE_TYPE_RUNNING (should be unchanged)", ws2.SourceActivity)
+		}
+	})
+}
+
+func TestWorkoutSessionStore_List_UpdatedSince(t *testing.T) {
+	t.Run("returns only sessions updated after the given time", func(t *testing.T) {
+		s, q, ctx := newTestWorkoutSessionStore(t)
+		id, _ := domain.IdentityFromContext(ctx)
+
+		p := WorkoutSessionParams{Activity: strPtr("Run")}
+		ws, err := s.Create(ctx, q, p, secureBytes(t, ctx, p))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// A timestamp after the session was created.
+		future := ws.UpdatedAt.Add(time.Second)
+		sessions, err := s.List(ctx, q, id.OrgID, id.UserID, nil, nil, &future)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(sessions) != 0 {
+			t.Errorf("got %d sessions, want 0 (session predates updated_since)", len(sessions))
+		}
+
+		// A timestamp before the session was created.
+		past := ws.UpdatedAt.Add(-time.Second)
+		sessions, err = s.List(ctx, q, id.OrgID, id.UserID, nil, nil, &past)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(sessions) != 1 {
+			t.Errorf("got %d sessions, want 1", len(sessions))
+		}
+	})
+}

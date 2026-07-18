@@ -36,6 +36,7 @@ func (h *WorkoutSessionHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /sessions", h.list)
 	mux.HandleFunc("POST /sessions", h.create)
 	mux.HandleFunc("GET /sessions/labels", h.labels)
+	mux.HandleFunc("PATCH /sessions/health-connect/{hc_id}", h.upsertHealthConnect)
 	mux.HandleFunc("GET /sessions/{id}", h.get)
 	mux.HandleFunc("PUT /sessions/{id}", h.replace)
 	mux.HandleFunc("PATCH /sessions/{id}", h.patch)
@@ -67,7 +68,18 @@ func parseSessionFilter(r *http.Request) (service.SessionFilter, error) {
 	if v := r.URL.Query().Get("to"); v != "" {
 		to = &v
 	}
-	return service.NewSessionFilter(from, to)
+	f, err := service.NewSessionFilter(from, to)
+	if err != nil {
+		return f, err
+	}
+	if v := r.URL.Query().Get("updated_since"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			return f, errors.New("invalid updated_since: use RFC3339")
+		}
+		f.UpdatedSince = &t
+	}
+	return f, nil
 }
 
 func stringPtr(s *crypto.SensitiveString) *string {
@@ -134,6 +146,9 @@ type workoutSessionResponse struct {
 	CompletedAt        *time.Time              `json:"completed_at,omitempty"`
 	Labels             []string                `json:"labels"`
 	SummaryGeneratedAt *time.Time              `json:"summary_generated_at,omitempty"`
+	HealthConnectID    *string                 `json:"health_connect_id,omitempty"`
+	Source             string                  `json:"source"`
+	SourceActivity     *string                 `json:"source_activity,omitempty"`
 	CreatedBy          domain.UserID           `json:"created_by"`
 	CreatedAt          time.Time               `json:"created_at"`
 	UpdatedBy          *domain.UserID          `json:"updated_by,omitempty"`
@@ -170,6 +185,9 @@ func toResponse(r *http.Request, ws *domain.WorkoutSession) (*workoutSessionResp
 		CompletedAt:        ws.CompletedAt,
 		Labels:             []string{},
 		SummaryGeneratedAt: ws.SummaryGeneratedAt,
+		HealthConnectID:    ws.HealthConnectID,
+		Source:             ws.Source,
+		SourceActivity:     ws.SourceActivity,
 		CreatedBy:          ws.CreatedBy,
 		CreatedAt:          ws.CreatedAt,
 		UpdatedBy:          ws.UpdatedBy,
@@ -187,6 +205,44 @@ func toResponse(r *http.Request, ws *domain.WorkoutSession) (*workoutSessionResp
 		return nil
 	})
 	return resp, err
+}
+
+type healthConnectSessionRequest struct {
+	SourceActivity *string    `json:"source_activity,omitempty"`
+	Activity       *string    `json:"activity,omitempty"`
+	DurationS      *int       `json:"duration_s,omitempty"`
+	StartedAt      *time.Time `json:"started_at,omitempty"`
+	CompletedAt    *time.Time `json:"completed_at,omitempty"`
+}
+
+func (h *WorkoutSessionHandler) upsertHealthConnect(w http.ResponseWriter, r *http.Request) {
+	hcID := r.PathValue("hc_id")
+	var req healthConnectSessionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	ws, created, err := h.svc.UpsertHealthConnect(r.Context(), hcID, service.HealthConnectSessionParams{
+		SourceActivity: req.SourceActivity,
+		Activity:       req.Activity,
+		DurationS:      req.DurationS,
+		StartedAt:      req.StartedAt,
+		CompletedAt:    req.CompletedAt,
+	})
+	if err != nil {
+		handleServiceError(w, r, err, "session not found")
+		return
+	}
+	resp, err := toResponse(r, ws)
+	if err != nil {
+		internalError(w, r, err)
+		return
+	}
+	if created {
+		jsonResponse(w, resp, http.StatusCreated)
+	} else {
+		jsonOK(w, resp)
+	}
 }
 
 func (h *WorkoutSessionHandler) labels(w http.ResponseWriter, r *http.Request) {

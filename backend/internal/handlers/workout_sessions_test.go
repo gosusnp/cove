@@ -716,6 +716,234 @@ func mustJSON(t *testing.T, v any) *bytes.Buffer {
 	return bytes.NewBuffer(b)
 }
 
+func TestWorkoutSessionHandler_List_UpdatedSince(t *testing.T) {
+	t.Run("returns sessions updated after the given timestamp", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		activity := "Run"
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{Activity: &activity})
+
+		future := ws.UpdatedAt.Add(time.Second).Format(time.RFC3339)
+		r := app.AuthRequest(http.MethodGet, "/api/sessions?updated_since="+future, nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
+		}
+		var got []sessionResp
+		DecodeJSON(t, w, &got)
+		if len(got) != 0 {
+			t.Errorf("got %d sessions, want 0 (session predates updated_since)", len(got))
+		}
+	})
+
+	t.Run("returns sessions when updated_since is before updated_at", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		activity := "Run"
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{Activity: &activity})
+
+		past := ws.UpdatedAt.Add(-time.Second).Format(time.RFC3339)
+		r := app.AuthRequest(http.MethodGet, "/api/sessions?updated_since="+past, nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
+		}
+		var got []sessionResp
+		DecodeJSON(t, w, &got)
+		if len(got) != 1 {
+			t.Errorf("got %d sessions, want 1", len(got))
+		}
+	})
+
+	t.Run("invalid updated_since returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+		r := app.AuthRequest(http.MethodGet, "/api/sessions?updated_since=not-a-timestamp", nil, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+}
+
+func TestWorkoutSessionHandler_UpsertHealthConnect(t *testing.T) {
+	t.Run("creates a new session", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+		body := mustJSON(t, map[string]any{
+			"activity":        "Weightlifting",
+			"duration_s":      3600,
+			"source_activity": "EXERCISE_TYPE_WEIGHT_TRAINING",
+		})
+		r := app.AuthRequest(http.MethodPatch, "/api/sessions/health-connect/hc-uuid-abc", body, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusCreated {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusCreated)
+		}
+		var got struct {
+			Activity        *string `json:"activity"`
+			Source          string  `json:"source"`
+			SourceActivity  *string `json:"source_activity"`
+			HealthConnectID *string `json:"health_connect_id"`
+		}
+		DecodeJSON(t, w, &got)
+		if got.Activity == nil || *got.Activity != "Weightlifting" {
+			t.Errorf("got activity %v, want Weightlifting", got.Activity)
+		}
+		if got.Source != "health_connect" {
+			t.Errorf("got source %q, want health_connect", got.Source)
+		}
+		if got.SourceActivity == nil || *got.SourceActivity != "EXERCISE_TYPE_WEIGHT_TRAINING" {
+			t.Errorf("got source_activity %v, want EXERCISE_TYPE_WEIGHT_TRAINING", got.SourceActivity)
+		}
+		if got.HealthConnectID == nil || *got.HealthConnectID != "hc-uuid-abc" {
+			t.Errorf("got health_connect_id %v, want hc-uuid-abc", got.HealthConnectID)
+		}
+	})
+
+	t.Run("updates existing session", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+
+		body1 := mustJSON(t, map[string]any{"activity": "Run"})
+		r1 := app.AuthRequest(http.MethodPatch, "/api/sessions/health-connect/hc-uuid-def", body1, u1)
+		w1 := app.Do(r1)
+		if w1.Code != http.StatusCreated {
+			t.Fatalf("create: got status %d, want 201", w1.Code)
+		}
+
+		body2 := mustJSON(t, map[string]any{"activity": "Cycling", "duration_s": 7200})
+		r2 := app.AuthRequest(http.MethodPatch, "/api/sessions/health-connect/hc-uuid-def", body2, u1)
+		w2 := app.Do(r2)
+
+		if w2.Code != http.StatusOK {
+			t.Errorf("update: got status %d, want 200", w2.Code)
+		}
+		var got struct {
+			Activity  *string `json:"activity"`
+			DurationS *int    `json:"duration_s"`
+			Source    string  `json:"source"`
+		}
+		DecodeJSON(t, w2, &got)
+		if got.Activity == nil || *got.Activity != "Cycling" {
+			t.Errorf("got activity %v, want Cycling", got.Activity)
+		}
+		if got.DurationS == nil || *got.DurationS != 7200 {
+			t.Errorf("got duration_s %v, want 7200", got.DurationS)
+		}
+		if got.Source != "health_connect" {
+			t.Errorf("source changed on update: got %q, want health_connect", got.Source)
+		}
+	})
+
+	t.Run("invalid body returns 400", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+		r := app.AuthRequest(http.MethodPatch, "/api/sessions/health-connect/hc-uuid-xyz",
+			bytes.NewBufferString("not json"), u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("unauthorized", func(t *testing.T) {
+		app := NewTestApp(t)
+		body := mustJSON(t, map[string]any{"activity": "Run"})
+		r := httptest.NewRequest(http.MethodPatch, "/api/sessions/health-connect/hc-uuid-unauth", body)
+		w := app.Do(r)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusUnauthorized)
+		}
+	})
+
+	t.Run("cannot access another users imported session", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, _ := app.SeedUserWithOrg("u1@test.com", "sub1")
+		u2, _ := app.SeedUserWithOrg("u2@test.com", "sub2")
+
+		body := mustJSON(t, map[string]any{"activity": "Run"})
+		r1 := app.AuthRequest(http.MethodPatch, "/api/sessions/health-connect/hc-uuid-rls", body, u1)
+		w1 := app.Do(r1)
+		if w1.Code != http.StatusCreated {
+			t.Fatalf("create: got status %d, want 201", w1.Code)
+		}
+		var created struct {
+			ID domain.WorkoutSessionID `json:"id"`
+		}
+		DecodeJSON(t, w1, &created)
+
+		// u2 should not see the session u1 imported.
+		r2 := app.AuthRequest(http.MethodGet, fmt.Sprintf("/api/sessions/%d", created.ID), nil, u2)
+		w2 := app.Do(r2)
+		if w2.Code != http.StatusNotFound {
+			t.Errorf("RLS: got status %d, want %d", w2.Code, http.StatusNotFound)
+		}
+	})
+}
+
+func TestWorkoutSessionHandler_Patch_HealthConnectID(t *testing.T) {
+	t.Run("stores health connect id", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+
+		body := mustJSON(t, map[string]any{"health_connect_id": "hc-patch-uuid"})
+		r := app.AuthRequest(http.MethodPatch, fmt.Sprintf("/api/sessions/%d", ws.ID), body, u1)
+		w := app.Do(r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
+		}
+		var got struct {
+			HealthConnectID *string `json:"health_connect_id"`
+		}
+		DecodeJSON(t, w, &got)
+		if got.HealthConnectID == nil || *got.HealthConnectID != "hc-patch-uuid" {
+			t.Errorf("got health_connect_id %v, want hc-patch-uuid", got.HealthConnectID)
+		}
+	})
+
+	t.Run("same value does not bump updated_at", func(t *testing.T) {
+		app := NewTestApp(t)
+		u1, o1 := app.SeedUserWithOrg("u1@test.com", "sub1")
+		ws := app.SeedWorkoutSession(context.Background(), u1, o1, store.WorkoutSessionParams{})
+
+		// First patch — sets the value.
+		body := mustJSON(t, map[string]any{"health_connect_id": "hc-noop-uuid"})
+		r1 := app.AuthRequest(http.MethodPatch, fmt.Sprintf("/api/sessions/%d", ws.ID), body, u1)
+		w1 := app.Do(r1)
+		if w1.Code != http.StatusOK {
+			t.Fatalf("first patch: got status %d", w1.Code)
+		}
+		var after1 struct {
+			UpdatedAt time.Time `json:"updated_at"`
+		}
+		DecodeJSON(t, w1, &after1)
+
+		// Second patch — same value, updated_at must not change.
+		r2 := app.AuthRequest(http.MethodPatch, fmt.Sprintf("/api/sessions/%d", ws.ID),
+			mustJSON(t, map[string]any{"health_connect_id": "hc-noop-uuid"}), u1)
+		w2 := app.Do(r2)
+		if w2.Code != http.StatusOK {
+			t.Fatalf("second patch: got status %d", w2.Code)
+		}
+		var after2 struct {
+			UpdatedAt time.Time `json:"updated_at"`
+		}
+		DecodeJSON(t, w2, &after2)
+		if !after2.UpdatedAt.Equal(after1.UpdatedAt) {
+			t.Errorf("noop: updated_at changed from %v to %v", after1.UpdatedAt, after2.UpdatedAt)
+		}
+	})
+}
+
 func TestWorkoutSessionHandler_TriggerSummary(t *testing.T) {
 	t.Run("job client not configured returns 503", func(t *testing.T) {
 		app := NewTestApp(t)
