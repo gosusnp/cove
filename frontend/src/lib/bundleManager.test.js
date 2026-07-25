@@ -73,6 +73,36 @@ describe("clearBundleIfNeeded", () => {
 		expect(CapacitorUpdater.reset).not.toHaveBeenCalled();
 	});
 
+	it("does not block mounting on setChannel/notifyAppReady for a non-dev native build", async () => {
+		Capacitor.isNativePlatform.mockReturnValue(true);
+		vi.stubEnv("VITE_COVE_ENV", "prod");
+		CapacitorUpdater.setChannel.mockReturnValue(new Promise(() => {}));
+		CapacitorUpdater.notifyAppReady.mockReturnValue(new Promise(() => {}));
+
+		const result = await clearBundleIfNeeded();
+
+		expect(result).toBe(true);
+	});
+
+	it("logs and does not call notifyAppReady when setChannel rejects on a non-dev build", async () => {
+		Capacitor.isNativePlatform.mockReturnValue(true);
+		vi.stubEnv("VITE_COVE_ENV", "prod");
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const error = new Error("bridge unavailable");
+		CapacitorUpdater.setChannel.mockRejectedValue(error);
+
+		const result = await clearBundleIfNeeded();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(result).toBe(true);
+		expect(CapacitorUpdater.notifyAppReady).not.toHaveBeenCalled();
+		expect(warnSpy).toHaveBeenCalledWith(
+			"Bundle manager background call failed:",
+			error,
+		);
+		warnSpy.mockRestore();
+	});
+
 	it("sets channel and mounts normally on dev native build with builtin bundle", async () => {
 		Capacitor.isNativePlatform.mockReturnValue(true);
 		vi.stubEnv("VITE_COVE_ENV", "dev");

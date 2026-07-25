@@ -5,29 +5,37 @@ import { Capacitor } from "@capacitor/core";
 import { CapacitorUpdater } from "@capgo/capacitor-updater";
 
 // On native platforms, pins the Capgo channel to the build's own channel. On
-// dev builds, clears any downloaded OTA bundle and reloads to enforce builtin
-// assets. On other builds, confirms a successful launch via notifyAppReady.
-// Must run before the app is mounted so that a reset and reload can happen
-// cleanly without any UI flashing.
+// dev builds, this blocks so a stale remote OTA bundle can be reset to
+// builtin assets before it ever flashes on screen. On other builds, channel
+// pinning and notifyAppReady are fire-and-forget (chained, not awaited):
+// they must not delay the initial render, since this runs every time the
+// WebView/JS context restarts (background resume, OTA bundle swap), not
+// just on cold start. Failures are only logged since there's no render path
+// left to surface them to.
 export async function clearBundleIfNeeded() {
 	if (!Capacitor.isNativePlatform()) return true;
 
 	const channel = import.meta.env.VITE_COVE_ENV;
 	if (!channel) throw new Error("VITE_COVE_ENV is not set");
-	await CapacitorUpdater.setChannel({ channel });
 
-	if (channel === "dev") {
-		const { bundle } = await CapacitorUpdater.current();
-		if (bundle.id !== "builtin") {
-			console.warn(
-				"[Dev] Remote OTA bundle detected. Resetting to builtin assets...",
+	if (channel !== "dev") {
+		CapacitorUpdater.setChannel({ channel })
+			.then(() => CapacitorUpdater.notifyAppReady())
+			.catch((err) =>
+				console.warn("Bundle manager background call failed:", err),
 			);
-			await CapacitorUpdater.reset({ toLastSuccessful: false });
-			window.location.reload();
-			return false;
-		}
-	} else {
-		await CapacitorUpdater.notifyAppReady();
+		return true;
+	}
+
+	await CapacitorUpdater.setChannel({ channel });
+	const { bundle } = await CapacitorUpdater.current();
+	if (bundle.id !== "builtin") {
+		console.warn(
+			"[Dev] Remote OTA bundle detected. Resetting to builtin assets...",
+		);
+		await CapacitorUpdater.reset({ toLastSuccessful: false });
+		window.location.reload();
+		return false;
 	}
 
 	return true;
