@@ -3,4 +3,7 @@
 
 export const CapacitorUpdater = {
 	notifyAppReady: async () => {},
+	setChannel: async () => {},
+	current: async () => ({ bundle: { id: "builtin" } }),
+	reset: async () => {},
 };

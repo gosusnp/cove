@@ -6,5 +6,10 @@
 import { render } from "preact";
 import "./app.css";
 import { App } from "./App.jsx";
+import { clearBundleIfNeeded } from "./lib/bundleManager.js";
 
-render(<App />, document.getElementById("app"));
+(async () => {
+	const shouldMount = await clearBundleIfNeeded();
+	if (!shouldMount) return;
+	render(<App />, document.getElementById("app"));
+})();

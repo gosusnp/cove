@@ -47,6 +47,9 @@ ota-bundle:
 android.build:
 	npm run cap:sync
 
+android.dev:
+	npm run cap:dev
+
 android.run:
 	npm run cap:run
 
@@ -54,4 +57,4 @@ install:
 	npm install
 	npx playwright install --with-deps
 
-.PHONY: run watch build preview lint fmt fmt-check license-fix license-check test test.e2e e2e.ui fix check install ota-bundle android.build android.run
+.PHONY: run watch build preview lint fmt fmt-check license-fix license-check test test.e2e e2e.ui fix check install ota-bundle android.build android.dev android.run

@@ -80,6 +80,9 @@ frontend.pre-commit:
 android.build:
 	$(MAKE) -C frontend android.build
 
+android.dev:
+	$(MAKE) -C frontend android.dev
+
 android.run:
 	$(MAKE) -C frontend android.run
 
@@ -92,4 +95,4 @@ android.fix:
 android.pre-commit:
 	$(MAKE) -C android pre-commit
 
-.PHONY: preview dev build check fix test.e2e devenv.up devenv.down devenv.reset backend.build backend.check backend.fix backend.run backend.watch frontend.build frontend.check frontend.fix frontend.run frontend.watch frontend.ota-bundle android.build android.run android.check android.fix
+.PHONY: preview dev build check fix test.e2e devenv.up devenv.down devenv.reset backend.build backend.check backend.fix backend.run backend.watch frontend.build frontend.check frontend.fix frontend.run frontend.watch frontend.ota-bundle android.build android.dev android.run android.check android.fix
