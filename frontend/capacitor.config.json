@@ -1,5 +1,5 @@
 {
-	"appId": "com.cove.app",
+	"appId": "dev.pgnd.cove",
 	"appName": "Cove",
 	"webDir": "dist-mobile",
 	"android": {

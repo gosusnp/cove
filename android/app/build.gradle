@@ -5,10 +5,10 @@ apply plugin: 'com.android.application'
 apply plugin: 'com.google.gms.google-services'
 
 android {
-    namespace = "com.cove.app"
+    namespace = "dev.pgnd.cove"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.cove.app"
+        applicationId "dev.pgnd.cove"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

@@ -7,6 +7,6 @@
 <resources>
     <string name="app_name">Cove</string>
     <string name="title_activity_main">Cove</string>
-    <string name="package_name">com.cove.app</string>
-    <string name="custom_url_scheme">com.cove.app</string>
+    <string name="package_name">dev.pgnd.cove</string>
+    <string name="custom_url_scheme">dev.pgnd.cove</string>
 </resources>

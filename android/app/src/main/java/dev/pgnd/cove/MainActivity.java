@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Elastic-2.0
  */
 
-package com.cove.app;
+package dev.pgnd.cove;
 
 import com.getcapacitor.BridgeActivity;
 
