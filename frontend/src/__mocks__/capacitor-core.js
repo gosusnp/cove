@@ -3,4 +3,9 @@
 
 export const Capacitor = {
 	isNativePlatform: () => false,
+	getPlatform: () => "web",
 };
+
+export function registerPlugin(_name, fallbacks) {
+	return fallbacks?.web ?? {};
+}

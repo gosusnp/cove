@@ -10,4 +10,7 @@ check: license-check
 
 pre-commit: fix check
 
+bundle:
+	./gradlew bundleRelease
+
 .PHONY: license-check license-fix fix check

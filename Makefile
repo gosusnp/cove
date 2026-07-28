@@ -95,4 +95,7 @@ android.fix:
 android.pre-commit:
 	$(MAKE) -C android pre-commit
 
+android.bundle:
+	$(MAKE) -C android bundle
+
 .PHONY: preview dev build check fix test.e2e devenv.up devenv.down devenv.reset backend.build backend.check backend.fix backend.run backend.watch frontend.build frontend.check frontend.fix frontend.run frontend.watch frontend.ota-bundle android.build android.dev android.run android.check android.fix

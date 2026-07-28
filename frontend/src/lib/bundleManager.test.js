@@ -11,6 +11,8 @@ vi.mock("@capgo/capacitor-updater", () => ({
 	CapacitorUpdater: {
 		setChannel: vi.fn(),
 		current: vi.fn(),
+		list: vi.fn(),
+		delete: vi.fn(),
 		reset: vi.fn(),
 		notifyAppReady: vi.fn(),
 	},
@@ -28,6 +30,8 @@ describe("clearBundleIfNeeded", () => {
 		vi.stubGlobal("location", { reload: reloadMock });
 		CapacitorUpdater.setChannel.mockResolvedValue(undefined);
 		CapacitorUpdater.current.mockResolvedValue({ bundle: { id: "builtin" } });
+		CapacitorUpdater.list.mockResolvedValue({ bundles: [] });
+		CapacitorUpdater.delete.mockResolvedValue(undefined);
 		CapacitorUpdater.reset.mockResolvedValue(undefined);
 		CapacitorUpdater.notifyAppReady.mockResolvedValue(undefined);
 	});
@@ -84,7 +88,7 @@ describe("clearBundleIfNeeded", () => {
 		expect(result).toBe(true);
 	});
 
-	it("logs and does not call notifyAppReady when setChannel rejects on a non-dev build", async () => {
+	it("logs setChannel failure but still calls notifyAppReady on a non-dev build", async () => {
 		Capacitor.isNativePlatform.mockReturnValue(true);
 		vi.stubEnv("VITE_COVE_ENV", "prod");
 		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -95,40 +99,56 @@ describe("clearBundleIfNeeded", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(result).toBe(true);
-		expect(CapacitorUpdater.notifyAppReady).not.toHaveBeenCalled();
-		expect(warnSpy).toHaveBeenCalledWith(
-			"Bundle manager background call failed:",
-			error,
-		);
+		expect(CapacitorUpdater.notifyAppReady).toHaveBeenCalled();
+		expect(warnSpy).toHaveBeenCalledWith("setChannel failed:", error);
 		warnSpy.mockRestore();
 	});
 
-	it("sets channel and mounts normally on dev native build with builtin bundle", async () => {
+	it("mounts normally on dev native build with builtin bundle and no stored bundles", async () => {
 		Capacitor.isNativePlatform.mockReturnValue(true);
 		vi.stubEnv("VITE_COVE_ENV", "dev");
 		CapacitorUpdater.current.mockResolvedValue({ bundle: { id: "builtin" } });
+		CapacitorUpdater.list.mockResolvedValue({ bundles: [] });
 
 		const result = await clearBundleIfNeeded();
 
 		expect(result).toBe(true);
-		expect(CapacitorUpdater.setChannel).toHaveBeenCalledWith({
-			channel: "dev",
-		});
+		expect(CapacitorUpdater.setChannel).not.toHaveBeenCalled();
 		expect(CapacitorUpdater.notifyAppReady).not.toHaveBeenCalled();
+		expect(CapacitorUpdater.delete).not.toHaveBeenCalled();
 		expect(CapacitorUpdater.reset).not.toHaveBeenCalled();
 	});
 
-	it("resets and reloads on dev native build with non-builtin bundle", async () => {
+	it("cleans up stale stored bundles without reloading when current is builtin", async () => {
+		Capacitor.isNativePlatform.mockReturnValue(true);
+		vi.stubEnv("VITE_COVE_ENV", "dev");
+		CapacitorUpdater.current.mockResolvedValue({ bundle: { id: "builtin" } });
+		CapacitorUpdater.list.mockResolvedValue({
+			bundles: [{ id: "v1.0.0" }, { id: "v1.1.0" }],
+		});
+
+		const result = await clearBundleIfNeeded();
+
+		expect(result).toBe(true);
+		expect(CapacitorUpdater.delete).toHaveBeenCalledWith({ id: "v1.0.0" });
+		expect(CapacitorUpdater.delete).toHaveBeenCalledWith({ id: "v1.1.0" });
+		expect(CapacitorUpdater.reset).not.toHaveBeenCalled();
+		expect(reloadMock).not.toHaveBeenCalled();
+	});
+
+	it("deletes stored bundles and resets on dev native build with non-builtin active bundle", async () => {
 		Capacitor.isNativePlatform.mockReturnValue(true);
 		vi.stubEnv("VITE_COVE_ENV", "dev");
 		CapacitorUpdater.current.mockResolvedValue({ bundle: { id: "v1.2.3" } });
+		CapacitorUpdater.list.mockResolvedValue({
+			bundles: [{ id: "v1.2.3" }],
+		});
 
 		const result = await clearBundleIfNeeded();
 
 		expect(result).toBe(false);
-		expect(CapacitorUpdater.setChannel).toHaveBeenCalledWith({
-			channel: "dev",
-		});
+		expect(CapacitorUpdater.setChannel).not.toHaveBeenCalled();
+		expect(CapacitorUpdater.delete).toHaveBeenCalledWith({ id: "v1.2.3" });
 		expect(CapacitorUpdater.reset).toHaveBeenCalledWith({
 			toLastSuccessful: false,
 		});

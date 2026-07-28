@@ -3,6 +3,9 @@
 # Google Services config (contains project/client IDs — not secret but not committed)
 app/google-services.json
 
+# Keystore
+cove-release.keystore
+
 # Built application files
 *.apk
 *.aar
@@ -102,3 +105,4 @@ app/src/main/assets/public
 app/src/main/assets/capacitor.config.json
 app/src/main/assets/capacitor.plugins.json
 app/src/main/res/xml/config.xml
+keystore.properties

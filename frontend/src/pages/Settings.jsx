@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { useSignal } from "@preact/signals";
+import { Capacitor } from "@capacitor/core";
 import { useEffect } from "preact/hooks";
 import { useLocation } from "preact-iso";
 import { useAuth } from "../Auth.jsx";
@@ -16,11 +17,17 @@ import {
 } from "../components/ui/Dialog.jsx";
 import { PageTitle } from "../components/ui/PageTitle.jsx";
 import { Row, Section } from "../components/ui/Section.jsx";
+import { Switch } from "../components/ui/Switch.jsx";
 import { TextField } from "../components/ui/TextField.jsx";
 import { ToggleGroup } from "../components/ui/ToggleGroup.jsx";
 import { useDialog } from "../hooks/useDialog.js";
 import { timeAgo } from "../lib/utils";
 import { apiFetch } from "../lib/api.js";
+import {
+	isHealthConnectAvailable,
+	openHealthConnectSettings,
+	requestHealthConnectPermission,
+} from "../lib/healthConnect.js";
 
 function initials(user) {
 	if (user.display_name) {
@@ -53,6 +60,7 @@ function displayLabel(user) {
 export function Settings() {
 	const { user, logout, updateUser } = useAuth();
 	const { route } = useLocation();
+	const isAndroid = Capacitor.getPlatform() === "android";
 
 	// ── User profile ────────────────────────────────────────────────────
 	useEffect(() => {
@@ -103,6 +111,48 @@ export function Settings() {
 		});
 		if (r.ok) updateUser(await r.json());
 		else signal.value = prev;
+	}
+
+	// ── Health Connect ───────────────────────────────────────────────────
+	const hcEnabled = useSignal(false);
+	const hcEnabling = useSignal(false);
+	const hcStatusMsg = useSignal("");
+	const hcPermissionDenied = useSignal(false);
+
+	useEffect(() => {
+		if (!isAndroid) return;
+		hcEnabled.value = localStorage.getItem("hc_sync_enabled") === "true";
+	}, []);
+
+	async function handleHCToggle(enabled) {
+		if (!enabled) {
+			localStorage.removeItem("hc_sync_enabled");
+			hcEnabled.value = false;
+			hcStatusMsg.value = "";
+			hcPermissionDenied.value = false;
+			return;
+		}
+		hcEnabling.value = true;
+		hcStatusMsg.value = "";
+		hcPermissionDenied.value = false;
+		try {
+			const available = await isHealthConnectAvailable();
+			if (!available) {
+				hcStatusMsg.value = "Health Connect is not installed on this device.";
+				return;
+			}
+			const granted = await requestHealthConnectPermission();
+			if (granted) {
+				localStorage.setItem("hc_sync_enabled", "true");
+				hcEnabled.value = true;
+			} else {
+				hcStatusMsg.value =
+					"Permission denied. Open Health Connect and grant access under App permissions.";
+				hcPermissionDenied.value = true;
+			}
+		} finally {
+			hcEnabling.value = false;
+		}
 	}
 
 	// ── Tokens ───────────────────────────────────────────────────────────
@@ -324,6 +374,39 @@ export function Settings() {
 					Connected
 				</Row>
 			</Section>
+
+			{isAndroid && (
+				<Section title="Health Connect">
+					<Row label="Sync workouts" last={!hcStatusMsg.value}>
+						<Switch
+							checked={hcEnabled.value}
+							onCheckedChange={handleHCToggle}
+							disabled={hcEnabling.value}
+							aria-label="Sync workouts with Health Connect"
+						/>
+					</Row>
+					{hcStatusMsg.value && (
+						<Row
+							label={
+								<span style={{ color: "var(--color-error)" }}>
+									{hcStatusMsg.value}
+								</span>
+							}
+							last={!hcPermissionDenied.value}
+						>
+							{hcPermissionDenied.value && (
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={openHealthConnectSettings}
+								>
+									Open settings
+								</Button>
+							)}
+						</Row>
+					)}
+				</Section>
+			)}
 
 			<Section
 				title="API Tokens"

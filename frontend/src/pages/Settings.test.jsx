@@ -2,9 +2,21 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 import { fireEvent, screen, waitFor, within } from "@testing-library/preact";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Capacitor } from "@capacitor/core";
 import { withProviders } from "../test-utils.jsx";
 import { Settings } from "./Settings.jsx";
+import {
+	isHealthConnectAvailable,
+	openHealthConnectSettings,
+	requestHealthConnectPermission,
+} from "../lib/healthConnect.js";
+
+vi.mock("../lib/healthConnect.js", () => ({
+	isHealthConnectAvailable: vi.fn(),
+	requestHealthConnectPermission: vi.fn(),
+	openHealthConnectSettings: vi.fn(),
+}));
 
 vi.mock("../components/ui/Dialog.jsx", () => ({
 	Dialog: ({ children }) => <div data-testid="mock-dialog">{children}</div>,
@@ -57,7 +69,10 @@ function mockFetch({ tokens = [], sessions = [], meUser = MOCK_USER } = {}) {
 }
 
 describe("Settings", () => {
-	afterEach(() => vi.restoreAllMocks());
+	afterEach(() => {
+		vi.restoreAllMocks();
+		localStorage.clear();
+	});
 
 	describe("profile", () => {
 		it("renders the page heading", () => {
@@ -508,6 +523,127 @@ describe("Settings", () => {
 				).toBeInTheDocument(),
 			);
 			expect(screen.getByText(/Firefox on Linux/)).toBeInTheDocument();
+		});
+	});
+
+	describe("Health Connect", () => {
+		beforeEach(() => {
+			mockFetch();
+		});
+
+		it("does not show the HC section on web", () => {
+			renderSettings();
+			expect(screen.queryByText("Health Connect")).not.toBeInTheDocument();
+		});
+
+		describe("on Android", () => {
+			beforeEach(() => {
+				vi.spyOn(Capacitor, "getPlatform").mockReturnValue("android");
+			});
+
+			it("shows the Health Connect section", () => {
+				renderSettings();
+				expect(screen.getByText("Health Connect")).toBeInTheDocument();
+				expect(
+					screen.getByRole("switch", {
+						name: "Sync workouts with Health Connect",
+					}),
+				).toBeInTheDocument();
+			});
+
+			it("shows sync enabled when restored from storage", () => {
+				localStorage.setItem("hc_sync_enabled", "true");
+				renderSettings();
+				expect(
+					screen.getByRole("switch", {
+						name: "Sync workouts with Health Connect",
+					}),
+				).toHaveAttribute("aria-checked", "true");
+			});
+
+			it("enables sync when HC is available and permission is granted", async () => {
+				isHealthConnectAvailable.mockResolvedValue(true);
+				requestHealthConnectPermission.mockResolvedValue(true);
+				renderSettings();
+				const toggle = screen.getByRole("switch", {
+					name: "Sync workouts with Health Connect",
+				});
+				fireEvent.click(toggle);
+				await waitFor(() =>
+					expect(toggle).toHaveAttribute("aria-checked", "true"),
+				);
+				expect(localStorage.getItem("hc_sync_enabled")).toBe("true");
+			});
+
+			it("shows error when Health Connect is not installed", async () => {
+				isHealthConnectAvailable.mockResolvedValue(false);
+				renderSettings();
+				fireEvent.click(
+					screen.getByRole("switch", {
+						name: "Sync workouts with Health Connect",
+					}),
+				);
+				await waitFor(() =>
+					expect(
+						screen.getByText("Health Connect is not installed on this device."),
+					).toBeInTheDocument(),
+				);
+				expect(localStorage.getItem("hc_sync_enabled")).toBeNull();
+			});
+
+			it("shows error and open settings button when permission is denied", async () => {
+				isHealthConnectAvailable.mockResolvedValue(true);
+				requestHealthConnectPermission.mockResolvedValue(false);
+				renderSettings();
+				fireEvent.click(
+					screen.getByRole("switch", {
+						name: "Sync workouts with Health Connect",
+					}),
+				);
+				await waitFor(() =>
+					expect(
+						screen.getByText(
+							"Permission denied. Open Health Connect and grant access under App permissions.",
+						),
+					).toBeInTheDocument(),
+				);
+				expect(
+					screen.getByRole("button", { name: "Open settings" }),
+				).toBeInTheDocument();
+				expect(localStorage.getItem("hc_sync_enabled")).toBeNull();
+			});
+
+			it("opens Health Connect settings when button is clicked", async () => {
+				isHealthConnectAvailable.mockResolvedValue(true);
+				requestHealthConnectPermission.mockResolvedValue(false);
+				renderSettings();
+				fireEvent.click(
+					screen.getByRole("switch", {
+						name: "Sync workouts with Health Connect",
+					}),
+				);
+				await waitFor(() =>
+					expect(
+						screen.getByRole("button", { name: "Open settings" }),
+					).toBeInTheDocument(),
+				);
+				fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+				expect(openHealthConnectSettings).toHaveBeenCalled();
+			});
+
+			it("disables sync and clears status when toggled off", async () => {
+				localStorage.setItem("hc_sync_enabled", "true");
+				renderSettings();
+				const toggle = screen.getByRole("switch", {
+					name: "Sync workouts with Health Connect",
+				});
+				expect(toggle).toHaveAttribute("aria-checked", "true");
+				fireEvent.click(toggle);
+				await waitFor(() =>
+					expect(toggle).toHaveAttribute("aria-checked", "false"),
+				);
+				expect(localStorage.getItem("hc_sync_enabled")).toBeNull();
+			});
 		});
 	});
 });
